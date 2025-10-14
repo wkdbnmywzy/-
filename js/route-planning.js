@@ -375,7 +375,7 @@ function startKMLSimulationNavigation(kmlRoute) {
                 position: path[path.length - 1],
                 icon: new AMap.Icon({
                     size: new AMap.Size(30, 38),
-                    image: '../images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
+                    image: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
                     imageSize: new AMap.Size(30, 38)
                 }),
                 map: map,

@@ -20,12 +20,12 @@ const MapConfig = {
             size: 24
         },
         currentLocation: {
-            // 使用本地“我的位置”图标（统一为 地图icon 目录 2X 版本）
-            icon: '../images/工地数字导航小程序切图/司机/2X/地图icon/我的位置.png'
+            // 使用本地"我的位置"图标（统一为 地图icon 目录 2X 版本）
+            icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/我的位置.png'
         },
         destination: {
-            // 使用本地“终点”图标（用于通用目的地标记，如搜索结果）
-            icon: '../images/工地数字导航小程序切图/司机/2X/地图icon/终点.png'
+            // 使用本地"终点"图标（用于通用目的地标记,如搜索结果）
+            icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png'
         },
         navigation: {
             icon: 'https://webapi.amap.com/theme/v1.3/markers/n/car.png'
