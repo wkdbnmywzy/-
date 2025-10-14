@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>工地地图</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=02e4976e38eb8bc8bcf71a9c485cc2ae"></script>
+</head>
+<!-- 隐藏的文件输入 -->
+<input type="file" id="file-input" accept=".kml" style="display: none;">
+<body>
+    <div class="container">
+        <!-- 地图容器 -->
+        <div id="map-container"></div>
+        
+        <!-- 搜索区域 -->
+        <div class="search-container">
+            <div class="search-box">
+                <i class="search-icon fas fa-search"></i>
+                <input type="text" placeholder="搜索" id="search-input">
+            </div>
+            <div class="search-results" id="search-results">
+                <!-- 搜索结果将动态填充 -->
+            </div>
+        </div>
+        
+        <!-- 地图控制按钮 -->
+        <div class="map-controls">
+            <button class="control-btn" id="locate-btn" title="定位">
+                <i class="fas fa-location-arrow"></i>
+            </button>
+            <button class="control-btn" id="zoom-in-btn" title="放大">
+                <i class="fas fa-plus"></i>
+            </button>
+            <button class="control-btn" id="zoom-out-btn" title="缩小">
+                <i class="fas fa-minus"></i>
+            </button>
+            <!-- 导入按钮 -->
+            <button class="control-btn" id="import-btn" title="导入数据">
+                <i class="fas fa-upload"></i>
+            </button>
+        </div>
+        
+        <!-- 底部卡片 -->
+        <div class="bottom-card" id="bottom-card">
+            <!-- 路线规划界面 -->
+            <div class="route-planning-section" id="route-planning-section">
+                <div class="route-selector">
+                    <div class="location-inputs">
+                        <div class="location-item">
+                            <i class="fas fa-dot-circle"></i>
+                            <input type="text" placeholder="输入起点位置" id="start-location" readonly>
+                        </div>
+                        <div class="location-item">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <input type="text" placeholder="选择目的地" id="end-location" readonly>
+                        </div>
+                        <div class="waypoints-container" id="waypoints-container">
+                            <!-- 途经点将动态添加 -->
+                        </div>
+                    </div>
+                    <div class="add-waypoint">
+                        <div class="add-btn" id="add-waypoint-btn">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <div class="waypoint-label">途经点</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 全屏选择面板 -->
+        <div class="point-picker-panel" id="point-picker-panel">
+            <!-- 顶部导航栏 -->
+            <div class="picker-header">
+                <button class="picker-back-btn" id="picker-back-btn">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <h2 class="picker-title">路线规划</h2>
+            </div>
+
+            <div class="picker-content">
+                <!-- 路线规划卡片 -->
+                <div class="picker-route-card">
+                    <div class="picker-route-selector">
+                        <div class="picker-location-inputs">
+                            <div class="picker-location-row">
+                                <i class="fas fa-circle picker-start-icon"></i>
+                                <input type="text" placeholder="我的位置" id="picker-start-location">
+                            </div>
+                            <div class="picker-location-row">
+                                <i class="fas fa-map-marker-alt picker-end-icon"></i>
+                                <input type="text" placeholder="请输入目的地" id="picker-end-location">
+                            </div>
+                        </div>
+                        <div class="picker-add-waypoint">
+                            <div class="picker-add-btn" id="picker-add-waypoint-btn">
+                                <i class="fas fa-plus"></i>
+                            </div>
+                            <div class="picker-waypoint-label">途经点</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 完成按钮 -->
+                <button class="picker-complete-btn" id="picker-complete-btn">完成</button>
+
+                <!-- 分类标签 -->
+                <div class="picker-categories">
+                    <div class="picker-category-section">
+                        <div class="picker-category-title">建筑</div>
+                        <div class="picker-category-tags">
+                            <span class="picker-tag">1号楼</span>
+                            <span class="picker-tag">2号楼</span>
+                            <span class="picker-tag">3号楼</span>
+                            <span class="picker-tag">4号楼</span>
+                            <span class="picker-tag">5号楼</span>
+                        </div>
+                    </div>
+                    <div class="picker-category-section">
+                        <div class="picker-category-title">区域</div>
+                        <div class="picker-category-tags">
+                            <span class="picker-tag">1号楼材料堆放区</span>
+                            <span class="picker-tag">砂石堆放区</span>
+                            <span class="picker-tag">墙体材料区</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 地点列表 -->
+                <div class="picker-location-list" id="picker-location-list">
+                    <div class="picker-location-item">
+                        <i class="fas fa-location-arrow"></i>
+                        <div class="picker-location-text">我的位置</div>
+                        <button class="picker-add-icon">+</button>
+                    </div>
+                    <!-- 历史搜索将动态插入此处 -->
+                </div>
+            </div>
+        </div>
+
+        
+        <!-- 底部导航 -->
+        <div class="bottom-nav">
+            <div class="nav-item active" data-page="index">
+                <img class="nav-icon-img" src="../images/工地数字导航小程序切图/司机/2X/菜单栏/导航-up.png" data-active="../images/工地数字导航小程序切图/司机/2X/菜单栏/导航-up.png" data-inactive="../images/工地数字导航小程序切图/司机/2X/菜单栏/导航-down.png" alt="导航">
+                <div class="nav-text">导航</div>
+            </div>
+            <div class="nav-item" data-page="task">
+                <img class="nav-icon-img" src="../images/工地数字导航小程序切图/司机/2X/菜单栏/任务-down.png" data-active="../images/工地数字导航小程序切图/司机/2X/菜单栏/任务-up.png" data-inactive="../images/工地数字导航小程序切图/司机/2X/菜单栏/任务-down.png" alt="任务">
+                <div class="nav-text">任务</div>
+            </div>
+            <div class="nav-item" data-page="profile">
+                <img class="nav-icon-img" src="../images/工地数字导航小程序切图/司机/2X/菜单栏/我的-down.png" data-active="../images/工地数字导航小程序切图/司机/2X/菜单栏/我的-up.png" data-inactive="../images/工地数字导航小程序切图/司机/2X/菜单栏/我的-down.png" alt="我的">
+                <div class="nav-text">我的</div>
+            </div>
+        </div>
+    </div>
+    <!-- 在 index.html 中更新脚本引用 -->
+    <script src="../js/config.js"></script>
+    <script src="../js/coordinate-convert.js"></script>
+    <script src="../js/map-core.js"></script>
+    <script src="../js/kml-handler.js"></script>
+    <script src="../js/search-service.js"></script>
+    <script src="../js/enhanced-highlight.js"></script>
+    <script src="../js/point-selection.js"></script>
+    <script src="../js/kml-route-planning.js"></script>
+    <script src="../js/route-planning.js"></script>
+    <script src="../js/ui-utils.js"></script>
+    <script src="../js/main.js"></script>
+</body>
+</html>

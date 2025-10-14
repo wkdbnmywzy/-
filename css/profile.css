@@ -1,0 +1,190 @@
+/* profile.css - 我的页面样式 */
+
+.profile-page {
+    width: 100%;
+    min-height: 100vh;
+    background: #ffffff;
+    padding-bottom: 80px;
+}
+
+/* 顶部标题栏 */
+.profile-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 20px;
+    background: #fff;
+}
+
+.profile-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+/* 司机信息卡片 */
+.driver-card {
+    position: relative;
+    margin: 20px 15px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(33, 150, 243, 0.3);
+    height: 140px;
+    background: linear-gradient(135deg, #42A5F5 0%, #2196F3 100%);
+}
+
+.card-background {
+    width: auto;
+    height: 120%;
+    object-fit: contain;
+    display: block;
+    position: absolute;
+    right: -10px;
+    bottom: -10px;
+    top: auto;
+    left: auto;
+    z-index: 1;
+    opacity: 0.2;
+}
+
+.driver-info {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 20px 25px;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    z-index: 2;
+}
+
+.driver-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.driver-details {
+    flex: 1;
+    padding-top: 2px;
+}
+
+.driver-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0 0 12px 0;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.driver-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.contact-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    filter: brightness(0) invert(1) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+}
+
+.contact-text {
+    font-size: 14px;
+    color: #ffffff;
+    font-weight: 400;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.card-decoration {
+    display: none;
+}
+
+/* 退出登录区域 */
+.logout-section {
+    position: fixed;
+    bottom: 100px;
+    left: 0;
+    right: 0;
+    padding: 0 30px;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.logout-btn {
+    width: 100%;
+    height: 50px;
+    background: linear-gradient(135deg, #FF8A80 0%, #FF6B6B 100%);
+    border: none;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
+    transition: all 0.3s;
+}
+
+.logout-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.25);
+}
+
+.logout-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.logout-btn span {
+    font-size: 16px;
+    font-weight: 400;
+    color: #fff;
+}
+
+/* 响应式调整 */
+@media (max-width: 375px) {
+    .driver-card {
+        height: 130px;
+    }
+
+    .driver-avatar {
+        width: 55px;
+        height: 55px;
+    }
+
+    .driver-name {
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+
+    .contact-text {
+        font-size: 12px;
+    }
+
+    .contact-icon {
+        width: 12px;
+        height: 12px;
+    }
+
+    .card-decoration {
+        width: 150px;
+        height: 150px;
+    }
+}

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>任务列表</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/task.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 任务页面 -->
+        <div class="task-page">
+            <div class="task-header">
+                <h1 class="task-title">任务列表</h1>
+            </div>
+
+            <!-- 空状态 -->
+            <div class="task-empty" id="task-empty">
+                <div class="empty-icon">
+                    <svg width="200" height="160" viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M50 120 L50 80 L75 60 L125 60 L150 80 L150 120 Z" fill="#E3F2FD" stroke="#90CAF9" stroke-width="3"/>
+                        <rect x="60" y="90" width="80" height="30" fill="#BBDEFB"/>
+                        <line x1="60" y1="50" x2="70" y2="35" stroke="#90CAF9" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="100" y1="50" x2="100" y2="30" stroke="#90CAF9" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="140" y1="50" x2="130" y2="35" stroke="#90CAF9" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="empty-text">当前无任务</div>
+            </div>
+
+            <!-- 任务列表 -->
+            <div class="task-list" id="task-list">
+                <!-- 任务卡片将动态插入 -->
+            </div>
+        </div>
+
+        <!-- 导航确认弹窗 -->
+        <div class="nav-confirm-dialog" id="nav-confirm-dialog">
+            <div class="nav-dialog-overlay"></div>
+            <div class="nav-dialog-content">
+                <div class="nav-dialog-header">
+                    <i class="fas fa-location-dot nav-dialog-icon"></i>
+                </div>
+                <h3 class="nav-dialog-title">是否前往</h3>
+                <div class="nav-dialog-body">
+                    <div class="nav-dialog-project" id="nav-dialog-project"></div>
+                    <div class="nav-dialog-location" id="nav-dialog-location"></div>
+                </div>
+                <div class="nav-dialog-actions">
+                    <button class="nav-dialog-btn nav-dialog-confirm" id="nav-dialog-confirm">确定</button>
+                    <button class="nav-dialog-btn nav-dialog-cancel" id="nav-dialog-cancel">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部导航 -->
+        <div class="bottom-nav">
+            <div class="nav-item" data-page="index">
+                <img class="nav-icon-img" src="../images/工地数字导航小程序切图/司机/2X/菜单栏/导航-down.png" data-active="../images/工地数字导航小程序切图/司机/2X/菜单栏/导航-up.png" data-inactive="../images/工地数字导航小程序切图/司机/2X/菜单栏/导航-down.png" alt="导航">
+                <div class="nav-text">导航</div>
+            </div>
+            <div class="nav-item active" data-page="task">
+                <img class="nav-icon-img" src="../images/工地数字导航小程序切图/司机/2X/菜单栏/任务-up.png" data-active="../images/工地数字导航小程序切图/司机/2X/菜单栏/任务-up.png" data-inactive="../images/工地数字导航小程序切图/司机/2X/菜单栏/任务-down.png" alt="任务">
+                <div class="nav-text">任务</div>
+            </div>
+            <div class="nav-item" data-page="profile">
+                <img class="nav-icon-img" src="../images/工地数字导航小程序切图/司机/2X/菜单栏/我的-down.png" data-active="../images/工地数字导航小程序切图/司机/2X/菜单栏/我的-up.png" data-inactive="../images/工地数字导航小程序切图/司机/2X/菜单栏/我的-down.png" alt="我的">
+                <div class="nav-text">我的</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/task.js"></script>
+</body>
+</html>

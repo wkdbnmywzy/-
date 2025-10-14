@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>登录 - 工地数字导航</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/login.css">
+</head>
+<body>
+    <!-- 加载界面 -->
+    <div class="loading-screen" id="loading-screen">
+        <div class="loading-content">
+            <img src="../images/工地数字导航小程序切图/司机/2X/登录/加载中.png" alt="加载中" class="loading-icon">
+            <div class="loading-text">加载中...</div>
+        </div>
+    </div>
+
+    <!-- 头部 -->
+    <div class="header">
+        <h1 class="page-title">登录</h1>
+    </div>
+
+    <div class="login-container">
+        <!-- 地图背景区域 -->
+        <div class="map-background">
+            <div class="logo-section">
+                <img src="../images/工地数字导航小程序切图/司机/2X/登录/logo.png" alt="Logo" class="logo-icon">
+                <h1 class="app-title">工地数字导航</h1>
+            </div>
+        </div>
+
+        <!-- 登录表单卡片 -->
+        <div class="login-card">
+            <!-- 登录方式切换 -->
+            <div class="login-tabs" id="login-tabs">
+                <button class="tab-btn active" data-tab="phone">手机号</button>
+                <button class="tab-btn" data-tab="account">账号密码</button>
+            </div>
+
+            <!-- 手机号登录表单 -->
+            <form class="login-form" id="phone-login-form">
+                <div class="form-group">
+                    <input type="tel" id="phone" class="form-input" placeholder="请输入手机号" maxlength="11">
+                </div>
+
+                <div class="form-group code-group">
+                    <input type="text" id="code" class="form-input" placeholder="请输入验证码" maxlength="6">
+                    <button type="button" class="get-code-btn" id="get-code-btn">获取验证码</button>
+                </div>
+
+                <button type="submit" class="login-btn primary-btn">
+                    手机号一键登录
+                </button>
+
+                <div class="error-message" id="error-message"></div>
+            </form>
+
+            <!-- 账号密码登录表单 (隐藏) -->
+            <form class="login-form hidden" id="account-login-form">
+                <div class="form-group account-form-group">
+                    <label class="account-label">账号:</label>
+                    <input type="text" id="username" class="form-input account-input" placeholder="" autocomplete="username">
+                </div>
+
+                <div class="form-group account-form-group">
+                    <label class="account-label">密码:</label>
+                    <input type="password" id="password" class="form-input account-input" placeholder="" autocomplete="current-password">
+                </div>
+
+                <button type="submit" class="login-btn primary-btn">
+                    确定
+                </button>
+
+                <div class="error-message" id="account-error-message"></div>
+            </form>
+        </div>
+
+        <!-- 项目选择卡片（覆盖层，初始隐藏） -->
+        <div class="project-card hidden" id="project-card">
+            <!-- 项目选择标题 -->
+            <div class="project-header">
+                <button class="back-arrow" id="project-back-btn">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <h2 class="project-title">项目选择</h2>
+            </div>
+
+            <!-- 项目选择内容 -->
+            <div class="project-selection" id="project-selection">
+                <div class="picker-container">
+                    <!-- 左侧省份选择器 -->
+                    <div class="picker-wrapper">
+                        <div class="picker-label">省份</div>
+                        <div class="wheel-picker">
+                            <div class="picker-mask"></div>
+                            <div class="picker-highlight"></div>
+                            <div class="picker-column" id="province-column">
+                                <!-- 动态生成省份列表 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧项目选择器 -->
+                    <div class="picker-wrapper">
+                        <div class="picker-label">项目</div>
+                        <div class="wheel-picker">
+                            <div class="picker-mask"></div>
+                            <div class="picker-highlight"></div>
+                            <div class="picker-column" id="project-column">
+                                <!-- 动态生成项目列表 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="login-btn primary-btn" id="confirm-project-btn">
+                    确定
+                </button>
+            </div>
+        </div>
+
+        <!-- 车辆信息登记卡片（覆盖层，初始隐藏） -->
+        <div class="vehicle-card hidden" id="vehicle-card">
+            <!-- 车辆信息标题 -->
+            <div class="vehicle-header">
+                <button class="back-arrow" id="vehicle-back-btn">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <h2 class="vehicle-title" id="vehicle-title">临时车辆信息登记</h2>
+            </div>
+
+            <!-- 车辆信息表单 -->
+            <form class="vehicle-form" id="vehicle-form">
+                <!-- 姓名字段（仅临时车辆） -->
+                <div class="form-group account-form-group" id="driver-name-group">
+                    <label class="account-label">姓名:</label>
+                    <input type="text" id="driver-name" class="form-input account-input" placeholder="">
+                </div>
+
+                <!-- 车牌号字段 -->
+                <div class="form-group account-form-group">
+                    <label class="account-label">车牌号:</label>
+                    <input type="text" id="license-plate" class="form-input account-input" placeholder="">
+                </div>
+
+                <button type="submit" class="login-btn primary-btn">
+                    确定
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="../js/login.js"></script>
+</body>
+</html>

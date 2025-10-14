@@ -1,0 +1,454 @@
+/* 任务页面容器 */
+.container {
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+}
+
+/* 任务页面样式 */
+.task-page {
+    width: 100%;
+    height: 100vh;
+    background-color: #FFFFFF;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 60px;
+}
+
+/* 任务页面头部 */
+.task-header {
+    background-color: #FFFFFF;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-bottom: 1px solid #E0E0E0;
+}
+
+.task-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333333;
+    margin: 0;
+}
+
+.task-header-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.task-menu-btn,
+.task-locate-btn {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #E0E0E0;
+    border-radius: 50%;
+    background-color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    color: #666666;
+}
+
+.task-menu-btn:active,
+.task-locate-btn:active {
+    background-color: #F5F5F5;
+}
+
+/* 空状态 */
+.task-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+}
+
+.empty-icon {
+    margin-bottom: 20px;
+}
+
+.empty-text {
+    font-size: 16px;
+    color: #BDBDBD;
+}
+
+/* 任务列表 */
+.task-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+    background-color: #FFFFFF;
+    /* 隐藏滚动条 */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+
+.task-list::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Opera */
+}
+
+/* 任务卡片 */
+.task-card {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 2px solid #64B5F6;
+}
+
+/* 任务卡片头部颜色 - 根据状态显示 */
+.task-card.task-green .task-card-header {
+    /* 从上到下由颜色渐变到白色，向后兼容保留 background-color 作为回退 */
+    background: linear-gradient(to bottom, #E8F5E9 0%, #FFFFFF 100%);
+    background-color: #E8F5E9;
+    margin: -16px -16px 12px -16px;
+    padding: 16px;
+    border-radius: 10px 10px 0 0;
+}
+
+.task-card.task-pink .task-card-header {
+    /* 从上到下由颜色渐变到白色，向后兼容保留 background-color 作为回退 */
+    background: linear-gradient(to bottom, #FFEBEE 0%, #FFFFFF 100%);
+    background-color: #FFEBEE;
+    margin: -16px -16px 12px -16px;
+    padding: 16px;
+    border-radius: 10px 10px 0 0;
+}
+
+.task-card.task-blue .task-card-header {
+    /* 从上到下由亮蓝色渐变到白色，向后兼容保留 background-color 作为回退 */
+    background: linear-gradient(to bottom, #E3F2FD 0%, #FFFFFF 100%);
+    background-color: #E3F2FD;
+    margin: -16px -16px 12px -16px;
+    padding: 16px;
+    border-radius: 10px 10px 0 0;
+}
+
+/* 任务卡片头部 */
+.task-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.task-card-left {
+    flex: 1;
+}
+
+.task-card-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333333;
+    margin-bottom: 4px;
+}
+
+.task-card-type {
+    font-size: 14px;
+    color: #64B5F6;
+}
+
+.task-card-nav {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    padding: 0;
+}
+
+.task-card-nav i {
+    font-size: 24px;
+    color: #64B5F6;
+}
+
+/* 任务详情区域 */
+.task-detail-section {
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin-top: 12px;
+    padding-top: 12px;
+}
+
+.task-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 4px 0;
+}
+
+.task-detail-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333333;
+}
+
+.task-detail-toggle {
+    font-size: 16px;
+    color: #666666;
+    transition: transform 0.3s ease;
+}
+
+.task-detail-toggle.expanded {
+    transform: rotate(180deg);
+}
+
+.task-detail-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.task-detail-content.expanded {
+    max-height: 1000px;
+}
+
+.task-detail-text {
+    font-size: 13px;
+    color: #666666;
+    line-height: 1.6;
+    padding: 12px 0 8px 0;
+}
+
+/* 任务进度时间轴 */
+.task-timeline {
+    padding: 16px 0 0 0;
+    position: relative;
+}
+
+.task-timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 24px;
+    bottom: 24px;
+    width: 2px;
+    background-image: repeating-linear-gradient(
+        to bottom,
+        #BDBDBD,
+        #BDBDBD 4px,
+        transparent 4px,
+        transparent 8px
+    );
+}
+
+.timeline-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.timeline-row:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-point {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    z-index: 1;
+    position: relative;
+}
+
+.timeline-point.start {
+    background-color: #64B5F6;
+}
+
+.timeline-point.end {
+    background-color: #EF5350;
+}
+
+.timeline-info {
+    flex: 1;
+    padding-bottom: 8px;
+}
+
+.timeline-location {
+    font-size: 14px;
+    color: #333333;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.timeline-date {
+    font-size: 12px;
+    color: #999999;
+    margin-bottom: 2px;
+}
+
+.timeline-time {
+    font-size: 12px;
+    color: #999999;
+}
+
+.timeline-status {
+    text-align: center;
+    padding: 12px 0;
+    position: relative;
+    left: -4px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    background-color: #4CAF50;
+    color: #FFFFFF;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* 导航确认弹窗 */
+.nav-confirm-dialog {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+}
+
+.nav-confirm-dialog.show {
+    display: block;
+}
+
+.nav-dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.nav-dialog-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    padding: 24px;
+    width: 280px;
+    max-width: 90%;
+}
+
+.nav-dialog-header {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.nav-dialog-icon {
+    font-size: 48px;
+    color: #64B5F6;
+}
+
+.nav-dialog-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333333;
+    text-align: center;
+    margin: 8px 0 16px 0;
+}
+
+.nav-dialog-body {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.nav-dialog-project {
+    font-size: 14px;
+    color: #666666;
+    margin-bottom: 4px;
+}
+
+.nav-dialog-location {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333333;
+}
+
+.nav-dialog-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.nav-dialog-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.nav-dialog-confirm {
+    background-color: #2196F3;
+    color: #FFFFFF;
+}
+
+.nav-dialog-confirm:active {
+    background-color: #1976D2;
+}
+
+.nav-dialog-cancel {
+    background-color: #E0E0E0;
+    color: #666666;
+}
+
+.nav-dialog-cancel:active {
+    background-color: #BDBDBD;
+}
+
+/* 底部导航栏样式更新 */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background-color: #FFFFFF;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 8px;
+}
+
+.nav-icon-img {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+}
+
+.nav-text {
+    font-size: 12px;
+    color: #666666;
+    transition: color 0.3s ease;
+}
+
+.nav-item.active .nav-text {
+    color: #5BA8E3;
+    font-weight: 500;
+}
