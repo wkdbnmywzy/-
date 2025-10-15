@@ -419,7 +419,7 @@ function addRouteMarkers(startLngLat, endLngLat) {
         size: isMyLocationStart ? new AMap.Size(30, 30) : new AMap.Size(30, 38),
         image: isMyLocationStart
             ? MapConfig.markerStyles.currentLocation.icon
-            : 'images/工地数字导航小程序切图/司机/2X/地图icon/起点.png',
+            : '../images/工地数字导航小程序切图/司机/2X/地图icon/起点.png',
         imageSize: isMyLocationStart ? new AMap.Size(30, 30) : new AMap.Size(30, 38)
     });
 
@@ -433,10 +433,10 @@ function addRouteMarkers(startLngLat, endLngLat) {
         title: routeData?.start?.name || '起点'
     });
 
-    // 创建终点标记（使用本地"终点.png"）
+    // 创建终点标记（使用本地“终点.png”）
     const endIcon = new AMap.Icon({
         size: new AMap.Size(30, 38),
-        image: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
+        image: '../images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
         imageSize: new AMap.Size(30, 38)
     });
 
@@ -462,7 +462,7 @@ function addWaypointMarkers(waypoints) {
 
     const icon = new AMap.Icon({
         size: new AMap.Size(26, 34),
-        image: 'images/工地数字导航小程序切图/司机/2X/地图icon/途径点.png',
+        image: '../images/工地数字导航小程序切图/司机/2X/地图icon/途径点.png',
         imageSize: new AMap.Size(26, 34)
     });
 
@@ -1097,7 +1097,7 @@ function updateDirectionIcon(directionType) {
     const directionImg = document.getElementById('tip-direction-img');
     const actionText = document.getElementById('tip-action-text');
 
-    const basePath = 'images/工地数字导航小程序切图/司机/2X/导航/';
+    const basePath = '../images/工地数字导航小程序切图/司机/2X/导航/';
 
     let iconPath = '';
     let actionName = '';
@@ -1306,8 +1306,18 @@ function startRealNavigationTracking() {
     const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 };
     gpsWatchId = navigator.geolocation.watchPosition(
         pos => {
-            const lng = pos.coords.longitude;
-            const lat = pos.coords.latitude;
+            let lng = pos.coords.longitude;
+            let lat = pos.coords.latitude;
+            // 将WGS84转换为GCJ-02以匹配高德底图
+            try {
+                if (typeof wgs84ToGcj02 === 'function') {
+                    const converted = wgs84ToGcj02(lng, lat);
+                    if (Array.isArray(converted) && converted.length === 2) {
+                        lng = converted[0];
+                        lat = converted[1];
+                    }
+                }
+            } catch (e) { console.warn('WGS84->GCJ-02 转换失败，使用原始坐标:', e); }
             const curr = [lng, lat];
 
             // 初始化标记与灰色路径
@@ -1376,6 +1386,8 @@ function startRealNavigationTracking() {
             const distToEnd = calculateDistanceBetweenPoints(curr, end);
             if (distToEnd < 5) { // 小于5米认为到达
                 finishNavigation();
+                // 到达后停止持续定位
+                stopRealNavigationTracking();
             }
         },
         err => {
