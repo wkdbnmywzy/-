@@ -519,14 +519,46 @@ function displayKMLRoute(routeResult) {
         return;
     }
 
-    // 不再创建额外的起点和终点标记，因为KML点本身已经有标记了
-    // 用户已经通过enhanced-highlight.js高亮显示了起点和终点
+    // 添加起点与终点标记，满足“起点/终点/路径/实时位置”同时展示的需求
+    let startMarker = null;
+    let endMarker = null;
+    try {
+        const startIconUrl = (MapConfig && MapConfig.markerStyles && (MapConfig.markerStyles.start?.icon || MapConfig.markerStyles.currentLocation?.icon)) || '';
+        const endIconUrl = (MapConfig && MapConfig.markerStyles && (MapConfig.markerStyles.destination?.icon || MapConfig.markerStyles.currentLocation?.icon)) || '';
+
+        // 起点
+        if (validPath.length >= 1 && startIconUrl) {
+            const sIcon = new AMap.Icon({ size: new AMap.Size(30, 38), image: startIconUrl, imageSize: new AMap.Size(30, 38) });
+            startMarker = new AMap.Marker({
+                position: validPath[0],
+                icon: sIcon,
+                offset: new AMap.Pixel(-15, -38),
+                zIndex: 150,
+                map: map,
+                title: '起点'
+            });
+        }
+        // 终点
+        if (validPath.length >= 2 && endIconUrl) {
+            const eIcon = new AMap.Icon({ size: new AMap.Size(30, 38), image: endIconUrl, imageSize: new AMap.Size(30, 38) });
+            endMarker = new AMap.Marker({
+                position: validPath[validPath.length - 1],
+                icon: eIcon,
+                offset: new AMap.Pixel(-15, -38),
+                zIndex: 150,
+                map: map,
+                title: '终点'
+            });
+        }
+    } catch (e) {
+        console.warn('创建起终点标记失败:', e);
+    }
 
     // 保存路径对象供后续使用
     window.currentKMLRoute = {
         polyline: polyline,
-        startMarker: null,  // 不再创建独立的起点标记
-        endMarker: null,    // 不再创建独立的终点标记
+        startMarker: startMarker,
+        endMarker: endMarker,
         path: validPath,  // 使用验证后的路径
         distance: routeResult.distance
     };
@@ -570,7 +602,6 @@ function displayKMLRoute(routeResult) {
 function clearPreviousRoute() {
     if (window.currentKMLRoute) {
         map.remove(window.currentKMLRoute.polyline);
-        // startMarker 和 endMarker 现在为 null，不需要移除
         if (window.currentKMLRoute.startMarker) {
             map.remove(window.currentKMLRoute.startMarker);
         }
