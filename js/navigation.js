@@ -433,7 +433,7 @@ function addRouteMarkers(startLngLat, endLngLat) {
         title: routeData?.start?.name || '起点'
     });
 
-    // 创建终点标记（使用本地“终点.png”）
+    // 创建终点标记（使用本地"终点.png"）
     const endIcon = new AMap.Icon({
         size: new AMap.Size(30, 38),
         image: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',

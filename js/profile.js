@@ -1,4 +1,4 @@
-// profile.js - 我的页面功能
+// profile.js - 我的页面功能（支持屏幕高度自适应）
 
 // 检查登录状态
 function checkLoginStatus() {
@@ -31,7 +31,77 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 加载用户信息
     loadUserInfo();
+
+    // 初始化自适应布局
+    adjustForScreenHeight();
+    // 监听窗口大小变化，实时调整布局
+    window.addEventListener('resize', adjustForScreenHeight);
 });
+
+// 屏幕高度自适应调整
+function adjustForScreenHeight() {
+    const screenHeight = window.innerHeight;
+    const driverCard = document.querySelector('.driver-card');
+    const functionsContainer = document.querySelector('.functions-container');
+    const profileHeader = document.querySelector('.profile-header');
+    const bottomNav = document.querySelector('.bottom-nav');
+
+    console.log('当前屏幕高度:', screenHeight);
+
+    // 计算固定元素高度
+    const headerHeight = profileHeader ? profileHeader.offsetHeight : 60;
+    const bottomNavHeight = bottomNav ? bottomNav.offsetHeight : 60;
+    const driverCardHeight = driverCard ? driverCard.offsetHeight : 140;
+
+    // 动态设置功能区最大高度（避免内容溢出）
+    if (functionsContainer) {
+        // 功能区最大高度 = 屏幕高度 - 头部 - 司机卡片 - 底部导航 - 预留间距
+        const maxFunctionHeight = screenHeight 
+            - headerHeight 
+            - driverCardHeight 
+            - bottomNavHeight 
+            - 30; // 预留间距
+        
+        functionsContainer.style.maxHeight = `${maxFunctionHeight}px`;
+        functionsContainer.style.overflowY = 'auto'; // 内容过多时可滚动
+    }
+
+    // 超小屏适配（高度 < 500px）
+    if (screenHeight < 500) {
+        if (driverCard) {
+            driverCard.style.height = '100px'; // 缩短司机卡片
+            driverCard.style.margin = '10px 15px'; // 减少外边距
+        }
+        // 隐藏非必要装饰元素
+        const decorativeElements = document.querySelectorAll('.card-decoration');
+        decorativeElements.forEach(el => {
+            el.style.display = 'none';
+        });
+    } else {
+        // 恢复默认样式
+        if (driverCard) {
+            driverCard.style.height = ''; // 清空内联样式，使用CSS定义
+            driverCard.style.margin = '';
+        }
+        const decorativeElements = document.querySelectorAll('.card-decoration');
+        decorativeElements.forEach(el => {
+            el.style.display = '';
+        });
+    }
+
+    // 大屏适配（高度 > 800px）
+    if (screenHeight > 800) {
+        const functionItems = document.querySelectorAll('.function-item');
+        functionItems.forEach(item => {
+            item.style.padding = '15px'; // 增加功能项内边距
+        });
+    } else {
+        const functionItems = document.querySelectorAll('.function-item');
+        functionItems.forEach(item => {
+            item.style.padding = ''; // 恢复默认
+        });
+    }
+}
 
 // 初始化导航栏
 function initNavigation() {
@@ -209,3 +279,8 @@ function useDefaultInfo() {
     console.log('使用默认用户信息');
     // 默认信息已在HTML中设置，这里不需要额外处理
 }
+
+// 页面卸载时清理事件监听
+window.addEventListener('beforeunload', function() {
+    window.removeEventListener('resize', adjustForScreenHeight);
+});
