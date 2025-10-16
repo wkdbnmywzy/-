@@ -1,6 +1,160 @@
 // map-core.js
 // 地图初始化和基本操作
 
+// 高德实时定位相关全局变量（不使用浏览器原生定位）
+let amapGeolocation = null;   // AMap.Geolocation 实例
+let selfMarker = null;        // 自身位置箭头标记
+let lastFix = null;           // 上一次定位点 [lng, lat]
+let hasFirstFix = false;      // 是否已完成首次定位
+let isAmapWatchActive = false;// 是否处于实时监听状态
+
+// 生成朝向箭头的SVG图标（base64）
+function createHeadingArrowIcon(color) {
+    const svg = `
+        <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceAlpha" stdDeviation="1"/>
+                    <feOffset dx="0" dy="1" result="offsetblur"/>
+                    <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+                    <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+            </defs>
+            <g filter="url(#shadow)">
+                <circle cx="15" cy="15" r="12" fill="white"/>
+                <path d="M15 4 L20 18 L15 15 L10 18 Z" fill="${color || '#007bff'}"/>
+            </g>
+        </svg>`;
+    return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+// 计算两点之间的方位角（度，0-360）
+function calcBearing(from, to) {
+    if (!from || !to || from.length < 2 || to.length < 2) return 0;
+    const lng1 = from[0] * Math.PI / 180;
+    const lat1 = from[1] * Math.PI / 180;
+    const lng2 = to[0] * Math.PI / 180;
+    const lat2 = to[1] * Math.PI / 180;
+    const dLng = lng2 - lng1;
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+    let brng = Math.atan2(y, x) * 180 / Math.PI;
+    brng = (brng + 360) % 360;
+    return brng;
+}
+
+// 启动基于高德API的实时定位（连续更新）
+function startRealtimeAmapLocation() {
+    if (!map || typeof AMap === 'undefined') return;
+
+    // 确保只创建一次实例
+    if (!amapGeolocation) {
+        try {
+            amapGeolocation = new AMap.Geolocation({
+                enableHighAccuracy: true,
+                timeout: 10000,
+                position: 'RB',
+                offset: [10, 20],
+                zoomToAccuracy: false,
+                showButton: false,
+                showMarker: false,
+                showCircle: false,
+                panToLocation: false,
+                extensions: 'all'
+            });
+            map.addControl(amapGeolocation);
+        } catch (e) {
+            console.error('创建 AMap.Geolocation 失败:', e);
+            showLocationMessage('地图定位组件初始化失败，请检查网络或密钥', '#ff3b30');
+            return;
+        }
+    }
+
+    if (isAmapWatchActive) return; // 已经在监听
+
+    try {
+        amapGeolocation.watchPosition(function(status, result) {
+            if (status === 'complete' && result && result.position) {
+                const lng = result.position.lng;
+                const lat = result.position.lat;
+                currentPosition = [lng, lat];
+
+                // 首次定位：设置视野
+                if (!hasFirstFix) {
+                    hasFirstFix = true;
+                    try { map.setZoomAndCenter(17, currentPosition); } catch (e) {}
+
+                    // 移除旧的“currentLocation”圆点标记
+                    try {
+                        markers.forEach(function(mk) {
+                            if (mk && mk.getExtData && mk.getExtData().type === 'currentLocation') {
+                                map.remove(mk);
+                            }
+                        });
+                        markers = markers.filter(function(mk) {
+                            return !(mk && mk.getExtData && mk.getExtData().type === 'currentLocation');
+                        });
+                    } catch (e) {}
+                }
+
+                // 更新/创建自身位置箭头
+                if (!selfMarker) {
+                    const icon = new AMap.Icon({
+                        size: new AMap.Size(30, 30),
+                        image: createHeadingArrowIcon('#007bff'),
+                        imageSize: new AMap.Size(30, 30)
+                    });
+                    selfMarker = new AMap.Marker({
+                        position: currentPosition,
+                        icon,
+                        offset: new AMap.Pixel(-15, -15),
+                        zIndex: 999,
+                        map: map,
+                        angle: 0,
+                        extData: { type: 'selfArrow' }
+                    });
+                } else {
+                    selfMarker.setPosition(currentPosition);
+                }
+
+                // 根据移动方向旋转箭头（过滤微小抖动）
+                if (lastFix) {
+                    const dLng = lastFix[0] - currentPosition[0];
+                    const dLat = lastFix[1] - currentPosition[1];
+                    const moveSmall = Math.abs(dLng) < 1e-6 && Math.abs(dLat) < 1e-6;
+                    if (!moveSmall) {
+                        const bearing = calcBearing(lastFix, currentPosition);
+                        if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(bearing);
+                        else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(bearing);
+                    }
+                }
+                lastFix = currentPosition.slice();
+
+            } else {
+                // 失败提示（节流）
+                console.warn('高德实时定位失败:', result && result.message);
+            }
+        });
+        isAmapWatchActive = true;
+        showLocationLoading('正在实时定位中...');
+        // 2秒后隐藏加载提示（持续定位，无需长时间显示）
+        setTimeout(hideLocationMessage, 2000);
+    } catch (e) {
+        console.error('启动 watchPosition 失败:', e);
+        showLocationMessage('实时定位不可用，请检查权限或网络', '#ff3b30');
+    }
+}
+
+// 停止实时定位监听
+function stopRealtimeAmapLocation() {
+    try {
+        if (amapGeolocation && typeof amapGeolocation.clearWatch === 'function') {
+            amapGeolocation.clearWatch();
+        }
+    } catch (e) {}
+    isAmapWatchActive = false;
+}
+
 function initMap() {
     // 加载高德地图插件
     AMap.plugin([
@@ -15,10 +169,8 @@ function initMap() {
     // 等待地图完全加载后再获取位置
     map.on('complete', function() {
         console.log('地图加载完成');
-        // 延迟获取定位，确保地图渲染完成
-        setTimeout(function() {
-            getCurrentLocation();
-        }, 100);
+        // 地图就绪后启动基于高德API的实时定位
+        setTimeout(function() { startRealtimeAmapLocation(); }, 200);
     });
 
     // 监听窗口可见性变化，刷新地图
@@ -46,6 +198,11 @@ function initMap() {
         if (map) {
             map.resize();
         }
+    });
+
+    // 页面卸载时停止实时定位
+    window.addEventListener('beforeunload', function() {
+        stopRealtimeAmapLocation();
     });
 }
 
