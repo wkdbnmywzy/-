@@ -43,7 +43,7 @@ const MapConfig = {
             icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/我的位置.png',
             size: { w: 36, h: 36 },
             // 若希望显示可旋转的箭头图标（推荐在手机端），将此项改为 true
-            useSvgArrow: true
+            useSvgArrow: false
         },
         destination: {
             icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png'
