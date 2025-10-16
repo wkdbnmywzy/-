@@ -27,7 +27,7 @@ function initMap() {
         if (!document.hidden && map) {
             console.log('页面重新可见，刷新地图');
             setTimeout(function() {
-                map.refresh();
+                if (map && typeof map.resize === 'function') map.resize();
             }, 100);
         }
     });
@@ -37,7 +37,7 @@ function initMap() {
         if (map) {
             console.log('窗口获得焦点，刷新地图');
             setTimeout(function() {
-                map.refresh();
+                if (map && typeof map.resize === 'function') map.resize();
             }, 100);
         }
     });
@@ -79,8 +79,8 @@ function getCurrentLocation() {
 
                 // 强制刷新地图
                 setTimeout(function() {
-                    if (map) {
-                        map.refresh();
+                    if (map && typeof map.resize === 'function') {
+                        map.resize();
                     }
                 }, 200);
 
@@ -101,14 +101,18 @@ function getCurrentLocation() {
                 initialLocationMarker = marker;
 
                 // 更新起点输入框
-                document.getElementById('start-location').value = '我的位置';
+                if (document.getElementById('start-location')) {
+                    document.getElementById('start-location').value = '我的位置';
+                }
 
                 // 加载地理编码插件后进行逆地理编码（GCJ-02坐标）
                 AMap.plugin('AMap.Geocoder', function() {
                     var geocoder = new AMap.Geocoder();
                     geocoder.getAddress([lng, lat], function(status, result) {
                         if (status === 'complete' && result.regeocode) {
-                            document.getElementById('start-location').value = result.regeocode.formattedAddress;
+                            if (document.getElementById('start-location')) {
+                                document.getElementById('start-location').value = result.regeocode.formattedAddress;
+                            }
                         }
                     });
                 });
