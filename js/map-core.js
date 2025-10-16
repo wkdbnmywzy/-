@@ -53,11 +53,7 @@ function getCurrentLocation() {
     console.log('开始获取位置...');
     showLocationLoading('正在获取您的位置...');
 
-    // 检测是否在微信环境
-    var isWeChat = /MicroMessenger/i.test(navigator.userAgent);
-    console.log('当前环境:', isWeChat ? '微信' : '浏览器');
-
-    // 优先使用高德地图API定位（支持微信环境）
+    // 使用高德地图API定位
     AMap.plugin('AMap.Geolocation', function() {
         var geolocation = new AMap.Geolocation({
             enableHighAccuracy: true,   // 启用高精度定位
@@ -140,154 +136,34 @@ function getCurrentLocation() {
                     }
                 }
             } else {
-                // 高德定位失败，使用浏览器定位作为备选方案
-                console.warn('高德定位失败:', result.message, '尝试浏览器定位');
+                // 高德定位失败，提示用户检查权限
+                console.warn('高德定位失败:', result.message);
                 hideLocationMessage();
-                useBrowserGeolocation();
+
+                // 根据不同错误情况给出相应提示
+                var errorMessage = '';
+                if (result.message && result.message.indexOf('PERMISSION_DENIED') !== -1) {
+                    errorMessage = '定位权限被拒绝，请在设置中允许定位权限';
+                } else if (result.message && result.message.indexOf('POSITION_UNAVAILABLE') !== -1) {
+                    errorMessage = '无法获取位置信息，请检查设备定位服务是否开启';
+                } else if (result.message && result.message.indexOf('TIMEOUT') !== -1) {
+                    errorMessage = '定位请求超时，请检查网络连接后重试';
+                } else {
+                    errorMessage = '定位失败，请确保已开启定位权限和定位服务';
+                }
+
+                showLocationError(errorMessage);
+
+                // 使用默认位置
+                var startLocationInput = document.getElementById('start-location');
+                if (startLocationInput) {
+                    startLocationInput.value = '北京市';
+                }
             }
         });
     });
 }
 
-// 备选方案：使用浏览器原生定位（微信环境可能不稳定）
-function useBrowserGeolocation() {
-    if (!navigator.geolocation) {
-        console.error('浏览器不支持地理定位');
-        showLocationError('您的浏览器不支持地理定位功能');
-        var startLocationInput = document.getElementById('start-location');
-        if (startLocationInput) {
-            startLocationInput.value = '北京市';
-        }
-        return;
-    }
-
-    console.log('开始浏览器定位...');
-    showLocationLoading('正在通过浏览器获取位置...');
-
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            console.log('浏览器定位成功:', position);
-            hideLocationMessage();
-
-            var lng = position.coords.longitude;
-            var lat = position.coords.latitude;
-            var accuracy = position.coords.accuracy;
-
-            console.log('原始坐标 (WGS84):', lng, lat, '精度:', accuracy + 'm');
-
-            // WGS84 坐标转换为 GCJ-02（高德坐标系）
-            if (typeof wgs84ToGcj02 === 'function') {
-                try {
-                    var converted = wgs84ToGcj02(lng, lat);
-                    if (Array.isArray(converted) && converted.length === 2) {
-                        lng = converted[0];
-                        lat = converted[1];
-                        console.log('转换后坐标 (GCJ-02):', lng, lat);
-                    }
-                } catch (e) {
-                    console.warn('坐标转换失败，使用原始坐标:', e);
-                }
-            }
-
-            currentPosition = [lng, lat];
-
-            // 更新地图中心和缩放级别
-            map.setZoomAndCenter(15, [lng, lat]);
-
-            // 强制刷新地图
-            setTimeout(function() {
-                if (map) {
-                    map.refresh();
-                }
-            }, 200);
-
-            // 移除旧的位置标记
-            markers.forEach(function(marker) {
-                if (marker.getExtData && marker.getExtData().type === 'currentLocation') {
-                    map.remove(marker);
-                }
-            });
-            markers = markers.filter(function(marker) {
-                return !(marker.getExtData && marker.getExtData().type === 'currentLocation');
-            });
-
-            // 添加当前位置标记
-            var marker = new AMap.Marker({
-                position: [lng, lat],
-                icon: new AMap.Icon({
-                    size: new AMap.Size(30, 30),
-                    image: MapConfig.markerStyles.currentLocation.icon,
-                    imageSize: new AMap.Size(30, 30)
-                }),
-                offset: new AMap.Pixel(-15, -15),
-                map: map,
-                zIndex: 999,
-                extData: { type: 'currentLocation' }
-            });
-            markers.push(marker);
-
-            // 如果精度较低，给用户提示
-            if (accuracy > 100) {
-                showLocationWarning('定位精度较低（±' + Math.round(accuracy) + '米），可能存在偏差');
-            }
-
-            // 更新起点输入框
-            var startLocationInput = document.getElementById('start-location');
-            if (startLocationInput) {
-                startLocationInput.value = '我的位置';
-            }
-
-            // 加载地理编码插件后进行逆地理编码
-            AMap.plugin('AMap.Geocoder', function() {
-                var geocoder = new AMap.Geocoder();
-                geocoder.getAddress([lng, lat], function(status, result) {
-                    if (status === 'complete' && result.regeocode) {
-                        var address = result.regeocode.formattedAddress;
-                        console.log('逆地理编码成功:', address);
-                        if (startLocationInput) {
-                            startLocationInput.value = address;
-                        }
-                    } else {
-                        console.warn('逆地理编码失败:', status);
-                    }
-                });
-            });
-        },
-        function(error) {
-            console.error('浏览器定位失败:', error);
-            hideLocationMessage();
-
-            // 根据不同错误类型给出友好提示
-            var errorMessage = '';
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMessage = '您拒绝了定位权限请求，请允许定位权限';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMessage = '无法获取位置信息，请检查设备定位服务是否开启';
-                    break;
-                case error.TIMEOUT:
-                    errorMessage = '定位请求超时，请检查网络连接后重试';
-                    break;
-                default:
-                    errorMessage = '定位失败：' + error.message;
-            }
-
-            showLocationError(errorMessage);
-
-            // 使用默认位置
-            var startLocationInput = document.getElementById('start-location');
-            if (startLocationInput) {
-                startLocationInput.value = '北京市';
-            }
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        }
-    );
-}
 
 // 显示定位加载提示
 function showLocationLoading(message) {
