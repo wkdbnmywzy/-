@@ -749,5 +749,5 @@ function handleVehicleSubmit(e) {
     // 延迟后跳转到主页面
     setTimeout(() => {
         window.location.href = 'index.html';
-    }, 1000);
+    }, 300);
 }

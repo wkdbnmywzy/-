@@ -11,17 +11,26 @@ body {
     height: 100vh;
     overflow: hidden;
     background: #F5F5F5;
+    display: flex;
+    justify-content: center;
+}
+
+/* 主容器 */
+.login-wrapper {
+    width: 100%;
+    max-width: 480px;
+    height: 100vh;
+    position: relative;
+    background: white;
 }
 
 /* 加载界面 */
 .loading-screen {
-    position: fixed;
-    top: 56px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: 480px;
-    height: calc(100vh - 56px);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: linear-gradient(to bottom, #E3F2FD 0%, #BBDEFB 50%, #90CAF9 100%);
     display: flex;
     align-items: center;
@@ -63,38 +72,35 @@ body {
     font-weight: 500;
 }
 
-/* 头部 */
-.header {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 12px 0;
-    background-color: white;
-    border-bottom: 1px solid #E0E0E0;
-    height: 56px;
-    max-width: 480px;
-    margin: 0 auto;
-    width: 100%;
-}
-
-.page-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: #1a1a1a;
-    padding: 0 20px;
-    width: 100%;
-    text-align: center;
-}
-
 /* 登录容器 */
 .login-container {
     width: 100%;
-    height: calc(100vh - 56px);
+    height: 100vh;
     display: flex;
     flex-direction: column;
     max-width: 480px;
     margin: 0 auto;
     position: relative;
+}
+
+/* 登录头部 */
+.login-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px 0;
+    z-index: 10;
+}
+
+.login-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0;
 }
 
 /* 地图背景区域 */
@@ -115,28 +121,24 @@ body {
 
 /* Logo 区域 */
 .logo-section {
-    position: relative;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 2;
     display: flex;
+    justify-content: center;
     align-items: center;
-    gap: 16px;
-    padding: 40px 30px;
 }
 
 .logo-icon {
-    width: 60px;
-    height: 60px;
+    max-width: 80%;
+    height: auto;
     object-fit: contain;
-    flex-shrink: 0;
-    background: transparent;
 }
 
 .app-title {
-    font-size: 32px;
-    font-weight: 700;
-    color: white;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    letter-spacing: 1px;
+    display: none;
 }
 
 /* 地图标记点 - 已由背景图提供，移除动画标记 */
@@ -230,15 +232,11 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 12px;
     max-width: 45%;
 }
 
 .picker-label {
-    text-align: center;
-    font-size: 14px;
-    font-weight: 600;
-    color: #666;
+    display: none;
 }
 
 /* 轮盘选择器 */
@@ -403,8 +401,9 @@ body {
     height: 50px;
     padding: 0 16px;
     border: none;
-    background: #F7F7F7;
-    border-radius: 8px;
+    background: transparent;
+    border-bottom: 1px solid #E0E0E0;
+    border-radius: 0;
     font-size: 15px;
     color: #333;
     transition: all 0.3s;
@@ -412,30 +411,47 @@ body {
 
 .form-input:focus {
     outline: none;
-    background: #F0F0F0;
+    border-bottom-color: #5BA8E3;
+    background: transparent;
 }
 
 .form-input::placeholder {
     color: #BDBDBD;
 }
 
+.form-group {
+    margin-bottom: 24px;
+}
+
+.code-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.code-group .form-input {
+    flex: 1;
+}
+
 /* 获取验证码按钮 */
 .get-code-btn {
-    width: 120px;
-    height: 50px;
-    background: #F7F7F7;
+    width: auto;
+    min-width: 100px;
+    height: 36px;
+    background: transparent;
     border: none;
-    border-radius: 8px;
+    border-radius: 0;
     font-size: 14px;
     color: #5BA8E3;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s;
     flex-shrink: 0;
+    padding: 0 12px;
 }
 
 .get-code-btn:active {
-    background: #E8E8E8;
+    opacity: 0.7;
 }
 
 .get-code-btn:disabled {
@@ -472,6 +488,25 @@ body {
     color: #BDBDBD;
     box-shadow: none;
     cursor: not-allowed;
+}
+
+/* 其他手机号登录按钮 */
+.other-login-btn {
+    width: 100%;
+    height: auto;
+    padding: 16px;
+    background: transparent;
+    border: none;
+    color: #5BA8E3;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 16px;
+    transition: opacity 0.3s;
+}
+
+.other-login-btn:active {
+    opacity: 0.7;
 }
 
 /* 错误消息 */

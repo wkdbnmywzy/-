@@ -61,80 +61,156 @@
     z-index: 90;
 }
 
-/* 路线点信息 */
-.route-points {
+/* 路线选择器 */
+.route-selector {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
     gap: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
 
-.route-point-item {
+.location-inputs-wrapper {
+    flex: 1;
+    border: 1px solid #e6e9ef;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.location-inputs {
+    display: flex;
+    flex-direction: column;
+}
+
+.location-inputs .location-item {
     display: flex;
     align-items: center;
     gap: 12px;
+    padding: 14px 12px 14px 16px;
+    border: none;
+    background: transparent;
 }
 
-.point-icon {
-    width: 28px;
-    height: 28px;
+.location-item i {
+    font-size: 16px;
+    color: #666;
+    flex-shrink: 0;
+}
+
+.location-item i.fa-dot-circle {
+    color: #1E6FFF;
+}
+
+.location-item i.fa-map-marker-alt {
+    color: #ff4444;
+}
+
+.location-item input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 15px;
+    color: #333;
+    background: transparent;
+    padding-right: 8px;
+}
+
+.location-item input::placeholder {
+    color: #999;
+}
+
+.divider-line {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 0 16px;
+    gap: 10px;
+}
+
+.divider-line::before {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e6e9ef;
+}
+
+.swap-btn {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    background: #f8f9fa;
+    border: 1px solid #e6e9ef;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-}
-
-.start-icon {
-    background: #007bff;
-    color: white;
-}
-
-.start-icon i {
-    font-size: 12px;
-}
-
-.end-icon {
-    background: #ff4444;
-    color: white;
-}
-
-.end-icon i {
-    font-size: 12px;
-}
-
-.point-text {
-    font-size: 15px;
-    color: #333;
-    font-weight: 500;
-}
-
-/* 添加途径点按钮 */
-.add-waypoint-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 16px;
-    background: white;
-    border: 1px solid #e0e0e0;
-    border-radius: 20px;
-    font-size: 14px;
-    color: #666;
     cursor: pointer;
-    width: auto;
-    margin-bottom: 16px;
     transition: all 0.2s ease;
 }
 
-.add-waypoint-btn:hover {
-    background: #f8f9fa;
-    border-color: #5BA8E3;
-    color: #5BA8E3;
+.swap-btn i {
+    font-size: 16px;
+    color: #666;
+    transform: rotate(90deg);
 }
 
-.add-waypoint-btn i {
+.swap-btn:hover {
+    background: #e9ecef;
+    border-color: #1E6FFF;
+}
+
+.swap-btn:hover i {
+    color: #1E6FFF;
+}
+
+.swap-btn:active {
+    transform: scale(0.95);
+}
+
+/* 添加途径点按钮 */
+.add-waypoint {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.add-waypoint .add-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #1E6FFF;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.add-waypoint .add-btn:hover {
+    background: #0D5CE3;
+}
+
+.add-waypoint .add-btn:active {
+    transform: scale(0.95);
+}
+
+.add-waypoint .add-btn i {
+    font-size: 16px;
+}
+
+.add-waypoint .waypoint-label {
     font-size: 12px;
+    color: #666;
+    text-align: center;
+}
+
+/* 途径点容器 */
+.waypoints-container {
+    display: flex;
+    flex-direction: column;
 }
 
 /* 路线信息 */
@@ -194,7 +270,7 @@
     box-shadow: 0 2px 12px rgba(30, 111, 255, 0.3);
 }
 
-/* 途经点输入与搜索结果 */
+/* 途径点输入与搜索结果 */
 .waypoint-row {
     display: flex;
     align-items: center;
@@ -211,6 +287,7 @@
     border-radius: 12px;
     padding: 10px 12px;
     position: relative;
+    flex: 1;
 }
 
 .waypoint-row .location-item .waypoint-input {
@@ -263,18 +340,13 @@
 .wpi-title { font-size: 14px; color: #333; }
 .wpi-sub { font-size: 12px; color: #999; margin-top: 2px; }
 
-.add-waypoint { display:flex; align-items:center; gap:8px; margin-top:8px; }
-.add-waypoint .add-btn { width:32px; height:32px; border-radius:16px; background:#1E6FFF; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; }
-.add-waypoint .add-btn:active { opacity:.8; }
-.add-waypoint .waypoint-label { font-size:12px; color:#666; }
-
 /* 导航提示卡片 */
 .navigation-tip-card {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(135deg, #1a3a7f 0%, #0d2461 100%);
+    background: #FFFFFF;
     border-radius: 0 0 16px 16px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     z-index: 95;
@@ -306,7 +378,7 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
-    filter: brightness(0) invert(1); /* 将图标变为白色 */
+    filter: none; /* 移除白色滤镜 */
 }
 
 .tip-info {
@@ -314,7 +386,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    color: white;
+    color: #333;
 }
 
 .tip-main-text {
@@ -326,26 +398,26 @@
 .tip-distance-ahead {
     font-size: 36px;
     font-weight: 700;
-    color: white;
+    color: #333;
     line-height: 1;
 }
 
 .tip-distance-unit {
     font-size: 20px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    color: #666;
 }
 
 .tip-action {
     font-size: 28px;
     font-weight: 700;
-    color: white;
+    color: #333;
 }
 
 .tip-divider {
     width: 100%;
     height: 1px;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(0, 0, 0, 0.1);
     margin: 4px 0;
 }
 
@@ -354,23 +426,25 @@
     align-items: center;
     gap: 20px;
     font-size: 16px;
-    color: rgba(255, 255, 255, 0.9);
+    color: #666;
 }
 
 .tip-remaining-label {
-    color: rgba(255, 255, 255, 0.8);
+    color: #999;
 }
 
 .tip-remaining-value {
     font-weight: 600;
+    color: #333;
 }
 
 .tip-estimated-label {
-    color: rgba(255, 255, 255, 0.8);
+    color: #999;
 }
 
 .tip-estimated-value {
     font-weight: 600;
+    color: #333;
 }
 
 /* 导航中的底部卡片样式 */
