@@ -20,6 +20,7 @@ let navigationTimer = null;       // 模拟导航的定时器
 let totalRouteDistance = 0;       // 总路线长度（用于完成统计）
 let navStartTime = 0;             // 导航开始时间（ms）
 let gpsWatchId = null;            // 浏览器GPS监听ID（真实导航）
+let preNavWatchId = null;         // 导航前的位置监听ID
 let lastGpsPos = null;            // 上一次GPS位置（用于计算朝向）
 let geoErrorNotified = false;     // 避免重复弹错误
 // 设备方向（用于箭头随朝向变化）
@@ -46,6 +47,12 @@ function initNavigationMap() {
 
     // 获取路线数据
     loadRouteData();
+
+    // 地图加载完成后启动实时定位（显示我的位置）
+    navigationMap.on('complete', function() {
+        console.log('导航地图加载完成，启动实时定位');
+        startRealtimePositionTracking();
+    });
 
     console.log('导航地图初始化完成');
 }
@@ -736,6 +743,10 @@ function removeNavigationWaypoint(id) {
 
 // 清理地图资源
 function cleanupMap() {
+    // 停止所有位置追踪
+    stopRealtimePositionTracking();
+    stopRealNavigationTracking();
+
     if (navigationMap) {
         // 清除标记
         if (startMarker) {
@@ -750,7 +761,7 @@ function cleanupMap() {
             navigationMap.remove(waypointMarkers);
             waypointMarkers = [];
         }
-        // 清理“我的位置”与灰色轨迹
+        // 清理"我的位置"与灰色轨迹
         if (userMarker) {
             navigationMap.remove(userMarker);
             userMarker = null;
@@ -804,6 +815,9 @@ function startNavigationUI() {
 
     isNavigating = true;
 
+    // 停止导航前的实时位置追踪
+    stopRealtimePositionTracking();
+
     // 显示导航提示卡片
     showTipCard();
 
@@ -828,7 +842,6 @@ function startNavigationUI() {
     // 更新导航提示信息
     updateNavigationTip();
 
-    // 启动模拟导航（创建移动标记、灰色路径并沿线移动）
     // 启动基于真实GPS的导航追踪
     startRealNavigationTracking();
 
@@ -983,28 +996,27 @@ function updateNavigationTip() {
         destinationTimeElem.textContent = minutes;
     }
 
-    // 更新"XX米后"的提示
-    const distanceAheadElem = document.getElementById('tip-distance-ahead');
-    if (distanceAheadElem && nextTurnIndex > 0) {
-        // 计算到下一个转向点的距离
-        let distanceToTurn = 0;
+    // 获取当前转向并更新图标和文本
+    const directionType = getNavigationDirection();
+
+    // 计算到下一个转向点或终点的距离
+    let distanceToNext = 0;
+    if (nextTurnIndex > 0 && nextTurnIndex < navigationPath.length) {
+        // 有转向点，计算到转向点的距离
         for (let i = currentNavigationIndex; i < nextTurnIndex; i++) {
             if (i + 1 < navigationPath.length) {
-                distanceToTurn += calculateDistanceBetweenPoints(
+                distanceToNext += calculateDistanceBetweenPoints(
                     navigationPath[i],
                     navigationPath[i + 1]
                 );
             }
         }
-        distanceAheadElem.textContent = Math.round(distanceToTurn);
-    } else if (distanceAheadElem) {
-        // 如果没有转向点，显示到终点的距离
-        distanceAheadElem.textContent = Math.round(remainingDistance);
+    } else {
+        // 没有转向点，使用剩余总距离
+        distanceToNext = remainingDistance;
     }
 
-    // 获取当前转向并更新图标
-    const directionType = getNavigationDirection();
-    updateDirectionIcon(directionType);
+    updateDirectionIcon(directionType, distanceToNext);
 }
 
 // 查找下一个转向点
@@ -1159,15 +1171,20 @@ function getNavigationDirection() {
     }
 }
 
-// 更新转向图标
-function updateDirectionIcon(directionType) {
+// 更新转向图标和提示文本
+function updateDirectionIcon(directionType, distanceToNext) {
     const directionImg = document.getElementById('tip-direction-img');
     const actionText = document.getElementById('tip-action-text');
+    const distanceAheadElem = document.getElementById('tip-distance-ahead');
+    const distanceUnitElem = document.querySelector('.tip-distance-unit');
 
     const basePath = 'images/工地数字导航小程序切图/司机/2X/导航/';
 
     let iconPath = '';
     let actionName = '';
+
+    // 计算显示的距离（四舍五入）
+    const distance = Math.round(distanceToNext || 0);
 
     switch (directionType) {
         case 'left':
@@ -1189,13 +1206,37 @@ function updateDirectionIcon(directionType) {
             break;
     }
 
+    // 更新图标
     if (directionImg) {
         directionImg.src = iconPath;
         directionImg.alt = actionName;
     }
 
-    if (actionText) {
-        actionText.textContent = actionName;
+    // 更新提示文本
+    if (directionType === 'straight') {
+        // 直行时显示："直行 XXX 米"
+        if (distanceAheadElem) {
+            distanceAheadElem.textContent = distance;
+        }
+        if (actionText) {
+            actionText.textContent = '米';
+        }
+        // 隐藏"米后"文本，因为已经改为"直行 XXX 米"
+        if (distanceUnitElem) {
+            distanceUnitElem.style.display = 'none';
+        }
+    } else {
+        // 其他转向显示："XXX 米后 左转/右转/掉头"
+        if (distanceAheadElem) {
+            distanceAheadElem.textContent = distance;
+        }
+        if (actionText) {
+            actionText.textContent = actionName;
+        }
+        // 显示"米后"文本
+        if (distanceUnitElem) {
+            distanceUnitElem.style.display = 'inline';
+        }
     }
 }
 
@@ -1392,17 +1433,25 @@ function startRealNavigationTracking() {
 
             // 初始化标记与灰色路径
             if (!userMarker) {
-                // 选择图标：优先使用可旋转箭头（当配置开启或PNG缺省时），否则使用项目内“我的位置.png”
-                const iconCfg = (MapConfig && MapConfig.markerStyles && MapConfig.markerStyles.headingLocation) || {};
-                const useSvgArrow = iconCfg.useSvgArrow === true || !iconCfg.icon;
-                const w = (iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 30;
-                const h = (iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 30;
-                const img = useSvgArrow ? createHeadingArrowDataUrl('#007bff') : iconCfg.icon;
+                // 使用与首页相同的配置
+                const iconCfg = MapConfig.markerStyles.headingLocation;
+                const w = (iconCfg && iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
+                const h = (iconCfg && iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
+
+                // 使用配置的图标或SVG箭头
+                let iconImage = iconCfg && iconCfg.icon ? iconCfg.icon : null;
+                if (!iconImage || iconCfg.useSvgArrow === true) {
+                    iconImage = createHeadingArrowDataUrl('#007bff');
+                }
+
+                console.log('导航中创建我的位置标记, 图标路径:', iconImage, '尺寸:', w, 'x', h);
+
                 const myIcon = new AMap.Icon({
                     size: new AMap.Size(w, h),
-                    image: img,
+                    image: iconImage,
                     imageSize: new AMap.Size(w, h)
                 });
+
                 userMarker = new AMap.Marker({
                     position: curr,
                     icon: myIcon,
@@ -1411,6 +1460,8 @@ function startRealNavigationTracking() {
                     angle: 0,
                     map: navigationMap
                 });
+
+                console.log('导航中我的位置标记创建成功');
 
                 if (traveledPolyline) { navigationMap.remove(traveledPolyline); traveledPolyline = null; }
                 traveledPolyline = new AMap.Polyline({
@@ -1693,4 +1744,161 @@ function createHeadingArrowDataUrl(color) {
         </svg>`;
     try { return 'data:image/svg+xml;base64,' + btoa(svg); }
     catch (e) { return (MapConfig && MapConfig.markerStyles && MapConfig.markerStyles.currentLocation && MapConfig.markerStyles.currentLocation.icon) || ''; }
+}
+
+// ====== 导航前实时位置追踪（仅显示我的位置，不开启导航） ======
+function startRealtimePositionTracking() {
+    console.log('=== 开始启动导航前实时位置追踪 ===');
+
+    if (!('geolocation' in navigator)) {
+        console.error('浏览器不支持定位');
+        alert('当前浏览器不支持定位功能');
+        return;
+    }
+
+    // 如果已经在追踪，不重复启动
+    if (preNavWatchId !== null) {
+        console.log('实时位置追踪已启动，watchId:', preNavWatchId);
+        return;
+    }
+
+    console.log('准备启动GPS监听...');
+
+    // 尝试启动设备方向监听
+    tryStartDeviceOrientationNav();
+
+    const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+
+    preNavWatchId = navigator.geolocation.watchPosition(
+        pos => {
+            console.log('=== GPS位置更新 ===', pos);
+            let lng = pos.coords.longitude;
+            let lat = pos.coords.latitude;
+
+            // 坐标系转换 WGS84 -> GCJ-02
+            try {
+                if (typeof wgs84ToGcj02 === 'function') {
+                    const converted = wgs84ToGcj02(lng, lat);
+                    if (Array.isArray(converted) && converted.length === 2) {
+                        console.log('坐标转换: WGS84', [lng, lat], '-> GCJ02', converted);
+                        lng = converted[0];
+                        lat = converted[1];
+                    }
+                }
+            } catch (e) {
+                console.warn('坐标系转换失败，使用原始坐标:', e);
+            }
+
+            const curr = [lng, lat];
+            console.log('当前位置:', curr);
+
+            // 创建或更新"我的位置"标记
+            if (!userMarker) {
+                console.log('准备创建我的位置标记...');
+                console.log('MapConfig:', MapConfig);
+                console.log('MapConfig.markerStyles:', MapConfig.markerStyles);
+                console.log('MapConfig.markerStyles.headingLocation:', MapConfig.markerStyles.headingLocation);
+
+                // 使用与首页相同的配置
+                const iconCfg = MapConfig.markerStyles.headingLocation;
+                const w = (iconCfg && iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
+                const h = (iconCfg && iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
+
+                // 使用配置的图标或SVG箭头
+                let iconImage = iconCfg && iconCfg.icon ? iconCfg.icon : null;
+                if (!iconImage || iconCfg.useSvgArrow === true) {
+                    console.log('使用SVG箭头图标');
+                    iconImage = createHeadingArrowDataUrl('#007bff');
+                } else {
+                    console.log('使用PNG图标:', iconImage);
+                }
+
+                console.log('导航页创建我的位置标记, 图标路径:', iconImage, '尺寸:', w, 'x', h);
+
+                const myIcon = new AMap.Icon({
+                    size: new AMap.Size(w, h),
+                    image: iconImage,
+                    imageSize: new AMap.Size(w, h)
+                });
+
+                console.log('AMap.Icon创建成功');
+
+                userMarker = new AMap.Marker({
+                    position: curr,
+                    icon: myIcon,
+                    offset: new AMap.Pixel(-(w/2), -(h/2)),
+                    zIndex: 120,
+                    angle: 0,
+                    map: navigationMap
+                });
+
+                console.log('导航页我的位置标记创建成功, marker:', userMarker);
+            } else {
+                console.log('更新我的位置标记位置:', curr);
+                userMarker.setPosition(curr);
+            }
+
+            // 计算并更新朝向
+            if (typeof lastDeviceHeadingNav === 'number') {
+                // 优先使用设备方向
+                const heading = lastDeviceHeadingNav;
+                console.log('使用设备方向更新朝向:', heading);
+                try {
+                    if (typeof userMarker.setAngle === 'function') {
+                        userMarker.setAngle(heading);
+                    } else if (typeof userMarker.setRotation === 'function') {
+                        userMarker.setRotation(heading);
+                    }
+                } catch (e) {
+                    console.error('设置标记角度失败:', e);
+                }
+            } else if (lastGpsPos) {
+                // 使用GPS移动方向
+                const moveDist = calculateDistanceBetweenPoints(lastGpsPos, curr);
+                console.log('GPS移动距离:', moveDist, 'm');
+                if (moveDist > 0.5) {
+                    const bearing = calculateBearingBetweenPoints(lastGpsPos, curr);
+                    console.log('使用GPS移动方向更新朝向:', bearing);
+                    try {
+                        if (typeof userMarker.setAngle === 'function') {
+                            userMarker.setAngle(bearing);
+                        } else if (typeof userMarker.setRotation === 'function') {
+                            userMarker.setRotation(bearing);
+                        }
+                    } catch (e) {
+                        console.error('设置标记角度失败:', e);
+                    }
+                }
+            }
+
+            lastGpsPos = curr;
+        },
+        err => {
+            console.error('=== GPS定位失败 ===');
+            console.error('错误代码:', err.code);
+            console.error('错误信息:', err.message);
+            console.error('错误详情:', err);
+
+            if (!geoErrorNotified) {
+                alert('无法获取实时位置，请检查定位权限\n错误代码: ' + err.code + '\n错误信息: ' + err.message);
+                geoErrorNotified = true;
+            }
+        },
+        options
+    );
+
+    console.log('GPS watchPosition已启动, watchId:', preNavWatchId);
+}
+
+// 停止导航前的实时位置追踪
+function stopRealtimePositionTracking() {
+    if (preNavWatchId !== null && navigator.geolocation && typeof navigator.geolocation.clearWatch === 'function') {
+        try {
+            navigator.geolocation.clearWatch(preNavWatchId);
+            console.log('已停止实时位置追踪（导航前）');
+        } catch (e) {
+            console.error('停止位置追踪失败:', e);
+        }
+        preNavWatchId = null;
+    }
 }
