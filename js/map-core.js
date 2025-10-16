@@ -185,12 +185,19 @@ function startRealtimeLocationTracking() {
 
                 // 初始化或更新自身标记
                 if (!selfMarker) {
-                    const iconCfg = MapConfig.markerStyles.headingLocation;
-                    var w = (iconCfg && iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
-                    var h = (iconCfg && iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
+                    const iconCfg = MapConfig.markerStyles.headingLocation || {};
+                    var w = (iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
+                    var h = (iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
+
+                    let iconImage = iconCfg.icon;
+                    // 如果开启箭头模式或 PNG 未配置，则改用 SVG 箭头，以确保旋转效果明显
+                    if (iconCfg.useSvgArrow === true || !iconImage) {
+                        iconImage = createHeadingArrowDataUrl('#007bff');
+                    }
+
                     const icon = new AMap.Icon({
                         size: new AMap.Size(w, h),
-                        image: iconCfg.icon,
+                        image: iconImage,
                         imageSize: new AMap.Size(w, h)
                     });
                     selfMarker = new AMap.Marker({
@@ -344,4 +351,28 @@ function calcBearingSimple(a, b) {
     const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lng2 - lng1);
     const br = Math.atan2(y, x) * 180 / Math.PI;
     return (br + 360) % 360;
+}
+
+// 生成可旋转的箭头SVG数据URL（用于手机端）
+function createHeadingArrowDataUrl(color) {
+    const svg = `
+        <svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceAlpha" stdDeviation="1"/>
+                    <feOffset dx="0" dy="1" result="offsetblur"/>
+                    <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+                    <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+            </defs>
+            <g filter="url(#shadow)">
+                <circle cx="18" cy="18" r="14" fill="white"/>
+                <path d="M18 5 L23 21 L18 17 L13 21 Z" fill="${color || '#007bff'}"/>
+            </g>
+        </svg>`;
+    try {
+        return 'data:image/svg+xml;base64,' + btoa(svg);
+    } catch (e) {
+        return MapConfig.markerStyles.currentLocation.icon;
+    }
 }
