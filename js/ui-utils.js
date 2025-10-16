@@ -208,18 +208,73 @@ function setupEventListeners() {
                     tryStartDeviceOrientationIndex();
                 }
 
-                // 切换实时定位
-                if (typeof isRealtimeLocating !== 'undefined' && isRealtimeLocating) {
-                    if (typeof stopRealtimeLocationTracking === 'function') stopRealtimeLocationTracking();
-                    showSuccessMessage('已停止实时定位');
-                } else {
-                    if (typeof startRealtimeLocationTracking === 'function') startRealtimeLocationTracking();
-                    showSuccessMessage('已开启实时定位');
+                // 如果实时定位未启动，先启动它
+                if (typeof isRealtimeLocating !== 'undefined' && !isRealtimeLocating) {
+                    if (typeof startRealtimeLocationTracking === 'function') {
+                        startRealtimeLocationTracking();
+                        showSuccessMessage('正在获取当前位置...');
+                    }
                 }
 
-                // 将视图移到当前位置（若已存在）
-                if (typeof currentPosition !== 'undefined' && currentPosition) {
-                    try { map.setZoom(17); map.setCenter(currentPosition); } catch (e) {}
+                // 强制更新并定位到当前位置
+                // 这里使用一次性定位来立即获取最新位置
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function(position) {
+                            var lng = position.coords.longitude;
+                            var lat = position.coords.latitude;
+
+                            // 坐标系转换 WGS84 -> GCJ-02
+                            try {
+                                if (typeof wgs84ToGcj02 === 'function') {
+                                    var converted = wgs84ToGcj02(lng, lat);
+                                    if (Array.isArray(converted) && converted.length === 2) {
+                                        lng = converted[0];
+                                        lat = converted[1];
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('坐标系转换失败，使用原始坐标:', e);
+                            }
+
+                            currentPosition = [lng, lat];
+
+                            // 更新或创建自身标记
+                            if (selfMarker) {
+                                selfMarker.setPosition([lng, lat]);
+                            }
+
+                            // 定位到当前位置
+                            try {
+                                map.setZoom(17);
+                                map.setCenter([lng, lat]);
+                                showSuccessMessage('已定位到当前位置');
+                            } catch (e) {
+                                console.error('定位失败:', e);
+                            }
+                        },
+                        function(error) {
+                            console.error('获取位置失败:', error);
+                            showSuccessMessage('获取位置失败，请检查定位权限');
+
+                            // 如果有当前位置，则定位到当前位置
+                            if (typeof currentPosition !== 'undefined' && currentPosition) {
+                                try { map.setZoom(17); map.setCenter(currentPosition); } catch (e) {}
+                            }
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                } else {
+                    // 浏览器不支持定位，尝试定位到已有的当前位置
+                    if (typeof currentPosition !== 'undefined' && currentPosition) {
+                        try { map.setZoom(17); map.setCenter(currentPosition); } catch (e) {}
+                    } else {
+                        showSuccessMessage('浏览器不支持定位功能');
+                    }
                 }
             } finally {
                 setTimeout(function() {

@@ -4,73 +4,27 @@
 function initMap() {
     map = new AMap.Map('map-container', MapConfig.mapConfig);
 
-    // 等待地图完全加载后检查是否需要重新定位
+    // 等待地图完全加载后启动实时定位
     map.on('complete', function() {
-        console.log('地图加载完成');
+        console.log('地图加载完成，准备启动实时定位');
 
-        // 检查是否已有保存的地图状态(从导航页返回时恢复)
-        const savedMapState = sessionStorage.getItem('mapState');
-        if (savedMapState) {
-            try {
-                const state = JSON.parse(savedMapState);
+        // 清除任何可能存在的旧地图状态
+        sessionStorage.removeItem('mapState');
 
-                // 只有标记为来自导航页的状态才恢复，其他情况重新定位
-                if (state.fromNavigation === true) {
-                    console.log('从导航页返回，恢复地图状态，不触发定位:', state);
-                    map.setZoomAndCenter(state.zoom, state.center);
-
-                    // 恢复当前位置标记
-                    if (state.position && !selfMarker && !initialLocationMarker) {
-                        const iconCfg = MapConfig.markerStyles.headingLocation;
-                        const w = (iconCfg && iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
-                        const h = (iconCfg && iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
-                        const icon = new AMap.Icon({
-                            size: new AMap.Size(w, h),
-                            image: iconCfg.icon,
-                            imageSize: new AMap.Size(w, h)
-                        });
-                        selfMarker = new AMap.Marker({
-                            position: state.position,
-                            icon: icon,
-                            offset: new AMap.Pixel(-(w/2), -(h/2)),
-                            zIndex: 1000,
-                            angle: state.angle || 0,
-                            map: map
-                        });
-                        currentPosition = state.position;
-
-                        // 更新起点输入框
-                        const startInput = document.getElementById('start-location');
-                        if (startInput) {
-                            startInput.value = '我的位置';
-                        }
-                    }
-
-                    // 重要：直接return，不执行后续的定位逻辑
-                    console.log('已恢复地图状态，跳过定位');
-                    return;
-                } else {
-                    console.log('地图状态不是来自导航页，清除并重新定位');
-                    sessionStorage.removeItem('mapState');
-                }
-            } catch (e) {
-                console.warn('恢复地图状态失败:', e);
-                sessionStorage.removeItem('mapState');
-            }
-        }
-
-        // 首次进入或状态恢复失败,启动定位
-        console.log('没有保存的地图状态，启动定位');
+        // 首页始终启动实时定位
         setTimeout(function() {
             if (typeof startRealtimeLocationTracking === 'function') {
+                console.log('启动实时定位追踪');
                 startRealtimeLocationTracking();
                 // 兜底：若短时间内没有定位结果，则使用一次性定位
                 setTimeout(function() {
                     if (!selfMarker && !currentPosition) {
+                        console.log('实时定位无响应，使用一次性定位');
                         getCurrentLocation();
                     }
                 }, 1500);
             } else {
+                console.log('实时定位函数不存在，使用一次性定位');
                 getCurrentLocation();
             }
         }, 100);
@@ -314,7 +268,7 @@ function startRealtimeLocationTracking() {
             const locateBtn = document.getElementById('locate-btn');
             if (locateBtn) {
                 locateBtn.classList.add('active');
-                locateBtn.title = '停止实时定位';
+                locateBtn.title = '定位到当前位置';
             }
         } catch (e) {}
     } catch (e) {
@@ -338,7 +292,7 @@ function stopRealtimeLocationTracking() {
         const locateBtn = document.getElementById('locate-btn');
         if (locateBtn) {
             locateBtn.classList.remove('active');
-            locateBtn.title = '开启实时定位';
+            locateBtn.title = '定位到当前位置';
         }
     } catch (e) {}
 }
