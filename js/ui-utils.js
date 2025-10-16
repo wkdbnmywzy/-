@@ -192,53 +192,41 @@ function setupEventListeners() {
     const zoomOutBtn = document.getElementById('zoom-out-btn');
 
     if (locateBtn) {
-        let isLocating = false;  // 防止重复点击
+        let isBusy = false; // 防止重复点击节流
 
         locateBtn.addEventListener('click', function() {
-            console.log('定位按钮点击');
+            if (isBusy) return;
+            isBusy = true;
 
-            // 防止重复点击
-            if (isLocating) {
-                console.log('定位中，忽略重复点击');
-                return;
-            }
-
-            // 添加视觉反馈
-            locateBtn.style.opacity = '0.6';
             const icon = locateBtn.querySelector('i');
-            if (icon) {
-                icon.style.animation = 'spin 1s linear infinite';
-            }
+            locateBtn.style.opacity = '0.75';
+            if (icon) icon.style.animation = 'spin 0.8s linear infinite';
 
-            isLocating = true;
+            try {
+                // 用户手势下尝试申请方向权限（iOS）
+                if (typeof tryStartDeviceOrientationIndex === 'function') {
+                    tryStartDeviceOrientationIndex();
+                }
 
-            if (currentPosition) {
-                // 如果已有定位，直接移动到当前位置
-                map.setCenter(currentPosition);
-                map.setZoom(15);
+                // 切换实时定位
+                if (typeof isRealtimeLocating !== 'undefined' && isRealtimeLocating) {
+                    if (typeof stopRealtimeLocationTracking === 'function') stopRealtimeLocationTracking();
+                    showSuccessMessage('已停止实时定位');
+                } else {
+                    if (typeof startRealtimeLocationTracking === 'function') startRealtimeLocationTracking();
+                    showSuccessMessage('已开启实时定位');
+                }
 
-                // 添加动画效果
+                // 将视图移到当前位置（若已存在）
+                if (typeof currentPosition !== 'undefined' && currentPosition) {
+                    try { map.setZoom(17); map.setCenter(currentPosition); } catch (e) {}
+                }
+            } finally {
                 setTimeout(function() {
-                    if (icon) {
-                        icon.style.animation = '';
-                    }
+                    if (icon) icon.style.animation = '';
                     locateBtn.style.opacity = '1';
-                    isLocating = false;
+                    isBusy = false;
                 }, 300);
-
-                showSuccessMessage('已定位到您的位置');
-            } else {
-                // 如果没有定位，重新获取
-                getCurrentLocation();
-
-                // 监听定位结果，恢复按钮状态
-                setTimeout(function() {
-                    if (icon) {
-                        icon.style.animation = '';
-                    }
-                    locateBtn.style.opacity = '1';
-                    isLocating = false;
-                }, 2000);
             }
         });
     }
