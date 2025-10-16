@@ -374,6 +374,13 @@ class TaskManager {
 
         this.closeNavigationDialog();
 
+        // 保存任务页即将跳转的标记，首页可以不重新定位
+        try {
+            sessionStorage.setItem('fromTaskNavigation', 'true');
+        } catch (e) {
+            console.warn('保存导航来源标记失败:', e);
+        }
+
         // 跳转到地图页面并开始导航
         // 使用URL参数传递导航信息
         window.location.href = `index.html?nav=true&lat=${lat}&lng=${lng}&name=${encodeURIComponent(locationName)}&taskId=${taskId}`;

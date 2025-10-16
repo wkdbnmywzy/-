@@ -56,6 +56,14 @@ function checkURLAction() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
 
+    // 检查是否从任务页来进行导航，如果是则清除标记和地图状态
+    const fromTaskNav = sessionStorage.getItem('fromTaskNavigation');
+    if (fromTaskNav === 'true') {
+        sessionStorage.removeItem('fromTaskNavigation');
+        sessionStorage.removeItem('mapState');
+        console.log('从任务页导航进入，已清除地图状态缓存');
+    }
+
     if (action === 'addWaypoint') {
         console.log('检测到添加途径点操作，跳转到点位选择界面');
         // 显示点位选择界面
@@ -114,10 +122,40 @@ function initBottomNav() {
  */
 function navigateToPage(page) {
     console.log('准备跳转到页面:', page);
+
+    // 只有从首页跳转到其他页面时才保存地图状态（用于返回时恢复）
+    // 注意：从任务页切换到首页时，不应保存状态，而是重新定位
+    if (page !== 'index' && typeof map !== 'undefined' && map) {
+        try {
+            const zoom = map.getZoom();
+            const center = map.getCenter();
+            const position = currentPosition || null;
+            const angle = (selfMarker && typeof selfMarker.getAngle === 'function') ? selfMarker.getAngle() : 0;
+
+            const mapState = {
+                zoom: zoom,
+                center: [center.lng, center.lat],
+                position: position,
+                angle: angle
+            };
+            sessionStorage.setItem('mapState', JSON.stringify(mapState));
+            console.log('保存地图状态:', mapState);
+        } catch (e) {
+            console.warn('保存地图状态失败:', e);
+        }
+    }
+
     switch(page) {
         case 'index':
-            // 当前页面，不需要跳转
-            console.log('已经在首页，无需跳转');
+            // 从其他页面跳转到首页时，清除地图状态，强制重新定位
+            sessionStorage.removeItem('mapState');
+            console.log('清除地图状态，将重新定位');
+            // 当前页面不需要跳转
+            if (window.location.pathname.includes('index.html') || window.location.pathname === '/') {
+                console.log('已经在首页，无需跳转');
+            } else {
+                window.location.href = 'index.html';
+            }
             break;
         case 'task':
             console.log('跳转到任务页面');

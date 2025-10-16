@@ -570,11 +570,12 @@ function setupNavigationEvents() {
         });
     }
 
-    // 添加途径点按钮 - 跳转到点位选择界面
+    // 添加途径点按钮 - 保存地图状态后跳转到首页的点位选择界面
     const addWaypointBtn = document.getElementById('nav-add-waypoint-btn');
     if (addWaypointBtn) {
         addWaypointBtn.addEventListener('click', function() {
-            console.log('跳转到点位选择界面添加途径点');
+            console.log('跳转到首页点位选择界面添加途径点');
+
             // 保存当前路线数据到sessionStorage
             if (routeData) {
                 try {
@@ -583,7 +584,30 @@ function setupNavigationEvents() {
                     console.error('保存路线数据失败:', e);
                 }
             }
-            // 跳转到主页（主页会自动显示点位选择界面）
+
+            // 保存导航页的地图状态到专用key，避免被清除
+            if (navigationMap) {
+                try {
+                    const zoom = navigationMap.getZoom();
+                    const center = navigationMap.getCenter();
+                    const position = routeData && routeData.start && routeData.start.position ?
+                        routeData.start.position : null;
+
+                    const mapState = {
+                        zoom: zoom,
+                        center: [center.lng, center.lat],
+                        position: position,
+                        angle: 0,
+                        fromNavigation: true // 标记来自导航页
+                    };
+                    sessionStorage.setItem('mapState', JSON.stringify(mapState));
+                    console.log('保存导航页地图状态:', mapState);
+                } catch (e) {
+                    console.warn('保存地图状态失败:', e);
+                }
+            }
+
+            // 跳转到首页并自动打开点位选择界面
             window.location.href = 'index.html?action=addWaypoint';
         });
     }
