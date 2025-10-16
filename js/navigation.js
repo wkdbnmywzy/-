@@ -419,7 +419,7 @@ function addRouteMarkers(startLngLat, endLngLat) {
         size: isMyLocationStart ? new AMap.Size(30, 30) : new AMap.Size(30, 38),
         image: isMyLocationStart
             ? MapConfig.markerStyles.currentLocation.icon
-            : '../images/工地数字导航小程序切图/司机/2X/地图icon/起点.png',
+            : 'images/工地数字导航小程序切图/司机/2X/地图icon/起点.png',
         imageSize: isMyLocationStart ? new AMap.Size(30, 30) : new AMap.Size(30, 38)
     });
 
@@ -436,7 +436,7 @@ function addRouteMarkers(startLngLat, endLngLat) {
     // 创建终点标记（使用本地“终点.png”）
     const endIcon = new AMap.Icon({
         size: new AMap.Size(30, 38),
-        image: '../images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
+        image: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
         imageSize: new AMap.Size(30, 38)
     });
 
@@ -462,7 +462,7 @@ function addWaypointMarkers(waypoints) {
 
     const icon = new AMap.Icon({
         size: new AMap.Size(26, 34),
-        image: '../images/工地数字导航小程序切图/司机/2X/地图icon/途径点.png',
+        image: 'images/工地数字导航小程序切图/司机/2X/地图icon/途径点.png',
         imageSize: new AMap.Size(26, 34)
     });
 
