@@ -22,6 +22,10 @@ let navStartTime = 0;             // 导航开始时间（ms）
 let gpsWatchId = null;            // 浏览器GPS监听ID（真实导航）
 let lastGpsPos = null;            // 上一次GPS位置（用于计算朝向）
 let geoErrorNotified = false;     // 避免重复弹错误
+// 设备方向（用于箭头随朝向变化）
+let trackingDeviceOrientationNav = false;
+let deviceOrientationHandlerNav = null;
+let lastDeviceHeadingNav = null; // 度，0-360，顺时针（相对正北）
 
 // 初始化导航地图
 function initNavigationMap() {
@@ -1343,6 +1347,9 @@ function startRealNavigationTracking() {
     }
 
     const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 };
+
+    // 在用户操作开始导航时，尝试开启设备方向监听（iOS 需权限）
+    tryStartDeviceOrientationNav();
     gpsWatchId = navigator.geolocation.watchPosition(
         pos => {
             let lng = pos.coords.longitude;
@@ -1361,15 +1368,21 @@ function startRealNavigationTracking() {
 
             // 初始化标记与灰色路径
             if (!userMarker) {
+                // 选择图标：优先使用可旋转箭头（当配置开启或PNG缺省时），否则使用项目内“我的位置.png”
+                const iconCfg = (MapConfig && MapConfig.markerStyles && MapConfig.markerStyles.headingLocation) || {};
+                const useSvgArrow = iconCfg.useSvgArrow === true || !iconCfg.icon;
+                const w = (iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 30;
+                const h = (iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 30;
+                const img = useSvgArrow ? createHeadingArrowDataUrl('#007bff') : iconCfg.icon;
                 const myIcon = new AMap.Icon({
-                    size: new AMap.Size(30, 30),
-                    image: MapConfig.markerStyles.currentLocation.icon,
-                    imageSize: new AMap.Size(30, 30)
+                    size: new AMap.Size(w, h),
+                    image: img,
+                    imageSize: new AMap.Size(w, h)
                 });
                 userMarker = new AMap.Marker({
                     position: curr,
                     icon: myIcon,
-                    offset: new AMap.Pixel(-15, -15),
+                    offset: new AMap.Pixel(-(w/2), -(h/2)),
                     zIndex: 120,
                     angle: 0,
                     map: navigationMap
@@ -1388,8 +1401,15 @@ function startRealNavigationTracking() {
                 });
             }
 
-            // 计算朝向并旋转
-            if (lastGpsPos) {
+            // 计算朝向并旋转：优先使用设备方向 heading；否则用移动向量
+            if (typeof lastDeviceHeadingNav === 'number') {
+                const heading = lastDeviceHeadingNav;
+                if (typeof userMarker.setAngle === 'function') {
+                    userMarker.setAngle(heading);
+                } else if (typeof userMarker.setRotation === 'function') {
+                    userMarker.setRotation(heading);
+                }
+            } else if (lastGpsPos) {
                 const moveDist = calculateDistanceBetweenPoints(lastGpsPos, curr);
                 if (moveDist > 0.5) { // 小于0.5米忽略抖动
                     const bearing = calculateBearingBetweenPoints(lastGpsPos, curr);
@@ -1448,6 +1468,8 @@ function stopRealNavigationTracking() {
     lastGpsPos = null;
     if (userMarker && navigationMap) { navigationMap.remove(userMarker); userMarker = null; }
     if (traveledPolyline && navigationMap) { navigationMap.remove(traveledPolyline); traveledPolyline = null; }
+    // 停止设备方向监听
+    tryStopDeviceOrientationNav();
 }
 
 // 在路径点集中找到距离当前点最近的点索引
@@ -1576,4 +1598,75 @@ function finishNavigation() {
     }
 
     showNavigationCompleteModal(totalRouteDistance || 0, totalMinutes);
+}
+
+// ====== 设备方向（导航页）支持 ======
+function tryStartDeviceOrientationNav() {
+    if (trackingDeviceOrientationNav) return;
+    const isIOS = /iP(ad|hone|od)/i.test(navigator.userAgent);
+    const start = () => {
+        deviceOrientationHandlerNav = function(e) {
+            if (!e) return;
+            let heading = null;
+            if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+                heading = e.webkitCompassHeading; // iOS Safari，已相对正北
+            } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
+                heading = e.alpha; // 部分安卓浏览器返回相对正北
+            }
+            if (heading === null) return;
+            if (heading < 0) heading += 360;
+            lastDeviceHeadingNav = heading;
+            if (userMarker) {
+                try {
+                    if (typeof userMarker.setAngle === 'function') userMarker.setAngle(heading);
+                    else if (typeof userMarker.setRotation === 'function') userMarker.setRotation(heading);
+                } catch (err) {}
+            }
+        };
+        window.addEventListener('deviceorientation', deviceOrientationHandlerNav, true);
+        trackingDeviceOrientationNav = true;
+    };
+    try {
+        if (isIOS && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(state => {
+                if (state === 'granted') start();
+                else console.warn('用户拒绝设备方向权限');
+            }).catch(err => console.warn('请求方向权限失败:', err));
+        } else {
+            start();
+        }
+    } catch (e) { console.warn('开启方向监听失败:', e); }
+}
+
+function tryStopDeviceOrientationNav() {
+    if (!trackingDeviceOrientationNav) return;
+    try {
+        if (deviceOrientationHandlerNav) {
+            window.removeEventListener('deviceorientation', deviceOrientationHandlerNav, true);
+            deviceOrientationHandlerNav = null;
+        }
+    } catch (e) {}
+    trackingDeviceOrientationNav = false;
+    lastDeviceHeadingNav = null;
+}
+
+// 生成可旋转的箭头SVG数据URL（用于手机端导航页）
+function createHeadingArrowDataUrl(color) {
+    const svg = `
+        <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur in="SourceAlpha" stdDeviation="1"/>
+                    <feOffset dx="0" dy="1" result="offsetblur"/>
+                    <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+                    <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+            </defs>
+            <g filter="url(#shadow)">
+                <circle cx="15" cy="15" r="12" fill="white"/>
+                <path d="M15 4 L20 18 L15 15 L10 18 Z" fill="${color || '#007bff'}"/>
+            </g>
+        </svg>`;
+    try { return 'data:image/svg+xml;base64,' + btoa(svg); }
+    catch (e) { return (MapConfig && MapConfig.markerStyles && MapConfig.markerStyles.currentLocation && MapConfig.markerStyles.currentLocation.icon) || ''; }
 }
