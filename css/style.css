@@ -168,6 +168,42 @@ body {
     border-bottom: none;
 }
 
+/* 搜索结果操作按钮 */
+.result-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.result-action-btn {
+    width: 36px;
+    height: 36px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.result-action-btn:hover {
+    background: #e0e0e0;
+    transform: scale(1.05);
+}
+
+.result-action-btn:active {
+    transform: scale(0.95);
+}
+
+.result-action-btn img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
 /* KML结果特殊样式 */
 .search-result-item.kml-result {
     background-color: #ffffff;
@@ -235,7 +271,7 @@ body {
     left: 0;
     right: 0;
     z-index: 90;
-    background: white;
+    background: #FFFFFF;
     border-radius: 20px 20px 0 0;
     padding: 20px;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
@@ -384,29 +420,42 @@ body {
 .route-selector {
     display: flex;
     align-items: flex-start;
-    gap: 15px;
-}
-
-.location-inputs {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
     gap: 12px;
 }
 
-.location-item {
+.location-inputs-wrapper {
+    flex: 1;
+    border: 1px solid #e6e9ef;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.location-inputs {
+    display: flex;
+    flex-direction: column;
+}
+
+.location-inputs .location-item {
     display: flex;
     align-items: center;
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 12px 15px;
-    border: 1px solid #e9ecef;
+    gap: 12px;
+    padding: 14px 12px 14px 16px;
+    border: none;
+    background: transparent;
 }
 
 .location-item i {
-    color: #007bff;
-    margin-right: 10px;
+    flex-shrink: 0;
     font-size: 14px;
+}
+
+.start-icon {
+    color: #007bff;
+}
+
+.end-icon {
+    color: #ff4444;
 }
 
 .location-item input {
@@ -416,18 +465,74 @@ body {
     font-size: 14px;
     outline: none;
     color: #333;
+    padding-right: 8px;
 }
 
 .location-item input::placeholder {
     color: #999;
 }
 
+.divider-line {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 0 16px;
+    gap: 10px;
+}
+
+.divider-line::before {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e6e9ef;
+}
+
+/* 切换按钮 - 在横线右侧 */
+.swap-btn {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    background: #f8f9fa;
+    border: 1px solid #e6e9ef;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.swap-btn i {
+    font-size: 16px;
+    color: #666;
+    transform: rotate(90deg);
+}
+
+.swap-btn:hover {
+    background: #e9ecef;
+    border-color: #1E6FFF;
+}
+
+.swap-btn:hover i {
+    color: #1E6FFF;
+}
+
+.swap-btn:active {
+    transform: scale(0.95);
+}
+
+.swap-btn img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+}
+
 .add-waypoint {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    margin-top: 5px;
+    justify-content: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .add-btn {
@@ -460,9 +565,45 @@ body {
 
 /* 途经点容器 */
 .waypoints-container {
-    margin-top: 10px;
-    max-height: 150px; /* 限制途经点区域最大高度 */
-    overflow-y: auto; /* 内容过多时允许滚动 */
+    margin-top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.waypoint-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.waypoint-row .location-item {
+    flex: 1;
+}
+
+/* 删除途径点按钮 */
+.remove-waypoint-btn {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: #999;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.remove-waypoint-btn:hover {
+    color: #ff4444;
+    transform: scale(1.1);
+}
+
+.remove-waypoint-btn:active {
+    transform: scale(0.9);
 }
 
 /* 全屏选择面板 */
@@ -542,34 +683,38 @@ body {
 
 /* 路线规划卡片 */
 .picker-route-card {
-    background: white;
+    background: #FFFFFF;
     border-radius: 12px;
     padding: 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    border: 1px solid #f0f0f0;
+    border: 1px solid #e6e9ef;
 }
 
 .picker-route-selector {
     display: flex;
     align-items: flex-start;
-    gap: 15px;
+    gap: 12px;
+}
+
+.picker-location-inputs-wrapper {
+    flex: 1;
+    border: 1px solid #e6e9ef;
+    border-radius: 12px;
+    background: #fff;
 }
 
 .picker-location-inputs {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 12px;
 }
 
 .picker-location-row {
     display: flex;
     align-items: center;
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 12px 15px;
-    border: 1px solid #e9ecef;
-    gap: 10px;
+    gap: 12px;
+    padding: 14px 12px 14px 16px;
+    border: none;
+    background: transparent;
 }
 
 .picker-start-icon {
@@ -591,97 +736,67 @@ body {
     font-size: 14px;
     outline: none;
     color: #333;
+    padding-right: 8px;
 }
 
 .picker-location-row input::placeholder {
     color: #999;
 }
 
-.picker-add-waypoint {
+.picker-divider-line {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 5px;
-    margin-top: 5px;
+    padding: 0 12px 0 16px;
+    gap: 10px;
 }
 
-.picker-add-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
+.picker-divider-line::before {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e6e9ef;
+}
+
+.picker-swap-btn {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
     background: #f8f9fa;
-    border: 2px dashed #ddd;
+    border: 1px solid #e6e9ef;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
-.picker-add-btn:hover {
-    border-color: #007bff;
-    background: #e3f2fd;
-}
-
-.picker-add-btn i {
+.picker-swap-btn i {
+    font-size: 16px;
     color: #666;
-    font-size: 18px;
+    transform: rotate(90deg);
 }
 
-.picker-waypoint-label {
-    font-size: 12px;
-    color: #666;
+.picker-swap-btn:hover {
+    background: #e9ecef;
+    border-color: #1E6FFF;
 }
 
-/* 路线规划区域 */
-.picker-route-section {
-    display: flex;
-    align-items: flex-start;
-    gap: 15px;
-    margin-bottom: 20px;
+.picker-swap-btn:hover i {
+    color: #1E6FFF;
 }
 
-.picker-location-inputs {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.picker-location-item {
-    display: flex;
-    align-items: center;
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 12px 15px;
-    border: 1px solid #e9ecef;
-}
-
-.picker-location-item i {
-    color: #007bff;
-    margin-right: 10px;
-    font-size: 14px;
-}
-
-.picker-location-item input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    font-size: 14px;
-    outline: none;
-    color: #333;
-}
-
-.picker-location-item input::placeholder {
-    color: #999;
+.picker-swap-btn:active {
+    transform: scale(0.95);
 }
 
 .picker-add-waypoint {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
-    margin-top: 5px;
+    justify-content: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .picker-add-btn {
@@ -716,7 +831,51 @@ body {
 .picker-waypoints-container {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    margin-top: 0;
+}
+
+.picker-waypoint-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.picker-waypoint-row .picker-location-row {
+    flex: 1;
+    background: white;
+    border: 1px solid #e6e9ef;
+    border-radius: 12px;
+    padding: 12px 15px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.picker-waypoint-row .picker-location-row i {
+    color: #FF9800;
+}
+
+.picker-remove-waypoint-btn {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    color: #999;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.picker-remove-waypoint-btn:hover {
+    color: #ff4444;
+    transform: scale(1.1);
+}
+
+.picker-remove-waypoint-btn:active {
+    transform: scale(0.9);
 }
 
 /* 完成按钮 */
@@ -996,6 +1155,7 @@ body {
     padding: 10px 0;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     height: 60px;
+    pointer-events: auto;
 }
 
 .nav-item {
@@ -1006,6 +1166,7 @@ body {
     flex: 1;
     cursor: pointer;
     padding: 8px;
+    pointer-events: auto;
 }
 
 .nav-icon-img {

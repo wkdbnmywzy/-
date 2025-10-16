@@ -162,15 +162,6 @@ function setupEventListeners() {
         }
     });
 
-    // 导航栏点击效果
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
-        item.addEventListener('click', function() {
-            navItems.forEach(i => i.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-
     // 添加途经点按钮点击事件
     const addWaypointBtn = document.getElementById('add-waypoint-btn');
     if (addWaypointBtn) {
@@ -178,6 +169,17 @@ function setupEventListeners() {
         addWaypointBtn.addEventListener('click', addWaypoint);
     } else {
         console.error('未找到添加途经点按钮');
+    }
+
+    // 切换起点终点按钮点击事件
+    const swapLocationsBtn = document.getElementById('swap-locations-btn');
+    if (swapLocationsBtn) {
+        console.log('找到切换起点终点按钮');
+        swapLocationsBtn.addEventListener('click', function() {
+            swapStartAndEndLocations();
+        });
+    } else {
+        console.log('未找到切换起点终点按钮');
     }
 
     // 路线规划和导航按钮已移除，等待新的设计方案
@@ -214,4 +216,38 @@ function setupEventListeners() {
     }
 
     console.log('事件监听器设置完成');
+}
+
+// 交换起点和终点位置
+function swapStartAndEndLocations() {
+    console.log('交换起点和终点');
+
+    const startInput = document.getElementById('start-location');
+    const endInput = document.getElementById('end-location');
+    const pickerStartInput = document.getElementById('picker-start-location');
+    const pickerEndInput = document.getElementById('picker-end-location');
+
+    if (startInput && endInput) {
+        // 交换主输入框的值
+        const tempValue = startInput.value;
+        startInput.value = endInput.value;
+        endInput.value = tempValue;
+
+        // 同步点选择面板的输入框
+        if (pickerStartInput) {
+            pickerStartInput.value = endInput.value;
+        }
+        if (pickerEndInput) {
+            pickerEndInput.value = startInput.value;
+        }
+
+        console.log('已交换起点和终点输入框的值');
+
+        // 提示用户
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage('已交换起点和终点');
+        }
+    } else {
+        console.warn('未找到起点或终点输入框');
+    }
 }

@@ -13,23 +13,17 @@ function initMap() {
         }, 100);
     });
 
-    // 监听窗口可见性变化，刷新地图
+    // 监听窗口可见性变化
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden && map) {
-            console.log('页面重新可见，刷新地图');
-            setTimeout(function() {
-                map.refresh();
-            }, 100);
+            console.log('页面重新可见');
         }
     });
 
     // 监听窗口焦点变化
     window.addEventListener('focus', function() {
         if (map) {
-            console.log('窗口获得焦点，刷新地图');
-            setTimeout(function() {
-                map.refresh();
-            }, 100);
+            console.log('窗口获得焦点');
         }
     });
 
@@ -68,14 +62,7 @@ function getCurrentLocation() {
                 // 更新地图中心和缩放级别
                 map.setZoomAndCenter(15, [lng, lat]);
 
-                // 强制刷新地图
-                setTimeout(function() {
-                    if (map) {
-                        map.refresh();
-                    }
-                }, 200);
-
-                // 添加当前位置标记（使用本地“我的位置.png”）
+                // 添加当前位置标记（使用本地"我的位置.png"）
                 var marker = new AMap.Marker({
                     position: [lng, lat],
                     icon: new AMap.Icon({

@@ -160,125 +160,129 @@ function setupPickerEventListeners() {
     // 添加途经点按钮（面板内）
     if (pickerAddWaypointBtn) {
         pickerAddWaypointBtn.addEventListener('click', function() {
-            // 在“我的位置”(起点)和“请输入目的地”(终点)之间插入一个“请输入途径点”的搜索框
-            if (!pickerLocationInputs) return;
-
-            // 限制最多 5 个途经点
-            const currentCount = pickerLocationInputs.querySelectorAll('.picker-waypoint-row').length;
-            if (currentCount >= 5) {
-                alert('最多只能添加 5 个途经点');
-                return;
-            }
-
-            const endRow = pickerLocationInputs.querySelector('#picker-end-location')?.parentElement;
-            const waypointId = 'picker-waypoint-' + Date.now();
-
-            const waypointRow = document.createElement('div');
-            waypointRow.className = 'picker-location-row picker-waypoint-row';
-            waypointRow.innerHTML = `
-                <i class="fas fa-dot-circle picker-waypoint-icon"></i>
-                <input type="text" placeholder="请输入途径点" class="picker-waypoint-input" id="${waypointId}">
-                <button class="picker-waypoint-remove" title="删除">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-
-            if (endRow) {
-                pickerLocationInputs.insertBefore(waypointRow, endRow);
-            } else {
-                pickerLocationInputs.appendChild(waypointRow);
-            }
-
-            // 绑定事件：focus/input/enter
-            const inputEl = waypointRow.querySelector('#' + waypointId);
-            if (inputEl) {
-                // 焦点事件
-                inputEl.addEventListener('focus', function() {
-                    currentInputType = 'waypoint';
-                    currentActiveInput = waypointId;
-                    // 恢复默认显示（分类+历史）
-                    restoreDefaultDisplay();
-                });
-
-                // 输入事件（搜索）
-                let wpTimer;
-                inputEl.addEventListener('input', function() {
-                    clearTimeout(wpTimer);
-                    const keyword = this.value.trim();
-                    wpTimer = setTimeout(() => {
-                        currentInputType = 'waypoint';
-                        currentActiveInput = waypointId;
-                        if (keyword) {
-                            searchAndDisplayResults(keyword);
-                        } else {
-                            restoreDefaultDisplay();
-                        }
-                    }, 300);
-                });
-
-                // 回车选择
-                inputEl.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const keyword = this.value.trim();
-                        if (keyword) {
-                            currentInputType = 'waypoint';
-                            currentActiveInput = waypointId;
-                            autoSelectLocation(keyword, 'waypoint');
-                        }
-                    }
-                });
-
-                // 自动聚焦新输入框
-                setTimeout(() => inputEl.focus(), 50);
-            }
+            addPickerWaypoint();
         });
     }
 
-    // 途经点删除（事件委托）
-    document.addEventListener('click', function(e) {
-        const removeBtn = e.target.closest('.picker-waypoint-remove');
-        if (removeBtn) {
-            const row = removeBtn.closest('.picker-waypoint-row');
-            if (row && row.parentElement) {
-                row.parentElement.removeChild(row);
-            }
-        }
-    });
-
-    // 分类标签点击事件
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('picker-tag')) {
-            const tagName = e.target.textContent;
-            selectTagLocation(tagName);
-        }
-    });
-
-    // 地点列表项点击事件
-    document.addEventListener('click', function(e) {
-        const locationItem = e.target.closest('.picker-location-item');
-        if (locationItem) {
-            const locationText = locationItem.querySelector('.picker-location-text')?.textContent ||
-                               locationItem.querySelector('.picker-location-name')?.textContent;
-            if (locationText) {
-                selectLocationFromPicker(locationText, locationItem);
-            }
-        }
-    });
-
-    // 地点添加按钮点击事件（阻止冒泡，避免触发整行点击）
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('picker-add-icon')) {
-            e.stopPropagation();
-            const locationItem = e.target.closest('.picker-location-item');
-            const locationText = locationItem?.querySelector('.picker-location-text')?.textContent ||
-                               locationItem?.querySelector('.picker-location-name')?.textContent;
-            if (locationText) {
-                addLocationToCurrent(locationText);
-            }
-        }
-    });
+    // 点选择面板的转换起点终点按钮
+    const pickerSwapBtn = document.getElementById('picker-swap-btn');
+    if (pickerSwapBtn) {
+        pickerSwapBtn.addEventListener('click', function() {
+            console.log('点选择面板：交换起点和终点');
+            swapPickerLocations();
+        });
+    }
 }
+
+// 在点位选择界面添加途径点
+function addPickerWaypoint() {
+    const waypointsContainer = document.getElementById('picker-waypoints-container');
+    if (!waypointsContainer) return;
+
+    // 限制最多 5 个途经点
+    const currentCount = waypointsContainer.querySelectorAll('.picker-waypoint-row').length;
+    if (currentCount >= 5) {
+        alert('最多只能添加 5 个途经点');
+        return;
+    }
+
+    const waypointId = 'picker-waypoint-' + Date.now();
+    const waypointRow = document.createElement('div');
+    waypointRow.className = 'picker-waypoint-row';
+    waypointRow.id = waypointId;
+    waypointRow.innerHTML = `
+        <div class="picker-location-row">
+            <i class="fas fa-dot-circle"></i>
+            <input type="text" placeholder="请输入途经点" class="picker-waypoint-input" id="${waypointId}-input">
+        </div>
+        <button class="picker-remove-waypoint-btn" data-id="${waypointId}">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    waypointsContainer.appendChild(waypointRow);
+
+    // 绑定删除事件
+    const removeBtn = waypointRow.querySelector('.picker-remove-waypoint-btn');
+    removeBtn.addEventListener('click', function() {
+        waypointRow.remove();
+    });
+
+    // 绑定输入框事件
+    const inputEl = waypointRow.querySelector(`#${waypointId}-input`);
+    if (inputEl) {
+        let searchTimer;
+
+        // 焦点事件
+        inputEl.addEventListener('focus', function() {
+            currentInputType = 'waypoint';
+            currentActiveInput = `${waypointId}-input`;
+            if (!this.value.trim()) {
+                restoreDefaultDisplay();
+            }
+        });
+
+        // 输入事件
+        inputEl.addEventListener('input', function() {
+            clearTimeout(searchTimer);
+            const keyword = this.value.trim();
+            searchTimer = setTimeout(() => {
+                if (keyword) {
+                    searchAndDisplayResults(keyword);
+                } else {
+                    restoreDefaultDisplay();
+                }
+            }, 300);
+        });
+
+        // 回车键确认
+        inputEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const keyword = this.value.trim();
+                if (keyword) {
+                    autoSelectLocation(keyword, 'waypoint');
+                }
+            }
+        });
+
+        // 自动聚焦新输入框
+        setTimeout(() => inputEl.focus(), 50);
+    }
+}
+
+// 分类标签点击事件
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('picker-tag')) {
+        const tagName = e.target.textContent;
+        selectTagLocation(tagName);
+    }
+});
+
+// 地点列表项点击事件
+document.addEventListener('click', function(e) {
+    const locationItem = e.target.closest('.picker-location-item');
+    if (locationItem) {
+        const locationText = locationItem.querySelector('.picker-location-text')?.textContent ||
+                           locationItem.querySelector('.picker-location-name')?.textContent;
+        if (locationText) {
+            selectLocationFromPicker(locationText, locationItem);
+        }
+    }
+});
+
+// 地点添加按钮点击事件（阻止冒泡，避免触发整行点击）
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('picker-add-icon')) {
+        e.stopPropagation();
+        const locationItem = e.target.closest('.picker-location-item');
+        const locationText = locationItem?.querySelector('.picker-location-text')?.textContent ||
+                           locationItem?.querySelector('.picker-location-name')?.textContent;
+        if (locationText) {
+            addLocationToCurrent(locationText);
+        }
+    }
+});
 
 // 显示全屏选择面板
 function showPickerPanel() {
@@ -1057,4 +1061,38 @@ function validateAndGetPosition(locationName) {
     // 如果找不到，返回null
     console.warn('验证失败: 未找到地点', locationName);
     return null;
+}
+
+// 点选择面板交换起点和终点
+function swapPickerLocations() {
+    console.log('点选择面板：交换起点和终点');
+
+    const pickerStartInput = document.getElementById('picker-start-location');
+    const pickerEndInput = document.getElementById('picker-end-location');
+    const startInput = document.getElementById('start-location');
+    const endInput = document.getElementById('end-location');
+
+    if (pickerStartInput && pickerEndInput) {
+        // 交换点选择面板的输入框值
+        const tempValue = pickerStartInput.value;
+        pickerStartInput.value = pickerEndInput.value;
+        pickerEndInput.value = tempValue;
+
+        // 同步到主页面的输入框
+        if (startInput) {
+            startInput.value = pickerStartInput.value;
+        }
+        if (endInput) {
+            endInput.value = pickerEndInput.value;
+        }
+
+        console.log('已交换点选择面板的起点和终点');
+
+        // 显示成功提示
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage('已交换起点和终点');
+        }
+    } else {
+        console.warn('未找到点选择面板的起点或终点输入框');
+    }
 }

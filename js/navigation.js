@@ -566,12 +566,30 @@ function setupNavigationEvents() {
         });
     }
 
-    // 添加途径点按钮
+    // 添加途径点按钮 - 跳转到点位选择界面
     const addWaypointBtn = document.getElementById('nav-add-waypoint-btn');
     if (addWaypointBtn) {
         addWaypointBtn.addEventListener('click', function() {
-            console.log('添加途径点');
-            addNavigationWaypoint('');
+            console.log('跳转到点位选择界面添加途径点');
+            // 保存当前路线数据到sessionStorage
+            if (routeData) {
+                try {
+                    sessionStorage.setItem('navigationRoute', JSON.stringify(routeData));
+                } catch (e) {
+                    console.error('保存路线数据失败:', e);
+                }
+            }
+            // 跳转到主页（主页会自动显示点位选择界面）
+            window.location.href = 'index.html?action=addWaypoint';
+        });
+    }
+
+    // 交换起点和终点按钮
+    const swapBtn = document.getElementById('nav-swap-btn');
+    if (swapBtn) {
+        swapBtn.addEventListener('click', function() {
+            console.log('交换起点和终点');
+            swapStartAndEnd();
         });
     }
 
@@ -656,6 +674,27 @@ function addNavigationWaypoint(waypointName) {
     waypointInput.id = waypointId + '-input';
 
     console.log('已添加途径点:', waypointId);
+}
+
+// 交换起点和终点
+function swapStartAndEnd() {
+    if (!routeData || !routeData.start || !routeData.end) {
+        console.warn('没有足够的路线数据可以交换');
+        return;
+    }
+
+    // 交换routeData中的起点和终点
+    const temp = routeData.start;
+    routeData.start = routeData.end;
+    routeData.end = temp;
+
+    // 更新UI显示
+    updateNavigationUI();
+
+    // 重新规划路线
+    planRoute();
+
+    console.log('已交换起点和终点');
 }
 
 // 移除导航页面的途径点

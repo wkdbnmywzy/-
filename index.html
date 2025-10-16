@@ -48,24 +48,31 @@
             <!-- 路线规划界面 -->
             <div class="route-planning-section" id="route-planning-section">
                 <div class="route-selector">
-                    <div class="location-inputs">
-                        <div class="location-item">
-                            <i class="fas fa-dot-circle"></i>
-                            <input type="text" placeholder="输入起点位置" id="start-location" readonly>
-                        </div>
-                        <div class="location-item">
-                            <i class="fas fa-map-marker-alt"></i>
-                            <input type="text" placeholder="选择目的地" id="end-location" readonly>
-                        </div>
-                        <div class="waypoints-container" id="waypoints-container">
-                            <!-- 途经点将动态添加 -->
+                    <div class="location-inputs-wrapper">
+                        <div class="location-inputs">
+                            <div class="location-item">
+                                <i class="fas fa-circle start-icon"></i>
+                                <input type="text" placeholder="我的位置" id="start-location" readonly>
+                            </div>
+                            <div class="divider-line">
+                                <button class="swap-btn" id="swap-locations-btn" title="切换起点终点">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                            </div>
+                            <div class="location-item">
+                                <i class="fas fa-map-marker-alt end-icon"></i>
+                                <input type="text" placeholder="请输入目的地" id="end-location" readonly>
+                            </div>
+                            <div class="waypoints-container" id="waypoints-container">
+                                <!-- 途经点将动态添加 -->
+                            </div>
                         </div>
                     </div>
                     <div class="add-waypoint">
                         <div class="add-btn" id="add-waypoint-btn">
                             <i class="fas fa-plus"></i>
                         </div>
-                        <div class="waypoint-label">途经点</div>
+                        <div class="waypoint-label">途径点</div>
                     </div>
                 </div>
             </div>
@@ -85,14 +92,24 @@
                 <!-- 路线规划卡片 -->
                 <div class="picker-route-card">
                     <div class="picker-route-selector">
-                        <div class="picker-location-inputs">
-                            <div class="picker-location-row">
-                                <i class="fas fa-circle picker-start-icon"></i>
-                                <input type="text" placeholder="我的位置" id="picker-start-location">
-                            </div>
-                            <div class="picker-location-row">
-                                <i class="fas fa-map-marker-alt picker-end-icon"></i>
-                                <input type="text" placeholder="请输入目的地" id="picker-end-location">
+                        <div class="picker-location-inputs-wrapper">
+                            <div class="picker-location-inputs">
+                                <div class="picker-location-row">
+                                    <i class="fas fa-circle picker-start-icon"></i>
+                                    <input type="text" placeholder="我的位置" id="picker-start-location">
+                                </div>
+                                <div class="picker-divider-line">
+                                    <button class="picker-swap-btn" id="picker-swap-btn">
+                                        <i class="fas fa-exchange-alt"></i>
+                                    </button>
+                                </div>
+                                <div class="picker-location-row">
+                                    <i class="fas fa-map-marker-alt picker-end-icon"></i>
+                                    <input type="text" placeholder="请输入目的地" id="picker-end-location">
+                                </div>
+                                <div class="picker-waypoints-container" id="picker-waypoints-container">
+                                    <!-- 途经点将动态添加 -->
+                                </div>
                             </div>
                         </div>
                         <div class="picker-add-waypoint">
@@ -145,15 +162,15 @@
         <!-- 底部导航 -->
         <div class="bottom-nav">
             <div class="nav-item active" data-page="index">
-                <img class="nav-icon-img" src="images/工地数字导航小程序切图/司机/2X/菜单栏/导航-up.png" data-active="images/工地数字导航小程序切图/司机/2X/菜单栏/导航-up.png" data-inactive="images/工地数字导航小程序切图/司机/2X/菜单栏/导航-down.png" alt="导航">
+                <img class="nav-icon-img" src="images/工地数字导航小程序切图/司机/2X/菜单栏/导航-down.png" data-active="images/工地数字导航小程序切图/司机/2X/菜单栏/导航-down.png" data-inactive="images/工地数字导航小程序切图/司机/2X/菜单栏/导航-up.png" alt="导航">
                 <div class="nav-text">导航</div>
             </div>
             <div class="nav-item" data-page="task">
-                <img class="nav-icon-img" src="images/工地数字导航小程序切图/司机/2X/菜单栏/任务-down.png" data-active="images/工地数字导航小程序切图/司机/2X/菜单栏/任务-up.png" data-inactive="images/工地数字导航小程序切图/司机/2X/菜单栏/任务-down.png" alt="任务">
+                <img class="nav-icon-img" src="images/工地数字导航小程序切图/司机/2X/菜单栏/任务-up.png" data-active="images/工地数字导航小程序切图/司机/2X/菜单栏/任务-down.png" data-inactive="images/工地数字导航小程序切图/司机/2X/菜单栏/任务-up.png" alt="任务">
                 <div class="nav-text">任务</div>
             </div>
             <div class="nav-item" data-page="profile">
-                <img class="nav-icon-img" src="images/工地数字导航小程序切图/司机/2X/菜单栏/我的-down.png" data-active="images/工地数字导航小程序切图/司机/2X/菜单栏/我的-up.png" data-inactive="images/工地数字导航小程序切图/司机/2X/菜单栏/我的-down.png" alt="我的">
+                <img class="nav-icon-img" src="images/工地数字导航小程序切图/司机/2X/菜单栏/我的-up.png" data-active="images/工地数字导航小程序切图/司机/2X/菜单栏/我的-down.png" data-inactive="images/工地数字导航小程序切图/司机/2X/菜单栏/我的-up.png" alt="我的">
                 <div class="nav-text">我的</div>
             </div>
         </div>

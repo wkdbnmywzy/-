@@ -24,10 +24,49 @@ function searchPlaces(keyword) {
                     <div class="result-name">${kmlPoint.name}</div>
                     <div class="result-address">${kmlPoint.description || 'KML导入点位'}</div>
                 </div>
+                <div class="result-actions">
+                    <button class="result-action-btn navigate-btn">
+                        <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                    </button>
+                    <button class="result-action-btn route-btn">
+                        <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                    </button>
+                </div>
             `;
 
-            item.addEventListener('click', function() {
+            // 点击结果项选择该点
+            item.querySelector('.result-content').addEventListener('click', function() {
                 selectKMLPointFromSearchEnhanced(kmlPoint);
+            });
+
+            // 导航按钮点击事件
+            item.querySelector('.navigate-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                // 设置为终点并开始导航
+                const endInput = document.getElementById('end-location');
+                if (endInput) {
+                    endInput.value = kmlPoint.name;
+                    // 关闭搜索结果
+                    resultsContainer.classList.remove('active');
+                    // 跳转到导航页面
+                    window.location.href = 'navigation.html';
+                }
+            });
+
+            // 路线按钮点击事件
+            item.querySelector('.route-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                // 设置为终点并规划路线
+                const endInput = document.getElementById('end-location');
+                if (endInput) {
+                    endInput.value = kmlPoint.name;
+                    // 关闭搜索结果
+                    resultsContainer.classList.remove('active');
+                    // 如果有规划路线函数，调用它
+                    if (window.planRoute) {
+                        window.planRoute();
+                    }
+                }
             });
 
             resultsContainer.appendChild(item);
@@ -145,10 +184,49 @@ function showAllKMLPoints() {
                     <div class="result-name">${kmlPoint.name}</div>
                     <div class="result-address">${kmlPoint.description || 'KML导入点位'}</div>
                 </div>
+                <div class="result-actions">
+                    <button class="result-action-btn navigate-btn">
+                        <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                    </button>
+                    <button class="result-action-btn route-btn">
+                        <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                    </button>
+                </div>
             `;
 
-            item.addEventListener('click', function() {
+            // 点击结果项选择该点
+            item.querySelector('.result-content').addEventListener('click', function() {
                 selectKMLPointFromSearchEnhanced(kmlPoint);
+            });
+
+            // 导航按钮点击事件
+            item.querySelector('.navigate-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                // 设置为终点并开始导航
+                const endInput = document.getElementById('end-location');
+                if (endInput) {
+                    endInput.value = kmlPoint.name;
+                    // 关闭搜索结果
+                    resultsContainer.classList.remove('active');
+                    // 跳转到导航页面
+                    window.location.href = 'navigation.html';
+                }
+            });
+
+            // 路线按钮点击事件
+            item.querySelector('.route-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                // 设置为终点并规划路线
+                const endInput = document.getElementById('end-location');
+                if (endInput) {
+                    endInput.value = kmlPoint.name;
+                    // 关闭搜索结果
+                    resultsContainer.classList.remove('active');
+                    // 如果有规划路线函数，调用它
+                    if (window.planRoute) {
+                        window.planRoute();
+                    }
+                }
             });
 
             resultsContainer.appendChild(item);

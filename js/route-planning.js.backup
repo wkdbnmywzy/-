@@ -7,13 +7,35 @@ let traveledPolyline = null; // 已走路径（灰色）
 let traveledPath = [];
 
 function addWaypoint() {
-    // 跳转到点位选择界面并添加途径点
-    showPickerPanel();
+    var waypointsContainer = document.getElementById('waypoints-container');
 
-    // 在点位选择界面添加途径点
-    setTimeout(() => {
-        addPickerWaypoint();
-    }, 100);
+    var waypointId = 'waypoint-' + Date.now();
+    var waypointRow = document.createElement('div');
+    waypointRow.className = 'waypoint-row';
+    waypointRow.id = waypointId;
+    waypointRow.innerHTML = `
+        <div class="location-item" style="flex: 1;">
+            <i class="fas fa-dot-circle" style="color: #FF9800;"></i>
+            <input type="text" placeholder="添加途经点" class="waypoint-input" readonly>
+        </div>
+        <div class="waypoint-actions">
+            <button class="remove-waypoint-btn" data-id="${waypointId}">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+
+    waypointsContainer.appendChild(waypointRow);
+
+    // 添加删除事件
+    var removeBtn = waypointRow.querySelector('.remove-waypoint-btn');
+    removeBtn.addEventListener('click', function() {
+        removeWaypoint(waypointId);
+    });
+
+    // 为新的途经点输入框设置唯一ID以便点选择面板识别
+    var waypointInput = waypointRow.querySelector('.waypoint-input');
+    waypointInput.id = waypointId + '-input';
 }
 
 function removeWaypoint(id) {
