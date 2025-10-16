@@ -1097,7 +1097,7 @@ function updateDirectionIcon(directionType) {
     const directionImg = document.getElementById('tip-direction-img');
     const actionText = document.getElementById('tip-action-text');
 
-    const basePath = '../images/工地数字导航小程序切图/司机/2X/导航/';
+    const basePath = 'images/工地数字导航小程序切图/司机/2X/导航/';
 
     let iconPath = '';
     let actionName = '';
