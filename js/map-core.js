@@ -49,20 +49,6 @@ function getCurrentLocation() {
                 console.log('位置获取成功:', position);
                 var lng = position.coords.longitude;
                 var lat = position.coords.latitude;
-
-                // 将浏览器WGS84坐标转换为高德地图使用的GCJ-02坐标
-                try {
-                    if (typeof wgs84ToGcj02 === 'function') {
-                        var converted = wgs84ToGcj02(lng, lat);
-                        if (Array.isArray(converted) && converted.length === 2) {
-                            lng = converted[0];
-                            lat = converted[1];
-                        }
-                    }
-                } catch (e) {
-                    console.warn('WGS84->GCJ-02 转换失败，使用原始坐标:', e);
-                }
-
                 currentPosition = [lng, lat];
 
                 // 更新地图中心和缩放级别
@@ -93,7 +79,7 @@ function getCurrentLocation() {
                 // 更新起点输入框
                 document.getElementById('start-location').value = '我的位置';
 
-                // 加载地理编码插件后进行逆地理编码（GCJ-02坐标）
+                // 加载地理编码插件后进行逆地理编码
                 AMap.plugin('AMap.Geocoder', function() {
                     var geocoder = new AMap.Geocoder();
                     geocoder.getAddress([lng, lat], function(status, result) {
