@@ -30,9 +30,18 @@ const MapConfig = {
             color: 'white',
             size: 24
         },
+        start: {
+            icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/起点.png'
+        },
         currentLocation: {
             // 建议使用绝对路径或确保相对路径正确
             icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/我的位置.png'
+        },
+        // 主地图“我的位置（带朝向）”标记的占位配置；若未提供，将退回为内置SVG箭头
+        headingLocation: {
+            // 使用 images 目录下的 我的位置.png（当前位于项目切图路径）
+            icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/我的位置.png',
+            size: { w: 36, h: 36 }
         },
         destination: {
             icon: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png'
@@ -72,3 +81,12 @@ let waypoints = [];           // 途经点集合
 let currentRoute = null;      // 当前路线实例
 let kmlLayers = [];           // KML图层集合
 let currentKmlFile = null;    // 当前KML文件
+// 首页实时定位相关全局变量
+let selfMarker = null;                // 主地图上的“我的位置（带朝向）”标记
+let isRealtimeLocating = false;       // 是否处于实时定位
+let locationWatchId = null;           // geolocation.watchPosition 的ID
+let lastDeviceHeadingIndex = null;    // 设备方向（度）
+let trackingDeviceOrientationIndex = false; // 是否已监听 deviceorientation
+let deviceOrientationHandlerIndex = null;   // 方向事件处理器
+let lastGpsPosIndex = null;           // 上一次GPS点 [lng, lat]
+let initialLocationMarker = null;     // 一次性定位创建的初始位置标记
