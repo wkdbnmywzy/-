@@ -121,7 +121,12 @@ function parseKML(kmlContent, fileName) {
 
 function parsePlacemark(placemark, xmlDoc) {
     const name = placemark.getElementsByTagName('name')[0]?.textContent || '未命名要素';
-    
+
+    // 过滤掉名称为 "New Point" 的点要素（通常是路线规划的中间点）
+    if (name === 'New Point') {
+        return null;
+    }
+
     // 解析样式信息（新增）
     const style = parseStyle(placemark, xmlDoc);
     
@@ -221,15 +226,19 @@ function parsePlacemark(placemark, xmlDoc) {
 function parseStyle(placemark, xmlDoc) {
     // 从Placemark直接获取样式
     let styleNode = placemark.getElementsByTagName('Style')[0];
-    
+
     // 如果没有直接样式，尝试通过StyleUrl关联（处理#开头的内部样式）
     if (!styleNode) {
         const styleUrl = placemark.getElementsByTagName('styleUrl')[0]?.textContent;
+        console.log(`解析样式 - styleUrl: ${styleUrl}`);
         if (styleUrl && styleUrl.startsWith('#')) {
             const styleId = styleUrl.slice(1);
             // 从整个XML文档中查找对应ID的样式
             styleNode = xmlDoc.querySelector(`Style[id="${styleId}"]`);
+            console.log(`查找样式ID: ${styleId}, 找到: ${styleNode ? '是' : '否'}`);
         }
+    } else {
+        console.log('使用内联样式');
     }
 
     // 解析点样式（默认使用系统样式，可根据需求扩展）
@@ -247,30 +256,47 @@ function parseStyle(placemark, xmlDoc) {
     const lineStyle = {};
     const lineStyleNode = styleNode?.getElementsByTagName('LineStyle')[0];
     if (lineStyleNode) {
-        // KML颜色格式：ABGR（透明度+蓝+绿+红），转换为RGBA
-        const color = lineStyleNode.getElementsByTagName('color')[0]?.textContent || 'ff0000ff'; // 默认红色
-        lineStyle.color = kmlColorToRgba(color);
-        lineStyle.width = parseFloat(lineStyleNode.getElementsByTagName('width')[0]?.textContent) || 2; // 默认线宽
+        // KML颜色格式：ABGR（透明度+蓝+绿+红），转换为HEX + opacity
+        const colorText = lineStyleNode.getElementsByTagName('color')[0]?.textContent || 'ff0000ff'; // 默认红色
+        const colorResult = kmlColorToRgba(colorText);
+        lineStyle.color = colorResult.color;
+        lineStyle.opacity = colorResult.opacity;
+        const widthText = lineStyleNode.getElementsByTagName('width')[0]?.textContent;
+        lineStyle.width = widthText ? parseFloat(widthText) : 2; // 默认线宽
+        // 确保线宽至少为1，并且在合理范围内（KML线宽通常较细，需要放大以便观看）
+        if (lineStyle.width < 1) lineStyle.width = 1;
+        // 可以选择放大线宽以提升观感（可选）
+        lineStyle.width = Math.max(lineStyle.width * 1.5, 3); // 放大1.5倍，最小3px
+        console.log(`解析线样式 - 颜色: ${colorText} => ${lineStyle.color}, 不透明度: ${lineStyle.opacity}, 宽度: ${lineStyle.width}`);
     } else {
         // 默认线样式（使用系统配置）
         lineStyle.color = MapConfig.routeStyles.polyline.strokeColor;
+        lineStyle.opacity = 1;
         lineStyle.width = MapConfig.routeStyles.polyline.strokeWeight;
+        console.log('使用默认线样式');
     }
 
     // 解析面样式
     const polyStyle = {};
     const polyStyleNode = styleNode?.getElementsByTagName('PolyStyle')[0];
     if (polyStyleNode) {
-        const color = polyStyleNode.getElementsByTagName('color')[0]?.textContent || '880000ff'; // 默认半透明红
-        polyStyle.fillColor = kmlColorToRgba(color);
-        // 面边框使用线样式
+        const colorText = polyStyleNode.getElementsByTagName('color')[0]?.textContent || '880000ff'; // 默认半透明红
+        const colorResult = kmlColorToRgba(colorText);
+        polyStyle.fillColor = colorResult.color;
+        polyStyle.fillOpacity = Math.max(colorResult.opacity, 0.7); // 至少70%不透明度，使颜色更明显
+        // 面边框使用线样式，确保边框清晰可见
         polyStyle.strokeColor = lineStyle.color;
-        polyStyle.strokeWidth = lineStyle.width;
+        polyStyle.strokeOpacity = lineStyle.opacity;
+        polyStyle.strokeWidth = Math.max(lineStyle.width, 2); // 面边框至少2px
+        console.log(`解析面样式 - 填充色: ${colorText} => ${polyStyle.fillColor}, 填充不透明度: ${polyStyle.fillOpacity}, 边框色: ${polyStyle.strokeColor}`);
     } else {
         // 默认面样式（使用系统配置）
         polyStyle.fillColor = MapConfig.routeStyles.polygon.fillColor;
+        polyStyle.fillOpacity = 0.7;
         polyStyle.strokeColor = MapConfig.routeStyles.polygon.strokeColor;
+        polyStyle.strokeOpacity = 1;
         polyStyle.strokeWidth = MapConfig.routeStyles.polygon.strokeWeight;
+        console.log('使用默认面样式');
     }
 
     return { pointStyle, lineStyle, polyStyle };
@@ -284,7 +310,17 @@ function kmlColorToRgba(kmlColor) {
     const blue = parseInt(kmlColor.substring(2, 4), 16);
     const green = parseInt(kmlColor.substring(4, 6), 16);
     const red = parseInt(kmlColor.substring(6, 8), 16);
-    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+
+    // 返回RGB十六进制颜色和alpha值
+    const hexColor = '#' +
+        red.toString(16).padStart(2, '0') +
+        green.toString(16).padStart(2, '0') +
+        blue.toString(16).padStart(2, '0');
+
+    return {
+        color: hexColor,
+        opacity: alpha
+    };
 }
 
 function displayKMLFeatures(features, fileName) {
@@ -297,84 +333,95 @@ function displayKMLFeatures(features, fileName) {
     const lines = features.filter(f => f.geometry.type === 'line');
     const polygons = features.filter(f => f.geometry.type === 'polygon');
 
-    // 先显示线和面（在下层）
-    [...lines, ...polygons].forEach(feature => {
-        let marker = null;
-        let featureCoordinates = [];
+    // 按顺序渲染：面（最下层）→ 线（中间层）→ 点（最上层）
 
-        switch (feature.geometry.type) {
-            case 'line':
-                featureCoordinates = feature.geometry.coordinates;
-                // 验证坐标
-                const validCoords = feature.geometry.coordinates.filter(coord => {
-                    return coord && Array.isArray(coord) && coord.length >= 2 &&
-                           !isNaN(coord[0]) && !isNaN(coord[1]) &&
-                           isFinite(coord[0]) && isFinite(coord[1]);
-                });
+    // 1. 先显示面（zIndex: 10）
+    polygons.forEach(feature => {
+        const featureCoordinates = feature.geometry.coordinates;
+        allCoordinates.push(...featureCoordinates);
 
-                if (validCoords.length < 2) {
-                    console.error('线要素坐标无效:', feature.name, feature.geometry.coordinates);
-                    return; // 跳过无效的线
-                }
+        // 使用KML解析的面样式
+        const polyStyle = feature.geometry.style || {
+            fillColor: MapConfig.routeStyles.polygon.fillColor,
+            strokeColor: MapConfig.routeStyles.polygon.strokeColor,
+            strokeWidth: MapConfig.routeStyles.polygon.strokeWeight
+        };
 
-                // 使用KML解析的线样式（核心修改）
-                const lineStyle = feature.geometry.style || {
-                    color: MapConfig.routeStyles.polyline.strokeColor,
-                    width: MapConfig.routeStyles.polyline.strokeWeight
-                };
+        console.log(`渲染面: ${feature.name}, 填充色: ${polyStyle.fillColor}, 填充不透明度: ${polyStyle.fillOpacity}, 边框色: ${polyStyle.strokeColor}, 边框宽: ${polyStyle.strokeWidth}`);
 
-                marker = new AMap.Polyline({
-                    path: validCoords,
-                    strokeColor: lineStyle.color,
-                    strokeWeight: lineStyle.width,
-                    strokeOpacity: 1, // 透明度已在RGBA中处理
-                    map: map
-                });
-                break;
+        const marker = new AMap.Polygon({
+            path: feature.geometry.coordinates,
+            strokeColor: polyStyle.strokeColor,
+            strokeWeight: polyStyle.strokeWidth,
+            strokeOpacity: polyStyle.strokeOpacity || 1,
+            fillColor: polyStyle.fillColor,
+            fillOpacity: polyStyle.fillOpacity || 0.7,
+            zIndex: 10,
+            map: map
+        });
 
-            case 'polygon':
-                featureCoordinates = feature.geometry.coordinates;
-                // 使用KML解析的面样式（核心修改）
-                const polyStyle = feature.geometry.style || {
-                    fillColor: MapConfig.routeStyles.polygon.fillColor,
-                    strokeColor: MapConfig.routeStyles.polygon.strokeColor,
-                    strokeWidth: MapConfig.routeStyles.polygon.strokeWeight
-                };
+        marker.setExtData({
+            name: feature.name,
+            type: feature.type,
+            description: feature.description
+        });
 
-                marker = new AMap.Polygon({
-                    path: feature.geometry.coordinates,
-                    strokeColor: polyStyle.strokeColor,
-                    strokeWeight: polyStyle.strokeWidth,
-                    strokeOpacity: 1, // 透明度已在RGBA中处理
-                    fillColor: polyStyle.fillColor,
-                    fillOpacity: 1, // 透明度已在RGBA中处理
-                    map: map
-                });
-                break;
-        }
+        marker.on('click', function() {
+            showFeatureInfo(feature);
+        });
 
-        // 收集所有坐标点
-        if (featureCoordinates.length > 0) {
-            allCoordinates.push(...featureCoordinates);
-        }
-
-        if (marker) {
-            marker.setExtData({
-                name: feature.name,
-                type: feature.type,
-                description: feature.description
-            });
-
-            // 添加点击事件
-            marker.on('click', function() {
-                showFeatureInfo(feature);
-            });
-
-            layerMarkers.push(marker);
-        }
+        layerMarkers.push(marker);
     });
 
-    // 再显示点（在上层）
+    // 2. 再显示线（zIndex: 50）
+    lines.forEach(feature => {
+        const featureCoordinates = feature.geometry.coordinates;
+
+        // 验证坐标
+        const validCoords = feature.geometry.coordinates.filter(coord => {
+            return coord && Array.isArray(coord) && coord.length >= 2 &&
+                   !isNaN(coord[0]) && !isNaN(coord[1]) &&
+                   isFinite(coord[0]) && isFinite(coord[1]);
+        });
+
+        if (validCoords.length < 2) {
+            console.error('线要素坐标无效:', feature.name, feature.geometry.coordinates);
+            return;
+        }
+
+        allCoordinates.push(...featureCoordinates);
+
+        // 使用KML解析的线样式
+        const lineStyle = feature.geometry.style || {
+            color: MapConfig.routeStyles.polyline.strokeColor,
+            width: MapConfig.routeStyles.polyline.strokeWeight
+        };
+
+        console.log(`渲染线: ${feature.name}, 颜色: ${lineStyle.color}, 宽度: ${lineStyle.width}`);
+
+        const marker = new AMap.Polyline({
+            path: validCoords,
+            strokeColor: lineStyle.color,
+            strokeWeight: lineStyle.width,
+            strokeOpacity: lineStyle.opacity || 1,
+            zIndex: 50,
+            map: map
+        });
+
+        marker.setExtData({
+            name: feature.name,
+            type: feature.type,
+            description: feature.description
+        });
+
+        marker.on('click', function() {
+            showFeatureInfo(feature);
+        });
+
+        layerMarkers.push(marker);
+    });
+
+    // 3. 最后显示点（zIndex: 100，最上层）
     points.forEach((feature) => {
         const featureCoordinates = [feature.geometry.coordinates];
         allCoordinates.push(...featureCoordinates);
@@ -384,8 +431,9 @@ function displayKMLFeatures(features, fileName) {
             position: feature.geometry.coordinates,
             map: map,
             title: feature.name,
-            content: createNamedPointMarkerContent(feature.name, feature.geometry.style),  // 传入点样式
-            offset: new AMap.Pixel(-16, -16)  // 调整偏移使圆形标记居中
+            content: createNamedPointMarkerContent(feature.name, feature.geometry.style),
+            offset: new AMap.Pixel(-16, -16),
+            zIndex: 100
         });
 
         marker.setExtData({
@@ -410,6 +458,12 @@ function displayKMLFeatures(features, fileName) {
         visible: true,
         features: features  // 保存要素信息（含样式）用于恢复
     });
+
+    // 停止实时定位，避免地图自动移回用户位置
+    if (typeof stopRealtimeLocationTracking === 'function') {
+        stopRealtimeLocationTracking();
+        console.log('导入KML后停止实时定位');
+    }
 
     // 调整地图视野以显示所有要素
     if (allCoordinates.length > 0) {
@@ -597,7 +651,68 @@ function restoreKMLDataFromSession() {
         }
 
         const kmlData = JSON.parse(kmlDataStr);
-        console.log('从sessionStorage恢复KML数据，图层数:', kmlData.length);
+        console.log('=== 从sessionStorage恢复KML数据 ===');
+        console.log('图层数:', kmlData.length);
+
+        // 验证数据完整性：检查是否有有效的features
+        let hasValidFeatures = false;
+        for (const layer of kmlData) {
+            if (layer.features && layer.features.length > 0) {
+                // 检查是否至少有一个feature有geometry
+                const validFeature = layer.features.find(f => f.geometry && f.geometry.coordinates);
+                if (validFeature) {
+                    hasValidFeatures = true;
+                    break;
+                }
+            }
+        }
+
+        if (!hasValidFeatures) {
+            console.error('!!! sessionStorage中的KML数据已损坏（所有features缺少geometry）！');
+            console.error('清除损坏的数据...');
+            sessionStorage.removeItem('kmlData');
+            return false;
+        }
+
+        // 详细检查第一个图层
+        if (kmlData.length > 0 && kmlData[0].features) {
+            console.log('第一个图层features数量:', kmlData[0].features.length);
+            if (kmlData[0].features.length > 0) {
+                console.log('第一个feature示例:', kmlData[0].features[0]);
+                console.log('第一个feature的geometry:', kmlData[0].features[0].geometry);
+
+                // 找一个线要素示例
+                const lineFeature = kmlData[0].features.find(f => f.type === '线');
+                if (lineFeature) {
+                    console.log('线要素geometry:', lineFeature.geometry);
+                    if (!lineFeature.geometry) {
+                        console.error('!!! sessionStorage中的线要素缺少geometry数据！');
+                        console.error('完整的线要素对象:', JSON.stringify(lineFeature, null, 2));
+                    }
+                }
+            }
+        }
+
+        // 清空现有图层，避免重复（重要！）
+        if (typeof kmlLayers !== 'undefined' && kmlLayers.length > 0) {
+            console.log('清空现有kmlLayers，当前数量:', kmlLayers.length);
+            // 移除地图上的所有标记
+            kmlLayers.forEach(layer => {
+                if (layer.markers) {
+                    layer.markers.forEach(marker => {
+                        if (map && marker) {
+                            try {
+                                map.remove(marker);
+                            } catch (e) {
+                                console.warn('移除标记失败:', e);
+                            }
+                        }
+                    });
+                }
+            });
+            kmlLayers = [];
+        }
+        window.kmlLayers = kmlLayers;
 
         // 重建每个图层
         kmlData.forEach(layerData => {
@@ -609,11 +724,43 @@ function restoreKMLDataFromSession() {
             const lines = layerData.features.filter(f => f.type === '线');
             const polygons = layerData.features.filter(f => f.type === '面');
 
-            // 先显示线和面（在下层）
-            [...lines, ...polygons].forEach(feature => {
-                let marker = null;
+            // 按顺序渲染：面（最下层）→ 线（中间层）→ 点（最上层）
 
-                if (feature.type === '线' && feature.geometry?.coordinates && feature.geometry.coordinates.length >= 2) {
+            // 1. 先显示面（zIndex: 10）
+            polygons.forEach(feature => {
+                if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 3) {
+                    // 恢复面样式
+                    const polyStyle = feature.geometry.style || {
+                        fillColor: MapConfig.routeStyles.polygon.fillColor,
+                        strokeColor: MapConfig.routeStyles.polygon.strokeColor,
+                        strokeWidth: MapConfig.routeStyles.polygon.strokeWeight
+                    };
+
+                    const marker = new AMap.Polygon({
+                        path: feature.geometry.coordinates,
+                        strokeColor: polyStyle.strokeColor,
+                        strokeWeight: polyStyle.strokeWidth,
+                        strokeOpacity: polyStyle.strokeOpacity || 1,
+                        fillColor: polyStyle.fillColor,
+                        fillOpacity: polyStyle.fillOpacity || 0.7,
+                        zIndex: 10,
+                        map: map
+                    });
+
+                    marker.setExtData({
+                        name: feature.name,
+                        type: feature.type,
+                        description: feature.description
+                    });
+
+                    layerMarkers.push(marker);
+                    allCoordinates.push(...feature.geometry.coordinates);
+                }
+            });
+
+            // 2. 再显示线（zIndex: 50）
+            lines.forEach(feature => {
+                if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 2) {
                     // 验证坐标
                     const validCoords = feature.geometry.coordinates.filter(coord => {
                         return coord && Array.isArray(coord) && coord.length >= 2 &&
@@ -628,57 +775,42 @@ function restoreKMLDataFromSession() {
                             width: MapConfig.routeStyles.polyline.strokeWeight
                         };
 
-                        marker = new AMap.Polyline({
+                        const marker = new AMap.Polyline({
                             path: validCoords,
                             strokeColor: lineStyle.color,
                             strokeWeight: lineStyle.width,
-                            strokeOpacity: 1,
+                            strokeOpacity: lineStyle.opacity || 1,
+                            zIndex: 50,
                             map: map
                         });
 
+                        marker.setExtData({
+                            name: feature.name,
+                            type: feature.type,
+                            description: feature.description
+                        });
+
+                        layerMarkers.push(marker);
                         allCoordinates.push(...validCoords);
                     }
-                } else if (feature.type === '面' && feature.geometry?.coordinates && feature.geometry.coordinates.length >= 3) {
-                    // 恢复面样式
-                    const polyStyle = feature.geometry.style || {
-                        fillColor: MapConfig.routeStyles.polygon.fillColor,
-                        strokeColor: MapConfig.routeStyles.polygon.strokeColor,
-                        strokeWidth: MapConfig.routeStyles.polygon.strokeWeight
-                    };
-
-                    marker = new AMap.Polygon({
-                        path: feature.geometry.coordinates,
-                        strokeColor: polyStyle.strokeColor,
-                        strokeWeight: polyStyle.strokeWidth,
-                        strokeOpacity: 1,
-                        fillColor: polyStyle.fillColor,
-                        fillOpacity: 1,
-                        map: map
-                    });
-
-                    allCoordinates.push(...feature.geometry.coordinates);
-                }
-
-                if (marker) {
-                    marker.setExtData({
-                        name: feature.name,
-                        type: feature.type,
-                        description: feature.description
-                    });
-
-                    layerMarkers.push(marker);
                 }
             });
 
-            // 再显示点（在上层）
+            // 3. 最后显示点（zIndex: 100）
             points.forEach(feature => {
+                // 过滤掉名称为 "New Point" 的点要素
+                if (feature.name === 'New Point') {
+                    return;
+                }
+
                 if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 2) {
                     const marker = new AMap.Marker({
                         position: feature.geometry.coordinates,
                         map: map,
                         title: feature.name,
                         content: createNamedPointMarkerContent(feature.name, feature.geometry.style),
-                        offset: new AMap.Pixel(-16, -16)
+                        offset: new AMap.Pixel(-16, -16),
+                        zIndex: 100
                     });
 
                     marker.setExtData({
@@ -707,6 +839,12 @@ function restoreKMLDataFromSession() {
             }
         });
 
+        // 停止实时定位，避免地图自动移回用户位置
+        if (typeof stopRealtimeLocationTracking === 'function') {
+            stopRealtimeLocationTracking();
+            console.log('恢复KML数据后停止实时定位');
+        }
+
         updateKmlLayerList();
         return true;
     } catch (error) {
@@ -715,20 +853,66 @@ function restoreKMLDataFromSession() {
     }
 }
 
-// 保存KML数据到sessionStorage（包含样式信息）
+// 保存KML数据到sessionStorage（包含样式信息，过滤New Point）
 function saveKMLDataToSession() {
     try {
-        const kmlData = kmlLayers.map(layer => ({
-            id: layer.id,
-            name: layer.name,
-            visible: layer.visible,
-            features: layer.features  // 包含样式信息
-        }));
-        sessionStorage.setItem('kmlData', JSON.stringify(kmlData));
+        console.log('=== 保存KML数据到sessionStorage ===');
+        console.log('当前kmlLayers:', kmlLayers);
+        console.log('kmlLayers数量:', kmlLayers.length);
+
+        if (kmlLayers.length > 0) {
+            console.log('第一个图层features:', kmlLayers[0].features);
+            if (kmlLayers[0].features && kmlLayers[0].features.length > 0) {
+                console.log('第一个feature示例:', kmlLayers[0].features[0]);
+                console.log('第一个feature的geometry:', kmlLayers[0].features[0].geometry);
+            }
+        }
+
+        const kmlData = kmlLayers.map(layer => {
+            if (!layer.features) {
+                console.error('图层缺少features字段:', layer.name);
+                return {
+                    id: layer.id,
+                    name: layer.name,
+                    visible: layer.visible,
+                    features: []
+                };
+            }
+
+            const filteredFeatures = layer.features.filter(f => f.name !== 'New Point');
+            console.log(`图层 ${layer.name} - 原始features: ${layer.features.length}, 过滤后: ${filteredFeatures.length}`);
+
+            // 详细检查每个feature的geometry
+            filteredFeatures.forEach((f, idx) => {
+                console.log(`  feature${idx}: ${f.name}, type: ${f.type}, 有geometry: ${!!f.geometry}, geometry内容:`, f.geometry);
+            });
+
+            return {
+                id: layer.id,
+                name: layer.name,
+                visible: layer.visible,
+                features: filteredFeatures
+            };
+        });
+
+        const kmlDataJson = JSON.stringify(kmlData);
+        console.log('=== JSON序列化后的数据 ===');
+        console.log('JSON长度:', kmlDataJson.length);
+
+        // 验证反序列化后的数据
+        const parsed = JSON.parse(kmlDataJson);
+        if (parsed.length > 0 && parsed[0].features && parsed[0].features.length > 0) {
+            console.log('反序列化验证 - 第一个feature:', parsed[0].features[0]);
+            console.log('反序列化验证 - 第一个feature的geometry:', parsed[0].features[0].geometry);
+        }
+
+        sessionStorage.setItem('kmlData', kmlDataJson);
         console.log('KML数据已保存到sessionStorage，图层数:', kmlData.length);
+        console.log('保存的数据:', kmlData);
         return true;
     } catch (error) {
         console.error('保存KML数据失败:', error);
+        console.error('错误堆栈:', error.stack);
         return false;
     }
 }

@@ -4,11 +4,47 @@
 function initMap() {
     map = new AMap.Map('map-container', MapConfig.mapConfig);
 
-    // 等待地图完全加载后启动实时定位
+    // 等待地图完全加载后启动实时定位或恢复状态
     map.on('complete', function() {
-        console.log('地图加载完成，准备启动实时定位');
+        console.log('地图加载完成，准备启动实时定位或恢复状态');
 
-        // 清除任何可能存在的旧地图状态
+        // 检查是否从导航页返回
+        const mapStateStr = sessionStorage.getItem('mapState');
+        let fromNavigation = false;
+        let kmlBounds = null;
+
+        if (mapStateStr) {
+            try {
+                const mapState = JSON.parse(mapStateStr);
+                fromNavigation = mapState.fromNavigation === true;
+                kmlBounds = mapState.kmlBounds;
+                console.log('检测到地图状态:', { fromNavigation, hasKmlBounds: !!kmlBounds });
+            } catch (e) {
+                console.warn('解析地图状态失败:', e);
+            }
+        }
+
+        // 如果从导航页返回且有 KML 边界，恢复到 KML 区域视图
+        if (fromNavigation && kmlBounds) {
+            console.log('从导航页返回，恢复到 KML 区域视图');
+            try {
+                const bounds = new AMap.Bounds(
+                    [kmlBounds.minLng, kmlBounds.minLat],
+                    [kmlBounds.maxLng, kmlBounds.maxLat]
+                );
+                map.setBounds(bounds, false, [60, 60, 60, 60]);
+
+                // 恢复后清除状态标记，避免下次加载时重复恢复
+                sessionStorage.removeItem('mapState');
+            } catch (e) {
+                console.error('恢复 KML 视图失败:', e);
+            }
+
+            // 不启动实时定位，保持 KML 区域视图
+            return;
+        }
+
+        // 清除地图状态
         sessionStorage.removeItem('mapState');
 
         // 首页始终启动实时定位
