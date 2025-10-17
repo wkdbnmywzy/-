@@ -1,17 +1,6 @@
 // ui-utils.js
 // UI相关的工具函数和事件处理
 
-// 全局控制：是否允许自动将地图居中到当前位置（true = 允许）
-// 可以在导入/跳转到 KML 点后调用 window.disableAutoCenterTemporarily(ms) 暂时禁用自动居中
-window.autoCenterEnabled = true;
-function disableAutoCenterTemporarily(ms = 10000) {
-    window.autoCenterEnabled = false;
-    setTimeout(function() {
-        window.autoCenterEnabled = true;
-        console.log('自动居中已恢复');
-    }, ms);
-}
-
 function showSuccessMessage(message) {
     // 创建临时提示
     const toast = document.createElement('div');
@@ -255,15 +244,11 @@ function setupEventListeners() {
                                 selfMarker.setPosition([lng, lat]);
                             }
 
-                            // 定位到当前位置（仅在允许自动居中时）
+                            // 定位到当前位置
                             try {
-                                if (window.autoCenterEnabled) {
-                                    map.setZoom(17);
-                                    map.setCenter([lng, lat]);
-                                    showSuccessMessage('已定位到当前位置');
-                                } else {
-                                    console.log('跳过自动居中（autoCenterEnabled=false）');
-                                }
+                                map.setZoom(17);
+                                map.setCenter([lng, lat]);
+                                showSuccessMessage('已定位到当前位置');
                             } catch (e) {
                                 console.error('定位失败:', e);
                             }
@@ -272,16 +257,9 @@ function setupEventListeners() {
                             console.error('获取位置失败:', error);
                             showSuccessMessage('获取位置失败，请检查定位权限');
 
-                            // 如果有当前位置，则定位到当前位置（仅在允许自动居中时）
+                            // 如果有当前位置，则定位到当前位置
                             if (typeof currentPosition !== 'undefined' && currentPosition) {
-                                try {
-                                    if (window.autoCenterEnabled) {
-                                        map.setZoom(17);
-                                        map.setCenter(currentPosition);
-                                    } else {
-                                        console.log('跳过自动居中（autoCenterEnabled=false）');
-                                    }
-                                } catch (e) {}
+                                try { map.setZoom(17); map.setCenter(currentPosition); } catch (e) {}
                             }
                         },
                         {
@@ -293,14 +271,7 @@ function setupEventListeners() {
                 } else {
                     // 浏览器不支持定位，尝试定位到已有的当前位置
                     if (typeof currentPosition !== 'undefined' && currentPosition) {
-                        try {
-                            if (window.autoCenterEnabled) {
-                                map.setZoom(17);
-                                map.setCenter(currentPosition);
-                            } else {
-                                console.log('跳过自动居中（autoCenterEnabled=false）');
-                            }
-                        } catch (e) {}
+                        try { map.setZoom(17); map.setCenter(currentPosition); } catch (e) {}
                     } else {
                         showSuccessMessage('浏览器不支持定位功能');
                     }
