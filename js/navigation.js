@@ -32,10 +32,7 @@ let lastDeviceHeadingNav = null; // 度，0-360，顺时针（相对正北）
 function initNavigationMap() {
     console.log('初始化导航地图...');
 
-    // 先加载KML数据（必须在规划路线之前）
-    loadKMLDataFromSession();
-
-    // 创建地图实例（不显示任何图层）
+    // 创建地图实例
     navigationMap = new AMap.Map('navigation-map-container', {
         zoom: 17,
         center: [116.397428, 39.90923],
@@ -45,12 +42,19 @@ function initNavigationMap() {
         showLabel: true
     });
 
-    // 获取路线数据
-    loadRouteData();
-
-    // 地图加载完成后启动实时定位（显示我的位置）
+    // 地图加载完成后的操作
     navigationMap.on('complete', function() {
-        console.log('导航地图加载完成，启动实时定位');
+        console.log('导航地图加载完成');
+
+        // 1. 先加载KML底图数据（便于查看路线）
+        loadKMLDataFromSession();
+
+        // 2. 延迟加载路线数据，让用户先看到KML底图
+        setTimeout(function() {
+            loadRouteData();
+        }, 500);
+
+        // 3. 启动实时定位（显示我的位置）
         startRealtimePositionTracking();
     });
 
@@ -60,189 +64,365 @@ function initNavigationMap() {
 // 从sessionStorage加载KML数据并显示在地图上
 function loadKMLDataFromSession() {
     try {
-        const kmlDataStr = sessionStorage.getItem('kmlData');
-        if (!kmlDataStr) {
-            console.warn('sessionStorage中没有KML数据');
+        const kmlRawData = sessionStorage.getItem('kmlRawData');
+        const kmlFileName = sessionStorage.getItem('kmlFileName');
+
+        if (!kmlRawData) {
+            console.warn('sessionStorage中没有KML原始数据');
             return;
         }
 
-        const kmlData = JSON.parse(kmlDataStr);
-        console.log('从sessionStorage加载KML数据，图层数:', kmlData.length);
-        console.log('KML数据详情:', kmlData);
+        console.log('从sessionStorage加载原始KML数据，文件名:', kmlFileName);
 
-        // 详细检查第一个图层的数据结构
-        if (kmlData.length > 0) {
-            console.log('第一个图层:', kmlData[0]);
-            console.log('第一个图层features数量:', kmlData[0].features?.length);
-            if (kmlData[0].features && kmlData[0].features.length > 0) {
-                console.log('第一个feature示例:', JSON.stringify(kmlData[0].features[0], null, 2));
-                console.log('第一个feature的keys:', Object.keys(kmlData[0].features[0]));
-                // 找一个线要素示例
-                const lineFeature = kmlData[0].features.find(f => f.type === '线');
-                if (lineFeature) {
-                    console.log('线要素示例:', JSON.stringify(lineFeature, null, 2));
-                }
-            }
-        }
-
-        // 重建kmlLayers结构（包含实际的地图要素显示）
-        if (typeof kmlLayers === 'undefined') {
-            window.kmlLayers = [];
-        } else {
-            window.kmlLayers = []; // 清空已有数据
-        }
-
-        kmlData.forEach(layerData => {
-            const layerMarkers = [];
-
-            // 分离点、线、面
-            const points = layerData.features.filter(f => f.type === '点');
-            const lines = layerData.features.filter(f => f.type === '线');
-            const polygons = layerData.features.filter(f => f.type === '面');
-
-            // 1. 先显示面（zIndex: 10）
-            polygons.forEach(feature => {
-                if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 3) {
-                    const polyStyle = feature.geometry.style || {
-                        fillColor: '#CCCCCC',
-                        fillOpacity: 0.3,
-                        strokeColor: '#666666',
-                        strokeOpacity: 0.6,
-                        strokeWidth: 2
-                    };
-
-                    const marker = new AMap.Polygon({
-                        path: feature.geometry.coordinates,
-                        strokeColor: polyStyle.strokeColor,
-                        strokeWeight: polyStyle.strokeWidth,
-                        strokeOpacity: polyStyle.strokeOpacity || 0.6,
-                        fillColor: polyStyle.fillColor,
-                        fillOpacity: polyStyle.fillOpacity || 0.3,
-                        zIndex: 10,
-                        map: navigationMap
-                    });
-
-                    marker.setExtData({
-                        name: feature.name,
-                        type: feature.type,
-                        description: feature.description
-                    });
-
-                    layerMarkers.push(marker);
-                }
-            });
-
-            // 2. 再显示线（zIndex: 20，低于规划路线的50）
-            lines.forEach(feature => {
-                if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 2) {
-                    const lineStyle = feature.geometry.style || {
-                        color: '#888888',
-                        opacity: 0.5,
-                        width: 2
-                    };
-
-                    const marker = new AMap.Polyline({
-                        path: feature.geometry.coordinates,
-                        strokeColor: lineStyle.color,
-                        strokeWeight: lineStyle.width,
-                        strokeOpacity: lineStyle.opacity || 0.5,
-                        zIndex: 20,
-                        map: navigationMap
-                    });
-
-                    marker.setExtData({
-                        name: feature.name,
-                        type: feature.type,
-                        description: feature.description
-                    });
-
-                    layerMarkers.push(marker);
-                }
-            });
-
-            // 3. 创建简化的marker对象用于路径规划
-            const planningMarkers = layerData.features.map(feature => {
-                console.log('处理feature:', feature.name, 'type:', feature.type, 'geometry:', feature.geometry);
-
-                // 检查geometry是否存在
-                if (!feature.geometry) {
-                    console.error('Feature缺少geometry数据:', feature.name);
-                    return null;
-                }
-
-                const mockMarker = {
-                    getExtData: function() {
-                        return {
-                            type: feature.type,
-                            name: feature.name,
-                            description: feature.description
-                        };
-                    },
-                    hide: function() {
-                        // 空实现
-                    },
-                    show: function() {
-                        // 空实现
-                    }
-                };
-
-                if (feature.type === '点' && feature.geometry.coordinates) {
-                    mockMarker.getPosition = function() {
-                        return {
-                            lng: feature.geometry.coordinates[0],
-                            lat: feature.geometry.coordinates[1]
-                        };
-                    };
-                } else if (feature.type === '线' && feature.geometry.coordinates) {
-                    console.log('为线要素添加getPath方法:', feature.name, '坐标数:', feature.geometry.coordinates.length);
-                    // 为线要素提供getPath方法，返回坐标数组
-                    mockMarker.getPath = function() {
-                        // 确保返回正确格式的坐标数组
-                        if (Array.isArray(feature.geometry.coordinates)) {
-                            const path = feature.geometry.coordinates.map(coord => {
-                                if (Array.isArray(coord) && coord.length >= 2) {
-                                    return { lng: coord[0], lat: coord[1] };
-                                } else if (coord && coord.lng !== undefined && coord.lat !== undefined) {
-                                    return coord;
-                                }
-                                return null;
-                            }).filter(c => c !== null);
-                            console.log('getPath返回路径点数:', path.length);
-                            return path;
-                        }
-                        console.log('getPath返回空数组');
-                        return [];
-                    };
-                    // 立即测试getPath方法
-                    console.log('测试getPath方法:', feature.name, '有getPath:', typeof mockMarker.getPath === 'function', '返回:', mockMarker.getPath());
-                }
-
-                return mockMarker;
-            }).filter(m => m !== null); // 过滤掉null值
-
-            // 添加调试日志
-            console.log('创建图层:', layerData.name, '规划用markers数量:', planningMarkers.length);
-            planningMarkers.forEach((m, idx) => {
-                const ext = m.getExtData();
-                console.log(`  marker${idx}: ${ext.name}, 类型: ${ext.type}, 有getPath: ${typeof m.getPath === 'function'}`);
-                if (typeof m.getPath === 'function') {
-                    console.log(`    getPath测试:`, m.getPath());
-                }
-            });
-
-            kmlLayers.push({
-                id: layerData.id,
-                name: layerData.name,
-                visible: layerData.visible,
-                markers: planningMarkers, // 用于路径规划
-                displayMarkers: layerMarkers  // 用于地图显示
-            });
-        });
+        // 重新解析KML数据
+        parseKMLForNavigation(kmlRawData, kmlFileName || 'loaded.kml');
 
         console.log('KML数据加载并显示完成，图层数:', kmlLayers.length);
     } catch (e) {
         console.error('加载KML数据失败:', e);
     }
+}
+
+// 为导航页面解析KML（复用主页的解析逻辑）
+function parseKMLForNavigation(kmlContent, fileName) {
+    try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(kmlContent, 'text/xml');
+
+        // 检查解析错误
+        const parserError = xmlDoc.getElementsByTagName('parsererror')[0];
+        if (parserError) {
+            throw new Error('KML文件格式错误');
+        }
+
+        // 提取所有Placemark
+        const placemarks = xmlDoc.getElementsByTagName('Placemark');
+        const features = [];
+
+        for (let i = 0; i < placemarks.length; i++) {
+            const placemark = placemarks[i];
+            const feature = parsePlacemarkForNavigation(placemark, xmlDoc);
+            if (feature) {
+                features.push(feature);
+            }
+        }
+
+        if (features.length === 0) {
+            console.warn('未找到有效的地理要素');
+            return;
+        }
+
+        // 在地图上显示KML要素
+        displayKMLFeaturesForNavigation(features, fileName);
+
+    } catch (error) {
+        console.error('KML解析错误:', error);
+    }
+}
+
+// 解析单个Placemark（复用主页逻辑）
+function parsePlacemarkForNavigation(placemark, xmlDoc) {
+    const name = placemark.getElementsByTagName('name')[0]?.textContent || '未命名要素';
+
+    // 过滤掉名称为 "New Point" 的点要素
+    if (name === 'New Point') {
+        return null;
+    }
+
+    // 解析样式信息
+    const style = parseStyleForNavigation(placemark, xmlDoc);
+
+    // 解析几何要素
+    let geometry = null;
+    let type = '';
+
+    // 点要素
+    const point = placemark.getElementsByTagName('Point')[0];
+    if (point) {
+        const coordinates = point.getElementsByTagName('coordinates')[0]?.textContent;
+        if (coordinates) {
+            const [lng, lat] = coordinates.split(',').map(coord => parseFloat(coord.trim()));
+            // 坐标转换：WGS84转GCJ02
+            const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat);
+            geometry = {
+                type: 'point',
+                coordinates: [gcjLng, gcjLat],
+                originalCoordinates: [lng, lat],
+                style: style.pointStyle
+            };
+            type = '点';
+        }
+    }
+
+    // 线要素
+    const lineString = placemark.getElementsByTagName('LineString')[0];
+    if (lineString) {
+        const coordinates = lineString.getElementsByTagName('coordinates')[0]?.textContent;
+        if (coordinates) {
+            const cleanedCoords = coordinates.trim().replace(/\s+/g, ' ');
+            const coordsArray = cleanedCoords.split(' ')
+                .filter(coord => coord.trim().length > 0)
+                .map(coord => {
+                    const parts = coord.split(',');
+                    if (parts.length >= 2) {
+                        const lng = parseFloat(parts[0].trim());
+                        const lat = parseFloat(parts[1].trim());
+
+                        if (!isNaN(lng) && !isNaN(lat) && isFinite(lng) && isFinite(lat)) {
+                            const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat);
+                            return [gcjLng, gcjLat];
+                        }
+                    }
+                    return null;
+                })
+                .filter(coord => coord !== null);
+
+            if (coordsArray.length >= 2) {
+                geometry = {
+                    type: 'line',
+                    coordinates: coordsArray,
+                    style: style.lineStyle
+                };
+                type = '线';
+            }
+        }
+    }
+
+    // 面要素
+    const polygon = placemark.getElementsByTagName('Polygon')[0];
+    if (polygon) {
+        const outerBoundary = polygon.getElementsByTagName('outerBoundaryIs')[0];
+        const linearRing = outerBoundary?.getElementsByTagName('LinearRing')[0];
+        const coordinates = linearRing?.getElementsByTagName('coordinates')[0]?.textContent;
+
+        if (coordinates) {
+            const coordsArray = coordinates.trim().split(' ').map(coord => {
+                const [lng, lat] = coord.split(',').map(c => parseFloat(c.trim()));
+                const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat);
+                return [gcjLng, gcjLat];
+            });
+            geometry = {
+                type: 'polygon',
+                coordinates: coordsArray,
+                style: style.polyStyle
+            };
+            type = '面';
+        }
+    }
+
+    if (!geometry) return null;
+
+    return {
+        name: name,
+        type: type,
+        geometry: geometry,
+        description: placemark.getElementsByTagName('description')[0]?.textContent || ''
+    };
+}
+
+// 解析样式（复用主页逻辑）
+function parseStyleForNavigation(placemark, xmlDoc) {
+    let styleNode = placemark.getElementsByTagName('Style')[0];
+
+    if (!styleNode) {
+        const styleUrl = placemark.getElementsByTagName('styleUrl')[0]?.textContent;
+        if (styleUrl && styleUrl.startsWith('#')) {
+            const styleId = styleUrl.slice(1);
+            styleNode = xmlDoc.querySelector(`Style[id="${styleId}"]`);
+        }
+    }
+
+    const pointStyle = {};
+    const lineStyle = {};
+    const polyStyle = {};
+
+    // 解析线样式
+    const lineStyleNode = styleNode?.getElementsByTagName('LineStyle')[0];
+    if (lineStyleNode) {
+        const colorText = lineStyleNode.getElementsByTagName('color')[0]?.textContent || 'ff0000ff';
+        const colorResult = kmlColorToRgbaForNavigation(colorText);
+        lineStyle.color = colorResult.color;
+        lineStyle.opacity = colorResult.opacity;
+        const widthText = lineStyleNode.getElementsByTagName('width')[0]?.textContent;
+        lineStyle.width = widthText ? parseFloat(widthText) : 2;
+        if (lineStyle.width < 1) lineStyle.width = 1;
+        lineStyle.width = Math.max(lineStyle.width * 1.5, 3);
+    } else {
+        lineStyle.color = '#888888';
+        lineStyle.opacity = 0.5;
+        lineStyle.width = 2;
+    }
+
+    // 解析面样式
+    const polyStyleNode = styleNode?.getElementsByTagName('PolyStyle')[0];
+    if (polyStyleNode) {
+        const colorText = polyStyleNode.getElementsByTagName('color')[0]?.textContent || '880000ff';
+        const colorResult = kmlColorToRgbaForNavigation(colorText);
+        polyStyle.fillColor = colorResult.color;
+        polyStyle.fillOpacity = Math.max(colorResult.opacity, 0.3);
+        polyStyle.strokeColor = lineStyle.color;
+        polyStyle.strokeOpacity = lineStyle.opacity;
+        polyStyle.strokeWidth = Math.max(lineStyle.width, 2);
+    } else {
+        polyStyle.fillColor = '#CCCCCC';
+        polyStyle.fillOpacity = 0.3;
+        polyStyle.strokeColor = '#666666';
+        polyStyle.strokeOpacity = 0.6;
+        polyStyle.strokeWidth = 2;
+    }
+
+    return { pointStyle, lineStyle, polyStyle };
+}
+
+// KML颜色转换
+function kmlColorToRgbaForNavigation(kmlColor) {
+    const alpha = parseInt(kmlColor.substring(0, 2), 16) / 255;
+    const blue = parseInt(kmlColor.substring(2, 4), 16);
+    const green = parseInt(kmlColor.substring(4, 6), 16);
+    const red = parseInt(kmlColor.substring(6, 8), 16);
+
+    const hexColor = '#' +
+        red.toString(16).padStart(2, '0') +
+        green.toString(16).padStart(2, '0') +
+        blue.toString(16).padStart(2, '0');
+
+    return {
+        color: hexColor,
+        opacity: alpha
+    };
+}
+
+// 在导航地图上显示KML要素（不显示点，只显示线和面）
+function displayKMLFeaturesForNavigation(features, fileName) {
+    const layerId = 'kml-' + Date.now();
+    const layerMarkers = [];
+
+    // 分离点、线、面
+    const points = features.filter(f => f.geometry.type === 'point');
+    const lines = features.filter(f => f.geometry.type === 'line');
+    const polygons = features.filter(f => f.geometry.type === 'polygon');
+
+    // 1. 先显示面（zIndex: 10）
+    polygons.forEach(feature => {
+        if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 3) {
+            const polyStyle = feature.geometry.style || {
+                fillColor: '#CCCCCC',
+                fillOpacity: 0.3,
+                strokeColor: '#666666',
+                strokeOpacity: 0.6,
+                strokeWidth: 2
+            };
+
+            const marker = new AMap.Polygon({
+                path: feature.geometry.coordinates,
+                strokeColor: polyStyle.strokeColor,
+                strokeWeight: polyStyle.strokeWidth,
+                strokeOpacity: polyStyle.strokeOpacity || 0.6,
+                fillColor: polyStyle.fillColor,
+                fillOpacity: polyStyle.fillOpacity || 0.3,
+                zIndex: 10,
+                map: navigationMap
+            });
+
+            marker.setExtData({
+                name: feature.name,
+                type: feature.type,
+                description: feature.description
+            });
+
+            layerMarkers.push(marker);
+        }
+    });
+
+    // 2. 再显示线（zIndex: 20）
+    lines.forEach(feature => {
+        if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 2) {
+            const lineStyle = feature.geometry.style || {
+                color: '#888888',
+                opacity: 0.5,
+                width: 2
+            };
+
+            const marker = new AMap.Polyline({
+                path: feature.geometry.coordinates,
+                strokeColor: lineStyle.color,
+                strokeWeight: lineStyle.width,
+                strokeOpacity: lineStyle.opacity || 0.5,
+                zIndex: 20,
+                map: navigationMap
+            });
+
+            marker.setExtData({
+                name: feature.name,
+                type: feature.type,
+                description: feature.description
+            });
+
+            layerMarkers.push(marker);
+        }
+    });
+
+    // 3. 创建用于路径规划的marker对象（包含点数据，但不在地图上显示）
+    const planningMarkers = features.map(feature => {
+        if (!feature.geometry) {
+            console.error('Feature缺少geometry数据:', feature.name);
+            return null;
+        }
+
+        const mockMarker = {
+            getExtData: function() {
+                return {
+                    type: feature.type,
+                    name: feature.name,
+                    description: feature.description
+                };
+            },
+            hide: function() {},
+            show: function() {}
+        };
+
+        if (feature.type === '点' && feature.geometry.coordinates) {
+            mockMarker.getPosition = function() {
+                return {
+                    lng: feature.geometry.coordinates[0],
+                    lat: feature.geometry.coordinates[1]
+                };
+            };
+        } else if (feature.type === '线' && feature.geometry.coordinates) {
+            mockMarker.getPath = function() {
+                if (Array.isArray(feature.geometry.coordinates)) {
+                    const path = feature.geometry.coordinates.map(coord => {
+                        if (Array.isArray(coord) && coord.length >= 2) {
+                            return { lng: coord[0], lat: coord[1] };
+                        } else if (coord && coord.lng !== undefined && coord.lat !== undefined) {
+                            return coord;
+                        }
+                        return null;
+                    }).filter(c => c !== null);
+                    return path;
+                }
+                return [];
+            };
+        }
+
+        return mockMarker;
+    }).filter(m => m !== null);
+
+    // 保存到kmlLayers全局变量
+    if (typeof kmlLayers === 'undefined') {
+        window.kmlLayers = [];
+    }
+
+    kmlLayers.push({
+        id: layerId,
+        name: fileName,
+        visible: true,
+        markers: planningMarkers,
+        displayMarkers: layerMarkers,
+        features: features  // 保存原始features用于后续使用
+    });
+
+    console.log('KML数据加载并显示完成（不显示点），图层数:', kmlLayers.length);
 }
 
 // 加载路线数据
@@ -353,18 +533,48 @@ function planRoute() {
         const a = sequencePoints[i];
         const b = sequencePoints[i + 1];
 
+        console.log(`📍 规划路段 ${i+1}/${sequencePoints.length-1}: 从`, a, '到', b);
+
         let segResult = planKMLRoute(a, b);
+
+        console.log('   路段规划结果:', segResult);
+
         if (segResult && segResult.path && segResult.path.length >= 2) {
-            // 拼接路径（避免重复当前段的起点）
+            console.log(`   ✅ 路段${i+1}规划成功, 点数:`, segResult.path.length, '距离:', segResult.distance.toFixed(2), 'm');
+            console.log('   路段路径数据:', JSON.stringify(segResult.path));
+
+            // 拼接路径（智能去重：检查是否有重复点）
             if (combinedPath.length > 0) {
-                // 移除与上一段末尾重复的第一个点
-                combinedPath = combinedPath.concat(segResult.path.slice(1));
+                // 获取上一段的最后一个点
+                const lastPoint = combinedPath[combinedPath.length - 1];
+                const lastLng = Array.isArray(lastPoint) ? lastPoint[0] : lastPoint.lng;
+                const lastLat = Array.isArray(lastPoint) ? lastPoint[1] : lastPoint.lat;
+
+                // 检查新路段的第一个点是否与上一段的最后一个点重复
+                const firstPoint = segResult.path[0];
+                const firstLng = Array.isArray(firstPoint) ? firstPoint[0] : firstPoint.lng;
+                const firstLat = Array.isArray(firstPoint) ? firstPoint[1] : firstPoint.lat;
+
+                // 如果坐标非常接近（小于0.00001度，约1米），认为是重复点
+                const isDuplicate = Math.abs(lastLng - firstLng) < 0.00001 && Math.abs(lastLat - firstLat) < 0.00001;
+
+                if (isDuplicate) {
+                    // 有重复，跳过第一个点
+                    combinedPath = combinedPath.concat(segResult.path.slice(1));
+                    console.log('   检测到重复点，已跳过');
+                } else {
+                    // 无重复，保留所有点
+                    combinedPath = combinedPath.concat(segResult.path);
+                    console.log('   无重复点，保留所有点');
+                }
             } else {
                 combinedPath = segResult.path.slice();
             }
             totalDistance += (segResult.distance || 0);
+
+            console.log('   拼接后总点数:', combinedPath.length);
         } else {
-            console.warn('该段KML规划失败，使用直线段:', a, b);
+            console.warn(`   ❌ 路段${i+1} KML规划失败，使用直线段:`, a, b);
             // 使用直线段作为备选
             if (combinedPath.length > 0) {
                 combinedPath.push(b);
@@ -382,10 +592,18 @@ function planRoute() {
         }
     }
 
+    console.log('=====================================');
+    console.log('🎯 所有路段规划完成');
+    console.log('   合并后路径总点数:', combinedPath.length);
+    console.log('   总距离:', totalDistance.toFixed(2), 'm');
+    console.log('   合并路径数据:', JSON.stringify(combinedPath));
+    console.log('=====================================');
+
     if (combinedPath.length >= 2) {
         // 更新距离与时间
         updateRouteInfoFromKML({ distance: totalDistance });
         // 绘制合并后的路线
+        console.log('📍 准备绘制路线, 点数:', combinedPath.length);
         drawKMLRoute({ path: combinedPath });
         // 调整地图视野
         adjustMapView(startLngLat, endLngLat);
@@ -428,29 +646,115 @@ function updateRouteInfoFromKML(routeResult) {
     }
 }
 
-// 绘制KML路线（使用与首页一致的线宽）
+// 绘制KML路线（使用醒目的样式）
 function drawKMLRoute(routeResult) {
     const path = routeResult.path;
 
+    console.log('🎨 开始绘制KML路线');
+    console.log('   路径点数:', path.length);
+    console.log('   路径数据:', path);
+
     // 清除之前的路线
     if (routePolyline) {
+        console.log('   清除之前的路线');
         navigationMap.remove(routePolyline);
         routePolyline = null;
     }
 
-    // 绘制路线（绿色线条，宽度与首页KML线一致：3-4px）
-    routePolyline = new AMap.Polyline({
-        path: path,
-        strokeColor: '#00C853',
-        strokeWeight: 4, // 与首页KML线宽一致
-        strokeOpacity: 0.9,
-        lineJoin: 'round',
-        lineCap: 'round',
-        zIndex: 50,
-        map: navigationMap
-    });
+    // 验证路径数据
+    if (!path || path.length < 2) {
+        console.error('❌ 路径数据无效或点数不足');
+        return;
+    }
 
-    console.log('KML路线绘制完成，共', path.length, '个点');
+    // 绘制路线（使用与KML线一致的样式）
+    try {
+        routePolyline = new AMap.Polyline({
+            path: path,
+            strokeColor: '#00C853',     // 标准导航绿色
+            strokeWeight: 4,             // 与KML线宽一致（3-4px）
+            strokeOpacity: 0.95,         // 稍微透明，更自然
+            lineJoin: 'round',
+            lineCap: 'round',
+            zIndex: 200,                 // 高zIndex，确保在KML线上方
+            map: navigationMap
+        });
+
+        console.log('✅ Polyline创建成功');
+        console.log('   颜色: #00C853 (导航绿色)');
+        console.log('   线宽: 4px (与KML线一致)');
+        console.log('   不透明度: 95%');
+        console.log('   zIndex: 200');
+
+        // 强制刷新地图
+        try {
+            navigationMap.setZoom(navigationMap.getZoom());
+            console.log('✅ 已触发地图重绘');
+        } catch (e) {
+            console.warn('触发地图重绘失败:', e);
+        }
+
+        // 自动调整地图视野到路径范围
+        try {
+            console.log('📍 调整地图视野到路径范围...');
+
+            // 计算路径的边界
+            let minLng = path[0][0], maxLng = path[0][0];
+            let minLat = path[0][1], maxLat = path[0][1];
+
+            path.forEach(point => {
+                const lng = Array.isArray(point) ? point[0] : point.lng;
+                const lat = Array.isArray(point) ? point[1] : point.lat;
+
+                minLng = Math.min(minLng, lng);
+                maxLng = Math.max(maxLng, lng);
+                minLat = Math.min(minLat, lat);
+                maxLat = Math.max(maxLat, lat);
+            });
+
+            console.log('   路径边界:', {minLng, maxLng, minLat, maxLat});
+
+            // 创建边界并设置地图视野
+            const bounds = new AMap.Bounds([minLng, minLat], [maxLng, maxLat]);
+            navigationMap.setBounds(bounds, false, [80, 80, 80, 80]); // 添加80px内边距
+
+            console.log('✅ 地图视野已调整到路径范围');
+        } catch (e) {
+            console.error('调整地图视野失败:', e);
+        }
+
+        // 检查Polyline是否真的在地图上
+        setTimeout(() => {
+            const allOverlays = navigationMap.getAllOverlays('polyline');
+            console.log('🔍 检查地图上的Polyline数量:', allOverlays.length);
+            if (allOverlays.length === 0) {
+                console.error('❌ 警告: 地图上没有找到任何Polyline!');
+            } else {
+                console.log('✅ 地图上有', allOverlays.length, '个Polyline');
+
+                // 输出路径线的详细信息用于调试
+                console.log('📊 Polyline详细信息:');
+                allOverlays.forEach((overlay, index) => {
+                    if (overlay.CLASS_NAME === 'AMap.Polyline') {
+                        const opts = overlay.getOptions();
+                        console.log(`   Polyline ${index+1}:`, {
+                            颜色: opts.strokeColor,
+                            线宽: opts.strokeWeight,
+                            不透明度: opts.strokeOpacity,
+                            zIndex: opts.zIndex,
+                            点数: overlay.getPath ? overlay.getPath().length : 'N/A'
+                        });
+                    }
+                });
+            }
+        }, 500);
+
+    } catch (error) {
+        console.error('❌ 创建Polyline失败:', error);
+        console.error('错误详情:', error.stack);
+    }
+
+    console.log('🎨 KML路线绘制完成，共', path.length, '个点');
 }
 
 // 绘制直线（备用方案，使用与首页一致的线宽）

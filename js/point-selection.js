@@ -941,52 +941,7 @@ function completeRouteSelection() {
         sessionStorage.setItem('navigationRoute', JSON.stringify(routeData));
         console.log('路线数据已保存到sessionStorage');
 
-        // 保存KML数据到sessionStorage（用于导航页面的路径规划）
-        if (typeof kmlLayers !== 'undefined' && kmlLayers && kmlLayers.length > 0) {
-            // 只保存必要的KML数据（不保存marker对象，只保存坐标和名称）
-            const kmlData = kmlLayers.map(layer => {
-                return {
-                    id: layer.id,
-                    name: layer.name,
-                    visible: layer.visible,
-                    features: layer.markers.map(marker => {
-                        if (!marker || typeof marker.getExtData !== 'function') {
-                            return null;
-                        }
-                        const extData = marker.getExtData();
-                        if (!extData) return null;
-
-                        let coordinates = null;
-                        // 如果是点
-                        if (extData.type === '点' && typeof marker.getPosition === 'function') {
-                            const pos = marker.getPosition();
-                            coordinates = pos ? [pos.lng, pos.lat] : null;
-                        }
-                        // 如果是线
-                        else if (extData.type === '线' && typeof marker.getPath === 'function') {
-                            const path = marker.getPath();
-                            if (path && path.length > 0) {
-                                coordinates = path.map(p =>
-                                    p.lng !== undefined ? [p.lng, p.lat] : p
-                                );
-                            }
-                        }
-
-                        return coordinates ? {
-                            name: extData.name,
-                            type: extData.type,
-                            description: extData.description,
-                            coordinates: coordinates
-                        } : null;
-                    }).filter(f => f !== null)
-                };
-            });
-
-            sessionStorage.setItem('kmlData', JSON.stringify(kmlData));
-            console.log('KML数据已保存到sessionStorage，图层数:', kmlData.length);
-        } else {
-            console.warn('没有KML数据可保存');
-        }
+        // 注意：KML原始数据已在导入时保存到sessionStorage，无需重复保存
 
         // 跳转到导航页面
         window.location.href = 'navigation.html';

@@ -29,8 +29,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 等待地图加载完成后，尝试从sessionStorage恢复KML数据
     setTimeout(function() {
-        if (typeof restoreKMLDataFromSession === 'function') {
-            restoreKMLDataFromSession();
+        if (typeof loadKMLFromSession === 'function') {
+            loadKMLFromSession();
         }
     }, 500);
 
