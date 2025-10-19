@@ -12,6 +12,9 @@ const errorMessage = document.getElementById('error-message');
 const accountErrorMessage = document.getElementById('account-error-message');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const loadingScreen = document.getElementById('loading-screen');
+const otherLoginBtn = document.querySelector('.other-login-btn');
+const otherPhoneForm = document.getElementById('other-phone-form');
+const otherPhoneBackBtn = document.getElementById('other-phone-back-btn');
 
 // 状态变量
 let countdown = 60;
@@ -71,12 +74,32 @@ function initEventListeners() {
         });
     });
 
-    // 获取验证码
-    getCodeBtn.addEventListener('click', handleGetCode);
+    // 获取验证码（当前界面已不展示，做存在性判断）
+    if (getCodeBtn) {
+        getCodeBtn.addEventListener('click', handleGetCode);
+    }
 
     // 表单提交
     phoneLoginForm.addEventListener('submit', handlePhoneLogin);
     accountLoginForm.addEventListener('submit', handleAccountLogin);
+    if (otherPhoneForm) {
+        otherPhoneForm.addEventListener('submit', handleOtherPhoneSubmit);
+    }
+
+    // 其他手机号登录入口
+    if (otherLoginBtn) {
+        otherLoginBtn.addEventListener('click', () => {
+            hideError(errorMessage);
+            slideTo('other-phone-card');
+        });
+    }
+
+    // 其他手机号登录返回
+    if (otherPhoneBackBtn) {
+        otherPhoneBackBtn.addEventListener('click', () => {
+            slideToByElement(document.querySelector('.login-card'));
+        });
+    }
 
     // 输入框获得焦点时隐藏错误消息
     phoneInput?.addEventListener('focus', () => hideError(errorMessage));
@@ -85,14 +108,18 @@ function initEventListeners() {
     passwordInput?.addEventListener('focus', () => hideError(accountErrorMessage));
 
     // 手机号输入验证
-    phoneInput?.addEventListener('input', function() {
-        this.value = this.value.replace(/\D/g, '');
-    });
+    if (phoneInput) {
+        phoneInput.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    }
 
     // 验证码输入验证
-    codeInput?.addEventListener('input', function() {
-        this.value = this.value.replace(/\D/g, '');
-    });
+    if (codeInput) {
+        codeInput.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    }
 }
 
 // 切换登录方式标签
@@ -122,6 +149,7 @@ function switchTab(tab) {
 
 // 获取验证码
 function handleGetCode() {
+    if (!phoneInput) return; // 当前布局不显示
     const phone = phoneInput.value.trim();
 
     // 验证手机号
@@ -149,14 +177,16 @@ function handleGetCode() {
 // 开始倒计时
 function startCountdown() {
     countdown = 60;
-    getCodeBtn.disabled = true;
-    updateCountdownText();
+    if (getCodeBtn) {
+        getCodeBtn.disabled = true;
+        updateCountdownText();
+    }
 
     countdownTimer = setInterval(() => {
         countdown--;
         if (countdown <= 0) {
             stopCountdown();
-        } else {
+        } else if (getCodeBtn) {
             updateCountdownText();
         }
     }, 1000);
@@ -168,55 +198,64 @@ function stopCountdown() {
         clearInterval(countdownTimer);
         countdownTimer = null;
     }
-    getCodeBtn.disabled = false;
-    getCodeBtn.textContent = '获取验证码';
+    if (getCodeBtn) {
+        getCodeBtn.disabled = false;
+        getCodeBtn.textContent = '获取验证码';
+    }
 }
 
 // 更新倒计时文本
 function updateCountdownText() {
-    getCodeBtn.textContent = `${countdown}秒后重试`;
+    if (getCodeBtn) {
+        getCodeBtn.textContent = `${countdown}秒后重试`;
+    }
+}
+
+// 处理“其他手机号登录”提交
+function handleOtherPhoneSubmit(e) {
+    e.preventDefault();
+
+    const phone = phoneInput?.value.trim() || '';
+    const code = codeInput?.value.trim() || '';
+
+    if (!phone) {
+        showError(errorMessage, '请输入手机号');
+        phoneInput?.focus();
+        return;
+    }
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+        showError(errorMessage, '手机号格式不正确');
+        phoneInput?.focus();
+        return;
+    }
+    if (!code) {
+        showError(errorMessage, '请输入验证码');
+        codeInput?.focus();
+        return;
+    }
+
+    const result = validatePhoneLogin(phone, code);
+    if (!result.success) {
+        showError(errorMessage, result.message || '验证码错误');
+        return;
+    }
+
+    // 登录成功
+    showLoadingScreen();
+    setTimeout(() => {
+        handleLoginSuccess({ username: phone, role: 'driver', phone }, 'phone');
+    }, 400);
 }
 
 // 处理手机号登录
 function handlePhoneLogin(e) {
     e.preventDefault();
-
-    const phone = phoneInput.value.trim();
-    const code = codeInput.value.trim();
-
-    // 验证输入
-    if (!phone) {
-        showError(errorMessage, '请输入手机号');
-        phoneInput.focus();
-        return;
-    }
-
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-        showError(errorMessage, '手机号格式不正确');
-        phoneInput.focus();
-        return;
-    }
-
-    if (!code) {
-        showError(errorMessage, '请输入验证码');
-        codeInput.focus();
-        return;
-    }
-
-    // 显示加载界面
+    // 现在界面不要求输入手机号/验证码，直接按一键登录处理
     showLoadingScreen();
-
-    // 模拟登录请求
     setTimeout(() => {
-        const result = validatePhoneLogin(phone, code);
-
-        if (result.success) {
-            handleLoginSuccess({ username: phone, role: 'driver', phone: phone }, 'phone');
-        } else {
-            hideLoadingScreen();
-            handleLoginFailure(errorMessage, result.message);
-        }
-    }, 800);
+        const mockPhone = '13800138000';
+        handleLoginSuccess({ username: mockPhone, role: 'driver', phone: mockPhone }, 'phone');
+    }, 400);
 }
 
 // 处理账号密码登录
@@ -239,17 +278,14 @@ function handleAccountLogin(e) {
         return;
     }
 
-    // 模拟登录请求
-    setTimeout(() => {
-        const result = validateAccountLogin(username, password);
-
-        if (result.success) {
-            handleLoginSuccess(result.user, 'account');
-        } else {
-            hideLoadingScreen();
-            handleLoginFailure(accountErrorMessage, result.message);
-        }
-    }, 800);
+    // 直接校验并进入下一页（无延迟）
+    const result = validateAccountLogin(username, password);
+    if (result.success) {
+        handleLoginSuccess(result.user, 'account');
+    } else {
+        hideLoadingScreen();
+        handleLoginFailure(accountErrorMessage, result.message);
+    }
 }
 
 // 验证手机号登录
@@ -292,7 +328,13 @@ function handleLoginSuccess(user, loginType) {
     // 显示成功消息
     console.log('登录成功', user, '登录类型:', loginType);
 
-    // 延迟隐藏加载界面并显示项目选择
+    // 账号密码登录：立即进入项目选择页（无延迟）
+    if (loginType === 'account') {
+        showProjectSelection();
+        return;
+    }
+
+    // 手机号登录：保持现有加载动画与延迟
     setTimeout(() => {
         hideLoadingScreen();
         showProjectSelection();
@@ -617,40 +659,22 @@ function initProjectSelection() {
     window.initProjectPickers = initPickers;
 }
 
-// 显示项目选择
+// 显示项目选择（替换登录卡片）
 function showProjectSelection() {
-    const projectCard = document.getElementById('project-card');
+    slideTo('project-card');
 
-    // 移除hidden类，添加show类
-    projectCard.classList.remove('hidden');
-
-    // 使用setTimeout确保动画生效
-    setTimeout(() => {
-        projectCard.classList.add('show');
-    }, 10);
-
-    // 初始化轮盘选择器
+    // 初始化轮盘选择器（等待动画开始后执行）
     if (window.initProjectPickers) {
-        setTimeout(() => {
-            window.initProjectPickers();
-        }, 400);
+        setTimeout(() => window.initProjectPickers(), 50);
     }
 }
 
-// 隐藏项目选择
+// 隐藏项目选择，返回登录卡片
 function showLoginForm() {
-    const projectCard = document.getElementById('project-card');
-
-    // 移除show类，触发下滑动画
-    projectCard.classList.remove('show');
-
-    // 动画完成后添加hidden类
-    setTimeout(() => {
-        projectCard.classList.add('hidden');
-    }, 300);
+    slideToByElement(document.querySelector('.login-card'));
 }
 
-// 显示车辆信息登记
+// 显示车辆信息登记（替换当前卡片）
 function showVehicleCard() {
     const vehicleCard = document.getElementById('vehicle-card');
     const vehicleTitle = document.getElementById('vehicle-title');
@@ -666,6 +690,8 @@ function showVehicleCard() {
         if (driverNameGroup) {
             driverNameGroup.style.display = 'flex';
         }
+        vehicleCard?.classList.remove('fixed');
+        vehicleCard?.classList.add('temporary');
     } else {
         // 账号密码登录 - 固定车辆
         if (vehicleTitle) {
@@ -674,28 +700,64 @@ function showVehicleCard() {
         if (driverNameGroup) {
             driverNameGroup.style.display = 'none';
         }
+        vehicleCard?.classList.add('fixed');
+        vehicleCard?.classList.remove('temporary');
     }
 
-    // 移除hidden类，添加show类
-    vehicleCard.classList.remove('hidden');
-
-    // 使用setTimeout确保动画生效
-    setTimeout(() => {
-        vehicleCard.classList.add('show');
-    }, 10);
+    // 滑动到车辆卡片
+    slideTo('vehicle-card');
 }
 
-// 隐藏车辆信息登记
+// 隐藏车辆信息登记，回到项目选择
 function hideVehicleCard() {
-    const vehicleCard = document.getElementById('vehicle-card');
+    slideTo('project-card');
+}
 
-    // 移除show类，触发下滑动画
-    vehicleCard.classList.remove('show');
+// 通用滑动切换：将当前可见卡片向左滑出，新卡片从右滑入
+function slideTo(targetId) {
+    const target = document.getElementById(targetId);
+    slideToByElement(target);
+}
 
-    // 动画完成后添加hidden类
-    setTimeout(() => {
-        vehicleCard.classList.add('hidden');
-    }, 300);
+function slideToByElement(target) {
+    if (!target) return;
+    const stack = document.querySelector('.card-stack');
+    if (!stack) return;
+
+    // 找到当前显示中的卡片
+    const current = stack.querySelector('.card:not(.hidden)');
+
+    if (current === target) return; // 已经在目标卡片
+
+    // 准备目标卡片进入
+    target.classList.remove('hidden');
+    target.classList.add('enter-from-right');
+
+    // 触发一次重绘以启动过渡
+    // eslint-disable-next-line no-unused-expressions
+    target.offsetHeight;
+
+    // 当前卡片离场
+    if (current) {
+        current.classList.add('leave-to-left');
+    }
+
+    // 启动动画
+    requestAnimationFrame(() => {
+        target.classList.add('enter-active');
+        if (current) current.classList.add('leave-active');
+
+        // 动画结束后清理类名
+        const onDone = () => {
+            target.classList.remove('enter-from-right', 'enter-active');
+            if (current) {
+                current.classList.add('hidden');
+                current.classList.remove('leave-to-left', 'leave-active');
+            }
+        };
+
+        setTimeout(onDone, 300); // 与 CSS 过渡时长匹配
+    });
 }
 
 // 处理车辆信息提交
