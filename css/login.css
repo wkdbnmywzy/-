@@ -122,7 +122,7 @@ body {
 /* Logo 区域 */
 .logo-section {
     position: absolute;
-    top: 50%;
+    top: 25%;
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 2;
@@ -132,7 +132,7 @@ body {
 }
 
 .logo-icon {
-    max-width: 80%;
+    max-width: 150%;
     height: auto;
     object-fit: contain;
 }
@@ -204,12 +204,13 @@ body {
 
 .project-title {
     font-size: 18px;
-    font-weight: 600;
-    color: #1a1a1a;
+    font-weight: SemiBold;
+    color: #143662;
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
     margin: 0;
+    ;
 }
 
 /* 项目选择内容 */
@@ -246,6 +247,17 @@ body {
     background: white;
     border-radius: 8px;
     overflow: hidden;
+}
+
+/* 项目选择项颜色覆盖为 #143662 */
+.project-selection .picker-item {
+    color: #143662;
+}
+
+.project-selection .picker-item.selected {
+    color: #143662;
+    font-weight: 600;
+    font-size: 18px;
 }
 
 /* 遮罩层 */
@@ -322,7 +334,7 @@ body {
     background: none;
     border: none;
     font-size: 16px;
-    color: #999;
+    color: #237CF3 ;
     padding: 8px 0;
     cursor: pointer;
     transition: all 0.3s;
@@ -343,7 +355,7 @@ body {
     left: 0;
     right: 0;
     height: 3px;
-    background: #5BA8E3;
+    background: #2E89FF;
     border-radius: 2px;
 }
 
@@ -369,30 +381,56 @@ body {
 .account-form-group {
     display: flex;
     align-items: center;
+    justify-content: center; /* 水平居中整个行 */
+    gap: 12px;
     margin-bottom: 40px;
-    border-bottom: 1px solid #E0E0E0;
     padding-bottom: 8px;
 }
 
+/* 标签靠右、宽度更小以腾出空间 */
 .account-label {
-    font-size: 16px;
-    color: #333;
-    font-weight: 500;
-    min-width: 70px;
-    flex-shrink: 0;
+    font-size: 18px; /* 稍微增大字体 */
+    color: #143662;
+    font-weight: regular; 
+    min-width: 56px; /* 缩小标签宽度 */
+    flex: 0 0 auto;
+    text-align: right;
 }
 
+/* 输入框窄一些且内容居中显示 */
 .account-input {
     border: none;
     background: transparent;
     padding: 8px 12px;
-    font-size: 16px;
-    flex: 1;
+    font-size: 18px; 
+    color: #143662;
+    flex: 0 0 220px; /* 固定较窄宽度 */
+    max-width: 60%;
+    text-align: left; 
+}
+
+.account-input::placeholder {
+    color: #143662;
+    opacity: 0.6;
 }
 
 .account-input:focus {
     background: transparent;
     box-shadow: none;
+    outline: none;
+}
+
+/* 小屏幕下进一步缩窄以适配 */
+@media (max-width: 380px) {
+    .account-label {
+        min-width: 48px;
+        font-size: 17px; /* 小屏幕下也略大一些但留出空间 */
+    }
+
+    .account-input {
+        flex: 0 0 160px;
+        font-size: 17px; /* 小屏幕适当减小为17px */
+    }
 }
 
 /* 普通表单输入框样式 */
@@ -411,7 +449,7 @@ body {
 
 .form-input:focus {
     outline: none;
-    border-bottom-color: #5BA8E3;
+    border-bottom-color: #237CF3;
     background: transparent;
 }
 
@@ -471,16 +509,26 @@ body {
     transition: all 0.3s;
     margin-top: 32px;
 }
-
 .primary-btn {
-    background: linear-gradient(90deg, #5BA8E3 0%, #4A9CD8 100%);
-    color: white;
-    box-shadow: 0 4px 12px rgba(91, 168, 227, 0.3);
+    display: block;
+    width: 300px;           /* 更窄的固定宽度 */
+    max-width: 80%;         /* 小屏幕下自适应 */
+    margin: 0 auto;         /* 水平居中 */
+    align-self: center;     /* 在 flex 容器中也能居中 */
+    text-align: center;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, #72C0FF 0%, #2A86FF 100%);
+    color: #fff;
+    font-size: 18px;        /* 放大字体 */
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(114, 192, 255, 0.28);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .primary-btn:active {
     transform: translateY(1px);
-    box-shadow: 0 2px 8px rgba(91, 168, 227, 0.3);
+    box-shadow: 0 2px 8px rgba(114, 192, 255, 0.28);
 }
 
 .primary-btn:disabled {
@@ -497,7 +545,7 @@ body {
     padding: 16px;
     background: transparent;
     border: none;
-    color: #5BA8E3;
+    color: #2A86FF;
     font-size: 15px;
     font-weight: 500;
     cursor: pointer;
