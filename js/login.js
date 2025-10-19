@@ -239,9 +239,6 @@ function handleAccountLogin(e) {
         return;
     }
 
-    // 显示加载界面
-    showLoadingScreen();
-
     // 模拟登录请求
     setTimeout(() => {
         const result = validateAccountLogin(username, password);
