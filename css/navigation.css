@@ -56,7 +56,7 @@
     right: 0;
     background: white;
     border-radius: 20px 20px 0 0;
-    padding: 20px;
+    padding: 20px 70px 20px 20px;
     box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.1);
     z-index: 90;
 }
@@ -64,9 +64,10 @@
 /* 路线选择器 */
 .route-selector {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
     margin-bottom: 16px;
+    position: relative;
 }
 
 .location-inputs-wrapper {
@@ -91,17 +92,17 @@
 }
 
 .location-item i {
-    font-size: 16px;
-    color: #666;
+    font-size: 14px;
     flex-shrink: 0;
 }
 
-.location-item i.fa-dot-circle {
-    color: #1E6FFF;
+.location-item i.start-icon {
+    color: #007bff;
 }
 
-.location-item i.fa-map-marker-alt {
+.location-item i.end-icon {
     color: #ff4444;
+    font-size: 8px;
 }
 
 .location-item input {
@@ -167,6 +168,10 @@
 
 /* 添加途径点按钮 */
 .add-waypoint {
+    position: absolute;
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -179,18 +184,17 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #1E6FFF;
-    color: #fff;
+    background: transparent;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border: none;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
 }
 
 .add-waypoint .add-btn:hover {
-    background: #0D5CE3;
+    transform: scale(1.1);
 }
 
 .add-waypoint .add-btn:active {
@@ -199,6 +203,12 @@
 
 .add-waypoint .add-btn i {
     font-size: 16px;
+}
+
+.add-waypoint .add-btn img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
 }
 
 .add-waypoint .waypoint-label {

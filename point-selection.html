@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>选择地点</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航栏 -->
+        <div class="picker-header">
+            <button class="picker-back-btn" id="picker-back-btn">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <h2 class="picker-title">路线规划</h2>
+        </div>
+
+        <div class="picker-content">
+            <!-- 路线规划卡片 -->
+            <div class="picker-route-card">
+                <div class="picker-route-selector">
+                    <div class="picker-location-inputs-wrapper">
+                        <div class="picker-location-inputs">
+                            <div class="picker-location-row">
+                                <i class="fas fa-circle picker-start-icon"></i>
+                                <input type="text" placeholder="我的位置" id="picker-start-location">
+                            </div>
+                            <div class="picker-divider-line">
+                                <button class="picker-swap-btn" id="picker-swap-btn">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                            </div>
+                            <div class="picker-location-row">
+                                <i class="fas fa-circle picker-end-icon"></i>
+                                <input type="text" placeholder="请输入目的地" id="picker-end-location">
+                            </div>
+                            <div class="picker-waypoints-container" id="picker-waypoints-container">
+                                <!-- 途经点将动态添加 -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="picker-add-waypoint">
+                        <div class="picker-add-btn" id="picker-add-waypoint-btn">
+                            <img src="images/工地数字导航小程序切图/司机/2X/导航/添加途径点.png" alt="添加途径点">
+                        </div>
+                        <div class="picker-waypoint-label">途经点</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 完成按钮 -->
+            <button class="picker-complete-btn" id="picker-complete-btn">完成</button>
+
+            <!-- 分类标签 -->
+            <div class="picker-categories">
+                <div class="picker-category-section">
+                    <div class="picker-category-title">建筑</div>
+                    <div class="picker-category-tags">
+                        <span class="picker-tag">1号楼</span>
+                        <span class="picker-tag">2号楼</span>
+                        <span class="picker-tag">3号楼</span>
+                        <span class="picker-tag">4号楼</span>
+                        <span class="picker-tag">5号楼</span>
+                    </div>
+                </div>
+                <div class="picker-category-section">
+                    <div class="picker-category-title">区域</div>
+                    <div class="picker-category-tags">
+                        <span class="picker-tag">1号楼材料堆放区</span>
+                        <span class="picker-tag">砂石堆放区</span>
+                        <span class="picker-tag">墙体材料区</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 地点列表 -->
+            <div class="picker-location-list" id="picker-location-list">
+                <div class="picker-location-item">
+                    <i class="fas fa-location-arrow"></i>
+                    <div class="picker-location-text">我的位置</div>
+                    <button class="picker-add-icon">+</button>
+                </div>
+                <!-- 历史搜索将动态插入此处 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 只引用必要的脚本 -->
+    <script src="js/point-selection.js"></script>
+
+    <script>
+    // 检查登录状态
+    function checkLoginStatus() {
+        const isLoggedIn = sessionStorage.getItem('isLoggedIn');
+        const currentUser = sessionStorage.getItem('currentUser');
+
+        if (!isLoggedIn || !currentUser) {
+            window.location.href = 'login.html';
+            return false;
+        }
+        return true;
+    }
+
+    // 从sessionStorage加载KML点位数据
+    function loadKMLPoints() {
+        const kmlDataStr = sessionStorage.getItem('kmlData');
+        if (!kmlDataStr) {
+            console.log('没有KML数据');
+            return [];
+        }
+
+        try {
+            const kmlDataArray = JSON.parse(kmlDataStr);
+            const allPoints = [];
+
+            kmlDataArray.forEach(kmlData => {
+                if (kmlData.points && Array.isArray(kmlData.points)) {
+                    kmlData.points.forEach(point => {
+                        // 只过滤掉名称为 "New Point" 的点（路线规划中间点）
+                        // 保留所有其他点，包括"未命名"的点
+                        if (point.name && point.name !== 'New Point') {
+                            allPoints.push({
+                                name: point.name,
+                                description: point.description || '',
+                                position: point.position,
+                                fileName: kmlData.fileName
+                            });
+                        }
+                    });
+                }
+            });
+
+            console.log('加载KML点位数据，共', allPoints.length, '个有效点位');
+            return allPoints;
+        } catch (e) {
+            console.error('解析KML数据失败:', e);
+            return [];
+        }
+    }
+
+    // 渲染点位列表
+    function renderPointsList() {
+        const points = loadKMLPoints();
+        const listContainer = document.getElementById('picker-location-list');
+
+        if (!listContainer) {
+            return;
+        }
+
+        // 清空现有内容（保留"我的位置"）
+        const myLocationItem = listContainer.querySelector('.picker-location-item');
+        listContainer.innerHTML = '';
+        if (myLocationItem) {
+            listContainer.appendChild(myLocationItem);
+        }
+
+        // 渲染KML点位
+        points.forEach(point => {
+            const item = document.createElement('div');
+            item.className = 'picker-location-item';
+            item.innerHTML = `
+                <i class="fas fa-map-marker-alt"></i>
+                <div class="picker-location-info">
+                    <div class="picker-location-name">${point.name}</div>
+                    ${point.description ? `<div class="picker-location-desc">${point.description}</div>` : ''}
+                </div>
+                <button class="picker-add-icon">+</button>
+            `;
+
+            // 点击整个项目或加号按钮都可以选择
+            const addLocation = () => {
+                const activeInput = getCurrentActiveInput();
+                if (activeInput) {
+                    activeInput.value = point.name;
+                    console.log('选择点位:', point.name);
+                }
+            };
+
+            item.addEventListener('click', addLocation);
+            const addBtn = item.querySelector('.picker-add-icon');
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                addLocation();
+            });
+
+            listContainer.appendChild(item);
+        });
+    }
+
+    // 获取当前激活的输入框
+    function getCurrentActiveInput() {
+        const startInput = document.getElementById('picker-start-location');
+        const endInput = document.getElementById('picker-end-location');
+
+        // 检查哪个输入框最近被聚焦
+        if (document.activeElement === startInput) {
+            return startInput;
+        } else if (document.activeElement === endInput) {
+            return endInput;
+        }
+
+        // 默认返回终点输入框
+        return endInput;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('点位选择页面加载完成');
+
+        // 检查登录状态
+        if (!checkLoginStatus()) {
+            return;
+        }
+
+        // 初始化点选择面板逻辑（如果需要）
+        if (typeof initPointSelectionPanel === 'function') {
+            initPointSelectionPanel();
+        }
+
+        // 从sessionStorage恢复路线规划数据
+        restoreRouteData();
+
+        // 设置返回和完成按钮事件
+        setupButtonEvents();
+
+        // 渲染KML点位列表
+        renderPointsList();
+
+        // 为"我的位置"添加点击事件
+        const myLocationItem = document.querySelector('.picker-location-item');
+        if (myLocationItem) {
+            myLocationItem.addEventListener('click', function() {
+                const activeInput = getCurrentActiveInput();
+                if (activeInput) {
+                    activeInput.value = '我的位置';
+                }
+            });
+        }
+    });
+
+    // 恢复路线数据
+    function restoreRouteData() {
+        const routeData = sessionStorage.getItem('routePlanningData');
+        if (!routeData) {
+            return;
+        }
+
+        try {
+            const data = JSON.parse(routeData);
+            console.log('恢复路线规划数据:', data);
+
+            if (data.startLocation) {
+                document.getElementById('picker-start-location').value = data.startLocation;
+            }
+            if (data.endLocation) {
+                document.getElementById('picker-end-location').value = data.endLocation;
+            }
+
+            // 恢复途经点
+            if (data.waypoints && data.waypoints.length > 0) {
+                data.waypoints.forEach(waypoint => {
+                    if (typeof addPickerWaypoint === 'function') {
+                        addPickerWaypoint(waypoint);
+                    }
+                });
+            }
+
+            // 检查是否需要自动添加新途径点
+            if (data.autoAddWaypoint === true) {
+                console.log('自动添加新途径点');
+                if (typeof addPickerWaypoint === 'function') {
+                    // 延迟一点添加，确保页面已完全加载
+                    setTimeout(() => {
+                        addPickerWaypoint();  // 添加空的新途径点
+                    }, 100);
+                }
+            } else {
+                // 如果不是自动添加途径点，则根据 activeInput 和 inputType 自动聚焦
+                if (data.activeInput && data.inputType) {
+                    console.log('自动聚焦到输入框:', data.activeInput, '类型:', data.inputType);
+                    setTimeout(() => {
+                        let inputElement = null;
+
+                        if (data.inputType === 'start') {
+                            inputElement = document.getElementById('picker-start-location');
+                        } else if (data.inputType === 'end') {
+                            inputElement = document.getElementById('picker-end-location');
+                        } else if (data.inputType === 'waypoint') {
+                            // 对于途径点，聚焦到最后一个途径点输入框
+                            const waypointInputs = document.querySelectorAll('.picker-waypoint-input');
+                            if (waypointInputs.length > 0) {
+                                inputElement = waypointInputs[waypointInputs.length - 1];
+                            }
+                        }
+
+                        if (inputElement) {
+                            inputElement.focus();
+                            console.log('已聚焦到输入框');
+                        }
+                    }, 150);
+                }
+            }
+        } catch (e) {
+            console.error('恢复路线数据失败:', e);
+        }
+    }
+
+    // 设置按钮事件
+    function setupButtonEvents() {
+        // 返回按钮事件
+        const backBtn = document.getElementById('picker-back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', function() {
+                console.log('点击返回按钮');
+                saveRouteDataAndReturn();
+            });
+        }
+
+        // 完成按钮事件 - 跳转到导航页面
+        const completeBtn = document.getElementById('picker-complete-btn');
+        if (completeBtn) {
+            completeBtn.addEventListener('click', function() {
+                console.log('点击完成按钮');
+                completeRouteSelection();
+            });
+        }
+    }
+
+    // 保存路线数据并返回来源页面
+    function saveRouteDataAndReturn() {
+        const startLocation = document.getElementById('picker-start-location')?.value || '';
+        const endLocation = document.getElementById('picker-end-location')?.value || '';
+
+        const waypointsContainer = document.getElementById('picker-waypoints-container');
+        const waypoints = [];
+        if (waypointsContainer) {
+            const waypointInputs = waypointsContainer.querySelectorAll('input');
+            waypointInputs.forEach(input => {
+                if (input.value) {
+                    waypoints.push(input.value);
+                }
+            });
+        }
+
+        const routeData = {
+            startLocation: startLocation,
+            endLocation: endLocation,
+            waypoints: waypoints
+        };
+
+        console.log('保存路线数据:', routeData);
+        sessionStorage.setItem('routePlanningData', JSON.stringify(routeData));
+
+        // 检查来源页面
+        const referrer = sessionStorage.getItem('pointSelectionReferrer') || 'index.html';
+        console.log('返回页面:', referrer);
+        sessionStorage.removeItem('pointSelectionReferrer');
+
+        // 返回来源页面
+        window.location.href = referrer;
+    }
+
+    // 完成路线选择，跳转到导航界面
+    function completeRouteSelection() {
+        const startLocation = document.getElementById('picker-start-location')?.value || '';
+        const endLocation = document.getElementById('picker-end-location')?.value || '';
+
+        console.log('完成路线选择，起点:', startLocation, '终点:', endLocation);
+
+        // 验证是否选择了起点和终点
+        if (!startLocation) {
+            alert('请选择起点');
+            return;
+        }
+
+        if (!endLocation) {
+            alert('请选择终点');
+            return;
+        }
+
+        // 自动校验起点是否有效（如果是手动输入的，尝试匹配）
+        const startPosition = validateAndGetPosition(startLocation);
+        if (!startPosition) {
+            alert(`起点"${startLocation}"无效\n请从KML点位中选择或输入完整的地点名称`);
+            return;
+        }
+
+        // 自动校验终点是否有效
+        const endPosition = validateAndGetPosition(endLocation);
+        if (!endPosition) {
+            alert(`终点"${endLocation}"无效\n请从KML点位中选择或输入完整的地点名称`);
+            return;
+        }
+
+        // 收集途经点（如有）
+        const waypointsContainer = document.getElementById('picker-waypoints-container');
+        const waypointNames = [];
+        if (waypointsContainer) {
+            const waypointInputs = waypointsContainer.querySelectorAll('input');
+            waypointInputs.forEach(input => {
+                const value = input.value.trim();
+                if (value) {
+                    waypointNames.push(value);
+                }
+            });
+        }
+
+        const waypointsData = waypointNames.map(name => {
+            const pos = getLocationPosition(name);
+            return pos ? { name, position: pos } : { name };
+        });
+
+        // 准备路线数据
+        const routeData = {
+            start: {
+                name: startLocation,
+                position: startPosition
+            },
+            end: {
+                name: endLocation,
+                position: endPosition
+            },
+            waypoints: waypointsData
+        };
+
+        console.log('路线数据:', routeData);
+
+        // 保存到sessionStorage
+        try {
+            sessionStorage.setItem('navigationRoute', JSON.stringify(routeData));
+            console.log('路线数据已保存到sessionStorage');
+
+            // 跳转到导航页面
+            window.location.href = 'navigation.html';
+        } catch (e) {
+            console.error('保存路线数据失败:', e);
+            alert('保存路线数据失败，请重试');
+        }
+    }
+
+    // 获取地点的坐标位置
+    function getLocationPosition(locationName) {
+        // 如果是"我的位置"，使用当前位置
+        if (locationName === '我的位置' && typeof currentPosition !== 'undefined') {
+            return currentPosition;
+        }
+
+        // 从KML点位中查找
+        if (typeof getAllKMLPoints === 'function') {
+            const kmlResults = getAllKMLPoints('');
+            const kmlPoint = kmlResults.find(p => p.name === locationName);
+            if (kmlPoint && kmlPoint.position) {
+                return kmlPoint.position;
+            }
+        }
+
+        // 如果找不到，返回null（导航页面会使用默认位置）
+        return null;
+    }
+
+    // 验证地点名称并获取坐标（带校验）
+    function validateAndGetPosition(locationName) {
+        console.log('验证地点:', locationName);
+
+        // 如果是"我的位置"，使用当前位置
+        if (locationName === '我的位置') {
+            // 注意：在点位选择页面没有地图，所以无法获取当前位置
+            // 返回一个标记，让导航页面去处理
+            console.log('验证通过: 我的位置（将在导航页面获取）');
+            return [0, 0]; // 临时坐标，导航页面会替换
+        }
+
+        // 从KML点位中查找
+        if (typeof getAllKMLPoints === 'function') {
+            const kmlResults = getAllKMLPoints('');
+            const kmlPoint = kmlResults.find(p => p.name === locationName);
+            if (kmlPoint && kmlPoint.position) {
+                console.log('验证通过: 从KML点位找到', locationName);
+                return kmlPoint.position;
+            }
+        }
+
+        // 如果找不到，返回null
+        console.warn('验证失败: 未找到地点', locationName);
+        return null;
+    }
+    </script>
+</body>
+</html>

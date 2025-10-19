@@ -82,10 +82,11 @@ body {
     left: 20px;
     right: 20px;
     z-index: 80; /* 调整到底部卡片下一层 */
-    background: white;
+    background: rgba(255, 255, 255, 0.5);
     border-radius: 12px;
     padding: 12px 15px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
 }
 
 .search-box {
@@ -97,6 +98,12 @@ body {
 .search-icon {
     color: #999;
     font-size: 16px;
+}
+
+.search-icon-img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
 }
 
 .search-box input {
@@ -267,14 +274,14 @@ body {
 /* 底部卡片 */
 .bottom-card {
     position: absolute;
-    bottom: 70px;
+    bottom: 60px;
     left: 0;
     right: 0;
     z-index: 90;
     background: #FFFFFF;
     border-radius: 20px 20px 0 0;
-    padding: 20px;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px 70px 20px 20px;
+    box-shadow: none;
 }
 
 /* 路线规划界面 */
@@ -419,8 +426,9 @@ body {
 
 .route-selector {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
+    position: relative;
 }
 
 .location-inputs-wrapper {
@@ -456,6 +464,7 @@ body {
 
 .end-icon {
     color: #ff4444;
+    font-size: 8px;
 }
 
 .location-item input {
@@ -527,6 +536,10 @@ body {
 }
 
 .add-waypoint {
+    position: absolute;
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -539,8 +552,8 @@ body {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #f8f9fa;
-    border: 2px dashed #ddd;
+    background: transparent;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -549,13 +562,22 @@ body {
 }
 
 .add-btn:hover {
-    border-color: #007bff;
-    background: #e3f2fd;
+    transform: scale(1.1);
+}
+
+.add-btn:active {
+    transform: scale(0.95);
 }
 
 .add-btn i {
     color: #666;
     font-size: 18px;
+}
+
+.add-btn img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
 }
 
 .waypoint-label {
@@ -685,15 +707,16 @@ body {
 .picker-route-card {
     background: #FFFFFF;
     border-radius: 12px;
-    padding: 16px;
+    padding: 16px 70px 16px 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     border: 1px solid #e6e9ef;
 }
 
 .picker-route-selector {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
+    position: relative;
 }
 
 .picker-location-inputs-wrapper {
@@ -791,6 +814,10 @@ body {
 }
 
 .picker-add-waypoint {
+    position: absolute;
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -803,8 +830,8 @@ body {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #f8f9fa;
-    border: 2px dashed #ddd;
+    background: transparent;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -813,13 +840,22 @@ body {
 }
 
 .picker-add-btn:hover {
-    border-color: #007bff;
-    background: #e3f2fd;
+    transform: scale(1.1);
+}
+
+.picker-add-btn:active {
+    transform: scale(0.95);
 }
 
 .picker-add-btn i {
     color: #666;
     font-size: 18px;
+}
+
+.picker-add-btn img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
 }
 
 .picker-waypoint-label {
@@ -1194,7 +1230,7 @@ body {
 /* 地图控制按钮组 */
 .map-controls {
     position: absolute;
-    top: 120px;
+    bottom: 240px;
     right: 20px;
     z-index: 90;
     display: flex;

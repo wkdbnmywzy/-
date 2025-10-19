@@ -18,8 +18,8 @@
         <!-- 搜索区域 -->
         <div class="search-container">
             <div class="search-box">
-                <i class="search-icon fas fa-search"></i>
-                <input type="text" placeholder="搜索" id="search-input">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/搜索.png" class="search-icon-img" alt="搜索">
+                <input type="text" placeholder="搜索" id="search-input" readonly>
             </div>
             <div class="search-results" id="search-results">
                 <!-- 搜索结果将动态填充 -->
@@ -28,18 +28,12 @@
         
         <!-- 地图控制按钮 -->
         <div class="map-controls">
-            <button class="control-btn" id="locate-btn" title="定位">
-                <i class="fas fa-location-arrow"></i>
-            </button>
-            <button class="control-btn" id="zoom-in-btn" title="放大">
-                <i class="fas fa-plus"></i>
-            </button>
-            <button class="control-btn" id="zoom-out-btn" title="缩小">
-                <i class="fas fa-minus"></i>
-            </button>
             <!-- 导入按钮 -->
             <button class="control-btn" id="import-btn" title="导入数据">
                 <i class="fas fa-upload"></i>
+            </button>
+            <button class="control-btn" id="locate-btn" title="定位">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/定位.png" alt="定位" style="width: 24px; height: 24px;">
             </button>
         </div>
         
@@ -60,7 +54,7 @@
                                 </button>
                             </div>
                             <div class="location-item">
-                                <i class="fas fa-map-marker-alt end-icon"></i>
+                                <i class="fas fa-circle end-icon"></i>
                                 <input type="text" placeholder="请输入目的地" id="end-location" readonly>
                             </div>
                             <div class="waypoints-container" id="waypoints-container">
@@ -70,7 +64,7 @@
                     </div>
                     <div class="add-waypoint">
                         <div class="add-btn" id="add-waypoint-btn">
-                            <i class="fas fa-plus"></i>
+                            <img src="images/工地数字导航小程序切图/司机/2X/导航/添加途径点.png" alt="添加途径点">
                         </div>
                         <div class="waypoint-label">途径点</div>
                     </div>
@@ -78,87 +72,7 @@
             </div>
         </div>
 
-        <!-- 全屏选择面板 -->
-        <div class="point-picker-panel" id="point-picker-panel">
-            <!-- 顶部导航栏 -->
-            <div class="picker-header">
-                <button class="picker-back-btn" id="picker-back-btn">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                <h2 class="picker-title">路线规划</h2>
-            </div>
 
-            <div class="picker-content">
-                <!-- 路线规划卡片 -->
-                <div class="picker-route-card">
-                    <div class="picker-route-selector">
-                        <div class="picker-location-inputs-wrapper">
-                            <div class="picker-location-inputs">
-                                <div class="picker-location-row">
-                                    <i class="fas fa-circle picker-start-icon"></i>
-                                    <input type="text" placeholder="我的位置" id="picker-start-location">
-                                </div>
-                                <div class="picker-divider-line">
-                                    <button class="picker-swap-btn" id="picker-swap-btn">
-                                        <i class="fas fa-exchange-alt"></i>
-                                    </button>
-                                </div>
-                                <div class="picker-location-row">
-                                    <i class="fas fa-map-marker-alt picker-end-icon"></i>
-                                    <input type="text" placeholder="请输入目的地" id="picker-end-location">
-                                </div>
-                                <div class="picker-waypoints-container" id="picker-waypoints-container">
-                                    <!-- 途经点将动态添加 -->
-                                </div>
-                            </div>
-                        </div>
-                        <div class="picker-add-waypoint">
-                            <div class="picker-add-btn" id="picker-add-waypoint-btn">
-                                <i class="fas fa-plus"></i>
-                            </div>
-                            <div class="picker-waypoint-label">途经点</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 完成按钮 -->
-                <button class="picker-complete-btn" id="picker-complete-btn">完成</button>
-
-                <!-- 分类标签 -->
-                <div class="picker-categories">
-                    <div class="picker-category-section">
-                        <div class="picker-category-title">建筑</div>
-                        <div class="picker-category-tags">
-                            <span class="picker-tag">1号楼</span>
-                            <span class="picker-tag">2号楼</span>
-                            <span class="picker-tag">3号楼</span>
-                            <span class="picker-tag">4号楼</span>
-                            <span class="picker-tag">5号楼</span>
-                        </div>
-                    </div>
-                    <div class="picker-category-section">
-                        <div class="picker-category-title">区域</div>
-                        <div class="picker-category-tags">
-                            <span class="picker-tag">1号楼材料堆放区</span>
-                            <span class="picker-tag">砂石堆放区</span>
-                            <span class="picker-tag">墙体材料区</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 地点列表 -->
-                <div class="picker-location-list" id="picker-location-list">
-                    <div class="picker-location-item">
-                        <i class="fas fa-location-arrow"></i>
-                        <div class="picker-location-text">我的位置</div>
-                        <button class="picker-add-icon">+</button>
-                    </div>
-                    <!-- 历史搜索将动态插入此处 -->
-                </div>
-            </div>
-        </div>
-
-        
         <!-- 底部导航 -->
         <div class="bottom-nav">
             <div class="nav-item active" data-page="index">

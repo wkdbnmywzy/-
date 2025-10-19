@@ -7,13 +7,46 @@ let traveledPolyline = null; // 已走路径（灰色）
 let traveledPath = [];
 
 function addWaypoint() {
-    // 跳转到点位选择界面并添加途径点
-    showPickerPanel();
+    // 检查当前途径点数量（首页底部卡片中的途径点）
+    const waypointsContainer = document.getElementById('waypoints-container');
+    let currentCount = 0;
+    if (waypointsContainer) {
+        currentCount = waypointsContainer.querySelectorAll('.waypoint-input').length;
+    }
 
-    // 在点位选择界面添加途径点
-    setTimeout(() => {
-        addPickerWaypoint();
-    }, 100);
+    // 限制最多 2 个途经点
+    if (currentCount >= 2) {
+        alert('最多只能添加 2 个途经点');
+        return;
+    }
+
+    // 保存当前路线规划数据到sessionStorage
+    const startValue = document.getElementById('start-location')?.value || '';
+    const endValue = document.getElementById('end-location')?.value || '';
+
+    const waypoints = [];
+    if (waypointsContainer) {
+        const waypointInputs = waypointsContainer.querySelectorAll('.waypoint-input');
+        waypointInputs.forEach(input => {
+            if (input.value) {
+                waypoints.push(input.value);
+            }
+        });
+    }
+
+    const routeData = {
+        startLocation: startValue,
+        endLocation: endValue,
+        waypoints: waypoints,
+        autoAddWaypoint: true  // 标记：跳转后自动添加新途径点
+    };
+
+    sessionStorage.setItem('routePlanningData', JSON.stringify(routeData));
+    sessionStorage.setItem('pointSelectionReferrer', 'index.html');
+
+    // 跳转到点位选择界面
+    currentInputType = 'waypoint';
+    window.location.href = 'point-selection.html';
 }
 
 function removeWaypoint(id) {
@@ -26,8 +59,6 @@ function removeWaypoint(id) {
 function calculateRoute() {
     var start = document.getElementById('start-location').value;
     var end = document.getElementById('end-location').value;
-
-    console.log('开始路线规划 - 起点:', start, '终点:', end);
 
     if (!start || !end) {
         alert('请选择起点和终点');
@@ -60,11 +91,8 @@ function performKMLOnlyRouting(start, end) {
                         document.getElementById('route-btn').innerHTML = '路线规划';
                         document.getElementById('route-btn').disabled = false;
                         document.getElementById('start-nav-btn').disabled = false;
-
-                        console.log('使用Dijkstra算法KML路径规划成功');
                     } else {
                         // KML路径规划失败
-                        console.log('KML路径规划失败，无可用路径');
                         showRouteFailureMessage();
                     }
                 } else {
@@ -88,13 +116,10 @@ function showRouteFailureMessage() {
 }
 
 function getCoordinatesFromAddress(address, callback) {
-    console.log('正在获取地址坐标:', address);
-
     // 检查是否是搜索历史中的地点
     if (typeof searchHistory !== 'undefined' && searchHistory) {
         const historyItem = searchHistory.find(item => item.name === address);
         if (historyItem && historyItem.position) {
-            console.log('从搜索历史中找到坐标:', historyItem.position);
             // 确保返回标准的 [lng, lat] 数组格式
             let position = historyItem.position;
             if (Array.isArray(position) && position.length >= 2) {
@@ -134,7 +159,6 @@ function getCoordinatesFromAddress(address, callback) {
                     }
 
                     if (position) {
-                        console.log('从KML点中找到坐标:', position);
                         // 转换为数组格式 [lng, lat]
                         if (position.lng !== undefined && position.lat !== undefined) {
                             callback([position.lng, position.lat]);

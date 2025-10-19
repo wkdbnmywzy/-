@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>搜索</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        /* 重置body样式 - 使用!important确保优先级 */
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #f5f5f5 !important;
+            overflow: visible !important;
+            height: 100vh !important;
+        }
+
+        html {
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 搜索界面特定样式 */
+        .search-page-container {
+            height: 100vh;
+            background: #f5f5f5;
+            max-width: 480px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .search-header {
+            background: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .search-back-btn {
+            position: absolute;
+            left: 20px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #333;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .search-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .search-input-container {
+            background: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .search-input-wrapper {
+            flex: 1;
+            background: #F5F5F5;
+            border-radius: 8px;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input-field {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 15px;
+            background: transparent;
+            color: #333;
+        }
+
+        .search-input-field::placeholder {
+            color: #999;
+        }
+
+        .search-btn {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .search-btn:active {
+            opacity: 0.8;
+        }
+
+        .search-content {
+            padding: 0;
+            flex: 1;
+            overflow-y: auto;
+            background: #f5f5f5;
+            min-height: 0;
+        }
+
+        .search-results {
+            background: transparent;
+            display: block;
+            min-height: 100%;
+        }
+
+        .search-section-title {
+            padding: 12px 20px;
+            font-size: 13px;
+            color: #999;
+            background: #f5f5f5;
+            font-weight: 500;
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        .search-result-item {
+            padding: 15px 20px;
+            background: white;
+            display: flex !important;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 1px;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .search-result-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .search-result-item:active {
+            background: #f8f8f8;
+        }
+
+        .search-result-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .search-result-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .search-result-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .search-result-name {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .search-result-desc {
+            font-size: 12px;
+            color: #999;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .search-result-actions {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin-left: 15px;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: #666;
+            font-size: 11px;
+        }
+
+        .action-btn img {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+        }
+
+        .action-btn:active {
+            opacity: 0.6;
+        }
+
+        .search-highlight {
+            color: #5BA8E3;
+            font-weight: 600;
+        }
+
+        .search-empty {
+            padding: 60px 20px;
+            text-align: center;
+            color: #999;
+        }
+
+        .search-empty i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-page-container">
+        <!-- 顶部标题栏 -->
+        <div class="search-header">
+            <button class="search-back-btn" id="search-back-btn">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <h2 class="search-title">搜索</h2>
+        </div>
+
+        <!-- 搜索输入区域 -->
+        <div class="search-input-container">
+            <div class="search-input-wrapper">
+                <input type="text"
+                       placeholder="输入文字搜索目的地"
+                       class="search-input-field"
+                       id="search-input"
+                       autocomplete="off">
+            </div>
+            <button class="search-btn" id="search-btn">搜索</button>
+        </div>
+
+        <!-- 搜索内容 -->
+        <div class="search-content">
+            <!-- 搜索结果 -->
+            <div class="search-results" id="search-results">
+                <!-- 默认显示历史搜索和KML点位 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // 检查登录状态
+    function checkLoginStatus() {
+        const isLoggedIn = sessionStorage.getItem('isLoggedIn');
+        const currentUser = sessionStorage.getItem('currentUser');
+
+        if (!isLoggedIn || !currentUser) {
+            window.location.href = 'login.html';
+            return false;
+        }
+        return true;
+    }
+
+    // 从sessionStorage加载KML点位数据
+    function loadKMLPoints() {
+        const kmlDataStr = sessionStorage.getItem('kmlData');
+        console.log('loadKMLPoints - kmlData from sessionStorage:', kmlDataStr ? '存在' : '不存在');
+
+        if (!kmlDataStr) {
+            console.warn('sessionStorage中没有kmlData');
+            return [];
+        }
+
+        try {
+            const kmlDataArray = JSON.parse(kmlDataStr);
+            console.log('解析的kmlData数组:', kmlDataArray);
+            const allPoints = [];
+
+            kmlDataArray.forEach(kmlData => {
+                if (kmlData.points && Array.isArray(kmlData.points)) {
+                    kmlData.points.forEach(point => {
+                        // 只过滤掉名称为 "New Point" 的点
+                        if (point.name && point.name !== 'New Point') {
+                            allPoints.push({
+                                name: point.name,
+                                description: point.description || '',
+                                position: point.position,
+                                fileName: kmlData.fileName,
+                                type: 'kml'
+                            });
+                        }
+                    });
+                }
+            });
+
+            console.log('加载的KML点位数量:', allPoints.length);
+            return allPoints;
+        } catch (e) {
+            console.error('加载KML数据失败:', e);
+            return [];
+        }
+    }
+
+    // 从localStorage加载搜索历史
+    function loadSearchHistory() {
+        try {
+            const stored = localStorage.getItem('searchHistory');
+            if (stored && stored !== 'null' && stored !== 'undefined') {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(item => ({
+                        ...item,
+                        type: 'history'
+                    }));
+                }
+            }
+        } catch (e) {
+            console.error('加载搜索历史失败:', e);
+        }
+        return [];
+    }
+
+    // 搜索点位
+    function searchPoints(keyword) {
+        const lowerKeyword = keyword.toLowerCase().trim();
+        if (!lowerKeyword) {
+            return { kmlPoints: [], historyPoints: [] };
+        }
+
+        const kmlPoints = loadKMLPoints();
+        const historyPoints = loadSearchHistory();
+
+        // 搜索KML点位
+        const filteredKml = kmlPoints.filter(point => {
+            const name = point.name.toLowerCase();
+            const desc = (point.description || '').toLowerCase();
+            return name.includes(lowerKeyword) || desc.includes(lowerKeyword);
+        });
+
+        // 搜索历史记录
+        const filteredHistory = historyPoints.filter(point => {
+            const name = point.name.toLowerCase();
+            const address = (point.address || '').toLowerCase();
+            return name.includes(lowerKeyword) || address.includes(lowerKeyword);
+        });
+
+        return { kmlPoints: filteredKml, historyPoints: filteredHistory };
+    }
+
+    // 高亮匹配文本
+    function highlightText(text, keyword) {
+        if (!text || !keyword) return text;
+
+        const regex = new RegExp(escapeRegExp(keyword), 'gi');
+        return text.replace(regex, match => {
+            return `<span class="search-highlight">${match}</span>`;
+        });
+    }
+
+    // 转义正则表达式特殊字符
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // 渲染搜索结果
+    function renderSearchResults(keyword) {
+        const resultsContainer = document.getElementById('search-results');
+
+        if (!keyword || !keyword.trim()) {
+            // 显示默认内容：历史搜索和所有KML点位
+            renderDefaultContent();
+            return;
+        }
+
+        const { kmlPoints, historyPoints } = searchPoints(keyword);
+
+        if (kmlPoints.length === 0 && historyPoints.length === 0) {
+            // 无搜索结果
+            resultsContainer.innerHTML = `
+                <div class="search-empty">
+                    <i class="fas fa-search"></i>
+                    <div>未找到匹配的地点</div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+
+        // 显示历史搜索结果
+        if (historyPoints.length > 0) {
+            html += '<div class="search-section-title">历史搜索</div>';
+            historyPoints.forEach(point => {
+                const highlightedName = highlightText(point.name, keyword);
+                const highlightedAddress = highlightText(point.address || '', keyword);
+
+                html += `
+                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.address || ''}" data-type="history">
+                        <div class="search-result-icon">
+                            <img src="images/工地数字导航小程序切图/司机/2X/导航/历史位置.png" alt="历史">
+                        </div>
+                        <div class="search-result-info">
+                            <div class="search-result-name">${highlightedName}</div>
+                            <div class="search-result-desc">${highlightedAddress}</div>
+                        </div>
+                        <div class="search-result-actions">
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
+                            </button>
+                            <button class="action-btn navigate-btn" title="导航">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                                <span>导航</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // 显示KML点位结果
+        if (kmlPoints.length > 0) {
+            html += '<div class="search-section-title">KML导入点位</div>';
+            kmlPoints.forEach(point => {
+                const highlightedName = highlightText(point.name, keyword);
+                const highlightedDesc = highlightText(point.description || 'KML导入点位', keyword);
+
+                html += `
+                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.description || 'KML导入点位'}" data-type="kml">
+                        <div class="search-result-icon">
+                            <img src="images/工地数字导航小程序切图/司机/2X/地图icon/工地-down.png" alt="KML">
+                        </div>
+                        <div class="search-result-info">
+                            <div class="search-result-name">${highlightedName}</div>
+                            <div class="search-result-desc">${highlightedDesc}</div>
+                        </div>
+                        <div class="search-result-actions">
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
+                            </button>
+                            <button class="action-btn navigate-btn" title="导航">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                                <span>导航</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        resultsContainer.innerHTML = html;
+    }
+
+    // 渲染默认内容（无搜索时显示）
+    function renderDefaultContent() {
+        console.log('renderDefaultContent - 开始渲染默认内容');
+        const resultsContainer = document.getElementById('search-results');
+        const historyPoints = loadSearchHistory();
+        const kmlPoints = loadKMLPoints();
+
+        console.log('历史搜索点数量:', historyPoints.length);
+        console.log('KML点位数量:', kmlPoints.length);
+
+        let html = '';
+
+        // 显示历史搜索
+        if (historyPoints.length > 0) {
+            html += '<div class="search-section-title">历史搜索</div>';
+            historyPoints.slice(0, 10).forEach(point => {
+                html += `
+                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.address || ''}" data-type="history">
+                        <div class="search-result-icon">
+                            <img src="images/工地数字导航小程序切图/司机/2X/导航/历史位置.png" alt="历史">
+                        </div>
+                        <div class="search-result-info">
+                            <div class="search-result-name">${point.name}</div>
+                            <div class="search-result-desc">${point.address || ''}</div>
+                        </div>
+                        <div class="search-result-actions">
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
+                            </button>
+                            <button class="action-btn navigate-btn" title="导航">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                                <span>导航</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // 显示所有KML点位
+        if (kmlPoints.length > 0) {
+            console.log('准备显示KML点位，数量:', kmlPoints.length);
+            html += '<div class="search-section-title">KML导入点位</div>';
+            kmlPoints.forEach(point => {
+                html += `
+                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.description || 'KML导入点位'}" data-type="kml">
+                        <div class="search-result-icon">
+                            <img src="images/工地数字导航小程序切图/司机/2X/地图icon/工地-down.png" alt="KML">
+                        </div>
+                        <div class="search-result-info">
+                            <div class="search-result-name">${point.name}</div>
+                            <div class="search-result-desc">${point.description || 'KML导入点位'}</div>
+                        </div>
+                        <div class="search-result-actions">
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
+                            </button>
+                            <button class="action-btn navigate-btn" title="导航">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                                <span>导航</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        if (!html) {
+            html = `
+                <div class="search-empty">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <div>暂无搜索历史和点位数据</div>
+                </div>
+            `;
+        }
+
+        resultsContainer.innerHTML = html;
+        console.log('renderDefaultContent - 渲染完成');
+        console.log('HTML内容长度:', html.length);
+        console.log('resultsContainer元素:', resultsContainer);
+        console.log('resultsContainer是否可见:', resultsContainer.offsetHeight);
+        console.log('生成的HTML前500字符:', html.substring(0, 500));
+
+        // 检查元素是否真的添加到DOM中
+        setTimeout(() => {
+            const items = document.querySelectorAll('.search-result-item');
+            console.log('实际渲染的结果项数量:', items.length);
+            if (items.length > 0) {
+                console.log('第一个项目的样式:', window.getComputedStyle(items[0]));
+                console.log('第一个项目是否可见:', items[0].offsetHeight);
+            }
+        }, 100);
+    }
+
+    // 页面加载完成
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('搜索页面加载完成');
+
+        // 检查登录状态
+        if (!checkLoginStatus()) {
+            return;
+        }
+
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        const backBtn = document.getElementById('search-back-btn');
+        const resultsContainer = document.getElementById('search-results');
+
+        // 显示默认内容（所有历史和KML点位）
+        renderDefaultContent();
+
+        // 自动聚焦搜索框
+        setTimeout(() => {
+            searchInput.focus();
+        }, 100);
+
+        // 返回按钮点击事件
+        backBtn.addEventListener('click', function() {
+            window.location.href = 'index.html';
+        });
+
+        // 搜索按钮点击事件
+        searchBtn.addEventListener('click', function() {
+            const keyword = searchInput.value.trim();
+            renderSearchResults(keyword);
+        });
+
+        // 回车键触发搜索
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const keyword = this.value.trim();
+                renderSearchResults(keyword);
+            }
+        });
+
+        // 输入时实时搜索（可选，如果想要即时搜索体验）
+        let searchTimer;
+        searchInput.addEventListener('input', function() {
+            const keyword = this.value.trim();
+
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                if (keyword) {
+                    renderSearchResults(keyword);
+                } else {
+                    renderDefaultContent();
+                }
+            }, 300);
+        });
+
+        // 搜索结果点击事件
+        resultsContainer.addEventListener('click', function(e) {
+            // 处理路线按钮点击
+            if (e.target.closest('.route-btn')) {
+                e.stopPropagation();
+                const item = e.target.closest('.search-result-item');
+                if (item) {
+                    const name = item.dataset.name;
+                    const position = JSON.parse(item.dataset.position || '[]');
+                    const address = item.dataset.address || '';
+
+                    console.log('路线规划到:', name);
+
+                    // 保存到搜索历史
+                    saveToSearchHistory({
+                        name: name,
+                        position: position,
+                        address: address
+                    });
+
+                    // 跳转到点位选择界面，自动填充终点
+                    sessionStorage.setItem('routePlanningData', JSON.stringify({
+                        startLocation: '我的位置',
+                        endLocation: name,
+                        waypoints: [],
+                        activeInput: 'picker-end-location',
+                        inputType: 'end'
+                    }));
+                    sessionStorage.setItem('pointSelectionReferrer', 'index.html');
+                    window.location.href = 'point-selection.html';
+                }
+                return;
+            }
+
+            // 处理导航按钮点击
+            if (e.target.closest('.navigate-btn')) {
+                e.stopPropagation();
+                const item = e.target.closest('.search-result-item');
+                if (item) {
+                    const name = item.dataset.name;
+                    const position = JSON.parse(item.dataset.position || '[]');
+                    const address = item.dataset.address || '';
+
+                    console.log('开始导航到:', name);
+
+                    // 保存到搜索历史
+                    saveToSearchHistory({
+                        name: name,
+                        position: position,
+                        address: address
+                    });
+
+                    // 直接跳转到导航页面
+                    sessionStorage.setItem('navigationRoute', JSON.stringify({
+                        start: {
+                            name: '我的位置',
+                            position: [0, 0]  // 导航页会获取真实位置
+                        },
+                        end: {
+                            name: name,
+                            position: position
+                        },
+                        waypoints: []
+                    }));
+                    window.location.href = 'navigation.html';
+                }
+                return;
+            }
+
+            // 处理整行点击（显示在地图上）
+            const item = e.target.closest('.search-result-item');
+            if (item) {
+                const name = item.dataset.name;
+                const position = JSON.parse(item.dataset.position || '[]');
+                const address = item.dataset.address || '';
+
+                console.log('选择地点:', name, position);
+
+                // 保存到搜索历史
+                saveToSearchHistory({
+                    name: name,
+                    position: position,
+                    address: address
+                });
+
+                // 保存到sessionStorage并返回首页
+                sessionStorage.setItem('selectedLocation', JSON.stringify({
+                    name: name,
+                    position: position,
+                    address: address
+                }));
+
+                window.location.href = 'index.html';
+            }
+        });
+    });
+
+    // 保存到搜索历史
+    function saveToSearchHistory(item) {
+        try {
+            let history = loadSearchHistory();
+
+            // 检查是否已存在
+            const existingIndex = history.findIndex(h => h.name === item.name);
+            if (existingIndex !== -1) {
+                history.splice(existingIndex, 1);
+            }
+
+            // 添加到开头
+            history.unshift(item);
+
+            // 限制数量
+            if (history.length > 20) {
+                history = history.slice(0, 20);
+            }
+
+            localStorage.setItem('searchHistory', JSON.stringify(history));
+            console.log('已保存到搜索历史:', item.name);
+        } catch (e) {
+            console.error('保存搜索历史失败:', e);
+        }
+    }
+    </script>
+</body>
+</html>

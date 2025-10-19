@@ -16,14 +16,11 @@ function buildKMLGraph() {
         return false;
     }
 
-    console.log('开始构建KML路径图，图层数:', kmlLayers.length);
-
-    // 保存原始线段数据用于交点检测
-    const originalLines = [];
+    console.log('使用导入时已分割的KML数据构建路径图...');
 
     // 从KML图层中提取线路信息
+    // 注意:线段已经在导入时被分割,每条线的端点都是连接点或交点
     kmlLayers.forEach(function(layer, layerIndex) {
-        console.log(`处理图层${layerIndex}:`, layer.name, 'markers数量:', layer.markers.length);
         if (!layer.visible) return;
 
         layer.markers.forEach(function(marker, markerIndex) {
@@ -35,8 +32,6 @@ function buildKMLGraph() {
             const extData = marker.getExtData();
 
             if (extData && extData.type === '线') {
-                console.log(`找到线要素 marker${markerIndex}:`, extData.name);
-
                 // 确保 marker 有 getPath 方法（是 Polyline 对象）
                 if (typeof marker.getPath !== 'function') {
                     console.warn('Marker 没有 getPath 方法，跳过:', marker);
@@ -46,7 +41,6 @@ function buildKMLGraph() {
                 let path;
                 try {
                     path = marker.getPath();
-                    console.log(`  线路径长度: ${path ? path.length : 0}`);
                 } catch (error) {
                     console.error('获取路径时出错:', error, marker);
                     return;
@@ -70,20 +64,12 @@ function buildKMLGraph() {
                                    isFinite(coord[0]) && isFinite(coord[1])) {
                             validPath.push({lng: coord[0], lat: coord[1]});
                         } else {
-                            console.warn(`    坐标${i}无效:`, coord);
+                            console.warn('坐标无效:', coord);
                         }
                     }
 
-                    console.log(`  有效坐标数: ${validPath.length}`);
-
-                    // 保存原始线段用于交点检测
-                    originalLines.push({
-                        name: extData.name,
-                        path: validPath.slice()
-                    });
-
-                    // 简化逻辑：每个线段直接使用起点和终点作为节点
-                    // 这样保证了每条KML线段都能成为图中的一条边
+                    // 每个线段直接使用起点和终点作为节点
+                    // 由于线段已经在导入时被分割,所以不需要再检测交点
                     const startNode = findOrCreateNode(validPath[0]);
                     const endNode = findOrCreateNode(validPath[validPath.length - 1]);
 
@@ -96,93 +82,41 @@ function buildKMLGraph() {
 
                         // 创建边，保存完整路径坐标（用于渲染）
                         addEdge(startNode.id, endNode.id, segmentDistance, validPath);
-                        console.log(`  创建边: 节点${startNode.id} -> 节点${endNode.id}, 距离: ${segmentDistance.toFixed(2)}m`);
                     }
                 }
             }
         });
     });
 
-    console.log(`初步构建完成: ${kmlNodes.length} 节点, ${kmlEdges.length} 边`);
-
-    // 禁用节点合并功能 - 保持端点的独立性
-    // mergeCloseNodes();
-
-    // 启用相交检测功能 - 在线段交点处创建连接节点，实现道路网络联通
-    connectIntersectingLines(originalLines);
-
-    // 构建图结构
+    // 由于线段已经在导入时处理,不再需要检测交点和分割
+    // 直接构建图结构
     kmlGraph = buildAdjacencyList();
 
-    console.log(`KML路径图构建完成: ${kmlNodes.length} 节点, ${kmlEdges.length} 边`);
-    console.log('路径规划基于KML线段端点和交点，通过Dijkstra算法计算最短路径');
+    console.log(`路径图构建完成: ${kmlNodes.length}个节点, ${kmlEdges.length}条边`);
+
+    // 调试：输出图的连通性信息
+    console.log('图结构调试信息:');
+    const nodeConnectivity = {};
+    for (let i = 0; i < kmlNodes.length; i++) {
+        const neighbors = kmlGraph[i] || [];
+        nodeConnectivity[i] = neighbors.length;
+    }
+    console.log('每个节点的邻居数量:', nodeConnectivity);
+
+    // 检查孤立节点
+    const isolatedNodes = Object.keys(nodeConnectivity).filter(id => nodeConnectivity[id] === 0);
+    if (isolatedNodes.length > 0) {
+        console.warn(`发现${isolatedNodes.length}个孤立节点（无连接）:`, isolatedNodes);
+    }
+
     return kmlNodes.length > 0 && kmlEdges.length > 0;
-}
-
-// 合并距离很近的节点
-function mergeCloseNodes() {
-    const mergeThreshold = 0.5; // 0.5米以内的节点合并
-    const nodesToMerge = [];
-
-    console.log('开始合并距离很近的节点，阈值:', mergeThreshold, 'm');
-
-    // 找出需要合并的节点对
-    for (let i = 0; i < kmlNodes.length; i++) {
-        for (let j = i + 1; j < kmlNodes.length; j++) {
-            const dist = calculateDistance(
-                {lng: kmlNodes[i].lng, lat: kmlNodes[i].lat},
-                {lng: kmlNodes[j].lng, lat: kmlNodes[j].lat}
-            );
-
-            if (dist < mergeThreshold) {
-                nodesToMerge.push({from: j, to: i, distance: dist});
-            }
-        }
-    }
-
-    if (nodesToMerge.length === 0) {
-        console.log('没有需要合并的节点');
-        return;
-    }
-
-    console.log(`发现 ${nodesToMerge.length} 对需要合并的节点`);
-
-    // 按照from节点ID降序排序，从后往前合并，避免索引混乱
-    nodesToMerge.sort((a, b) => b.from - a.from);
-
-    // 创建节点映射表
-    const nodeMapping = {};
-    for (let i = 0; i < kmlNodes.length; i++) {
-        nodeMapping[i] = i;
-    }
-
-    // 执行合并
-    nodesToMerge.forEach(merge => {
-        console.log(`合并节点 ${merge.from} -> ${merge.to} (距离: ${merge.distance.toFixed(3)}m)`);
-        nodeMapping[merge.from] = merge.to;
-    });
-
-    // 更新所有边的节点引用
-    kmlEdges.forEach(edge => {
-        edge.start = nodeMapping[edge.start] !== undefined ? nodeMapping[edge.start] : edge.start;
-        edge.end = nodeMapping[edge.end] !== undefined ? nodeMapping[edge.end] : edge.end;
-    });
-
-    // 移除自环边（起点终点相同的边）
-    const validEdges = kmlEdges.filter(edge => edge.start !== edge.end);
-    const removedEdges = kmlEdges.length - validEdges.length;
-    if (removedEdges > 0) {
-        console.log(`移除了 ${removedEdges} 条自环边`);
-        kmlEdges = validEdges;
-    }
-
-    console.log(`节点合并完成，保留 ${Object.keys(new Set(Object.values(nodeMapping))).length} 个有效节点`);
 }
 
 // 查找或创建节点
 function findOrCreateNode(coordinate) {
-    // 非常严格的坐标容差，只合并几乎完全相同的点
-    const tolerance = 0.01; // 0.01米 = 1厘米，只合并真正重复的点
+    // 使用较大的容差专门用于合并分割后的交点
+    // 因为同一个交点在不同线段中可能作为终点和起点存储两次
+    const tolerance = 5.0; // 5米容差，足够合并交点但不会误合并不同的点
 
     // 提取经纬度
     let lng, lat;
@@ -206,12 +140,10 @@ function findOrCreateNode(coordinate) {
     // 查找是否已存在相近的节点
     const existingNode = kmlNodes.find(node => {
         const dist = calculateDistance({lng, lat}, {lng: node.lng, lat: node.lat});
-        return dist < tolerance; // 直接使用米作为单位
+        return dist < tolerance;
     });
 
     if (existingNode) {
-        console.log('   复用已存在节点', existingNode.id, '距离:',
-            calculateDistance({lng, lat}, {lng: existingNode.lng, lat: existingNode.lat}).toFixed(3), 'm');
         return existingNode;
     }
 
@@ -223,16 +155,13 @@ function findOrCreateNode(coordinate) {
     };
 
     kmlNodes.push(newNode);
-    console.log('   创建新节点', newNode.id, '位置:', [lng, lat]);
     return newNode;
 }
 
 // 添加边
 function addEdge(startId, endId, distance, coordinates) {
     if (startId === endId) {
-        console.warn('⚠️ 检测到自环边 (起点=终点=节点' + startId + '), 已跳过');
-        console.warn('   这通常意味着线段太短，起点和终点被合并了');
-        console.warn('   线段坐标:', coordinates);
+        console.warn('检测到自环边，已跳过 (节点' + startId + ')');
         return;
     }
 
@@ -249,9 +178,6 @@ function addEdge(startId, endId, distance, coordinates) {
             distance: distance,
             coordinates: coordinates || [] // 保存边上的完整坐标点
         });
-        console.log('   ✅ 边已添加: 节点' + startId + ' <-> 节点' + endId + ', 距离: ' + distance.toFixed(2) + 'm');
-    } else {
-        console.log('   ℹ️ 边已存在，跳过重复添加');
     }
 }
 
@@ -302,6 +228,13 @@ function findNearestKMLNode(coordinate) {
 // Dijkstra算法实现
 function dijkstra(startNodeId, endNodeId) {
     if (!kmlGraph || !kmlGraph[startNodeId] || !kmlGraph[endNodeId]) {
+        console.error('Dijkstra算法输入检查失败:', {
+            图是否存在: !!kmlGraph,
+            起点节点是否在图中: kmlGraph ? !!kmlGraph[startNodeId] : false,
+            终点节点是否在图中: kmlGraph ? !!kmlGraph[endNodeId] : false,
+            起点邻居数量: kmlGraph && kmlGraph[startNodeId] ? kmlGraph[startNodeId].length : 0,
+            终点邻居数量: kmlGraph && kmlGraph[endNodeId] ? kmlGraph[endNodeId].length : 0
+        });
         return null;
     }
 
@@ -340,6 +273,7 @@ function dijkstra(startNodeId, endNodeId) {
 
         // 如果到达目标节点
         if (currentNode === endNodeId) {
+            console.log('Dijkstra算法找到终点，总距离:', distances[endNodeId], '米');
             break;
         }
 
@@ -360,6 +294,19 @@ function dijkstra(startNodeId, endNodeId) {
     // 重构路径（使用边上的完整坐标）
     const path = [];
     let currentNode = endNodeId;
+
+    // 检查是否找到了路径
+    if (distances[endNodeId] === Infinity) {
+        console.error('起点和终点在图中不连通！无法找到路径');
+        console.log('调试信息:', {
+            总节点数: kmlNodes.length,
+            总边数: kmlEdges.length,
+            起点到终点的距离: distances[endNodeId],
+            起点邻居: kmlGraph[startNodeId],
+            终点邻居: kmlGraph[endNodeId]
+        });
+        return null;
+    }
 
     while (currentNode !== null) {
         const edge = previousEdge[currentNode];
@@ -419,18 +366,19 @@ function dijkstra(startNodeId, endNodeId) {
 
         if (backtrackIndex !== -1) {
             // 发现回溯，跳过中间的所有点
-            console.log(`检测到回溯: 点${i}在点${backtrackIndex}处重复出现，跳过中间${backtrackIndex - i}个点`);
+            console.log(`检测到回溯: 索引${i}到${backtrackIndex}`);
             i = backtrackIndex;
         } else {
             i++;
         }
     }
 
+    console.log(`Dijkstra路径处理: 原始${path.length}点 -> 去重${uniquePath.length}点 -> 清理回溯${cleanedPath.length}点`);
+
     if (cleanedPath.length === 0) {
+        console.error('清理回溯后路径为空！原始路径:', path);
         return null; // 无路径
     }
-
-    console.log(`路径优化: 原始${path.length}点 -> 去重后${uniquePath.length}点 -> 清理回溯后${cleanedPath.length}点`);
 
     return {
         path: cleanedPath,
@@ -447,9 +395,6 @@ function findNearestKMLSegment(coordinate) {
 
     const coordLng = Array.isArray(coordinate) ? coordinate[0] : coordinate.lng;
     const coordLat = Array.isArray(coordinate) ? coordinate[1] : coordinate.lat;
-
-    console.log('🔍 查找最近KML线段, 目标点:', [coordLng, coordLat]);
-    console.log('   当前图中边数:', kmlEdges.length);
 
     // 遍历所有边，找到最近的线段
     kmlEdges.forEach((edge, edgeIdx) => {
@@ -490,15 +435,9 @@ function findNearestKMLSegment(coordinate) {
     });
 
     if (!nearestSegment || !projectionPoint) {
-        console.error('❌ 未找到最近的KML线段!');
+        console.error('未找到最近的KML线段');
         return null;
     }
-
-    console.log('✅ 找到最近线段:');
-    console.log('   距离:', minDistance.toFixed(2), 'm');
-    console.log('   投影点:', [projectionPoint.lng, projectionPoint.lat]);
-    console.log('   线段:', projectionInfo.segmentStart, '->', projectionInfo.segmentEnd);
-    console.log('   边起点节点ID:', nearestSegment.start, '终点节点ID:', nearestSegment.end);
 
     return {
         edge: nearestSegment,
@@ -550,41 +489,33 @@ function projectPointToSegment(point, segStart, segEnd) {
 
 // 基于KML的路径规划
 function planKMLRoute(startCoordinate, endCoordinate) {
-    console.log('=====================================');
-    console.log('🚀 开始KML路径规划');
-    console.log('起点坐标:', startCoordinate);
-    console.log('终点坐标:', endCoordinate);
-    console.log('=====================================');
+    console.log('开始KML路径规划:', {
+        起点: startCoordinate,
+        终点: endCoordinate
+    });
 
     // 构建或更新KML图
     if (!kmlGraph) {
-        console.log('⚙️ KML图未构建，开始构建...');
         const success = buildKMLGraph();
         if (!success) {
-            console.error('❌ KML图构建失败');
+            console.error('KML图构建失败');
             return null;
         }
-        console.log('✅ KML图构建成功');
-    } else {
-        console.log('✅ KML图已存在，节点数:', kmlNodes.length, '边数:', kmlEdges.length);
     }
 
     // 找到起点和终点最近的KML线段
     const startSegment = findNearestKMLSegment(startCoordinate);
     const endSegment = findNearestKMLSegment(endCoordinate);
 
-    console.log('-------------------------------------');
-    console.log('📍 找到的最近线段:');
-    console.log('  起点距离:', startSegment ? startSegment.distance.toFixed(2) + 'm' : 'N/A');
-    console.log('  终点距离:', endSegment ? endSegment.distance.toFixed(2) + 'm' : 'N/A');
-    console.log('  起点在线段边缘:', startSegment ? (startSegment.info.isAtStart || startSegment.info.isAtEnd) : false);
-    console.log('  终点在线段边缘:', endSegment ? (endSegment.info.isAtStart || endSegment.info.isAtEnd) : false);
-    console.log('-------------------------------------');
-
     if (!startSegment || !endSegment) {
-        console.error('❌ 无法找到合适的KML线段');
+        console.error('无法找到合适的KML线段');
         return null;
     }
+
+    console.log('找到最近的线段:', {
+        起点最近线段距离: `${startSegment.distance.toFixed(2)}米`,
+        终点最近线段距离: `${endSegment.distance.toFixed(2)}米`
+    });
 
     let actualStartNodeId = null;
     let actualEndNodeId = null;
@@ -597,11 +528,9 @@ function planKMLRoute(startCoordinate, endCoordinate) {
     if (startInfo.isAtStart) {
         // 投影点在线段起点，直接使用边的起点节点
         actualStartNodeId = startEdge.start;
-        console.log('起点投影在线段起点，使用节点:', actualStartNodeId);
     } else if (startInfo.isAtEnd) {
         // 投影点在线段终点，直接使用边的终点节点
         actualStartNodeId = startEdge.end;
-        console.log('起点投影在线段终点，使用节点:', actualStartNodeId);
     } else {
         // 投影点在线段中间，需要分割边并创建新节点
         const tempStartNode = {
@@ -614,46 +543,27 @@ function planKMLRoute(startCoordinate, endCoordinate) {
 
         // 分割边
         splitEdgeAtPoint(startEdge, startSegment.projectionPoint, tempStartNode, startInfo.segmentIndex);
-        console.log('起点投影在线段中间，创建新节点:', actualStartNodeId);
     }
 
     // 处理终点
     const endEdge = endSegment.edge;
     const endInfo = endSegment.info;
 
-    // 获取边的实际起点和终点坐标用于调试
+    // 获取边的实际起点和终点坐标
     const edgeStartNode = kmlNodes.find(n => n.id === endEdge.start);
     const edgeEndNode = kmlNodes.find(n => n.id === endEdge.end);
-    console.log('终点所在边的信息:', {
-        edgeStartNodeId: endEdge.start,
-        edgeStartCoord: edgeStartNode ? [edgeStartNode.lng, edgeStartNode.lat] : null,
-        edgeEndNodeId: endEdge.end,
-        edgeEndCoord: edgeEndNode ? [edgeEndNode.lng, edgeEndNode.lat] : null,
-        projectionPoint: [endSegment.projectionPoint.lng, endSegment.projectionPoint.lat],
-        isAtStart: endInfo.isAtStart,
-        isAtEnd: endInfo.isAtEnd,
-        t: endInfo.t
-    });
 
     // 不依赖isAtStart/isAtEnd，而是计算投影点到边的起点和终点的实际距离
     const distToStart = edgeStartNode ? calculateDistance(endSegment.projectionPoint, edgeStartNode) : Infinity;
     const distToEnd = edgeEndNode ? calculateDistance(endSegment.projectionPoint, edgeEndNode) : Infinity;
     const threshold = 0.5; // 0.5米容差
 
-    console.log('终点投影距离判断:', {
-        distToStart: distToStart.toFixed(3) + 'm',
-        distToEnd: distToEnd.toFixed(3) + 'm',
-        threshold: threshold + 'm'
-    });
-
     if (distToStart < threshold) {
         // 投影点非常接近边的起点
         actualEndNodeId = endEdge.start;
-        console.log('终点投影接近线段起点（距离' + distToStart.toFixed(3) + 'm），使用节点:', actualEndNodeId);
     } else if (distToEnd < threshold) {
         // 投影点非常接近边的终点
         actualEndNodeId = endEdge.end;
-        console.log('终点投影接近线段终点（距离' + distToEnd.toFixed(3) + 'm），使用节点:', actualEndNodeId);
     } else {
         // 投影点在线段中间，需要分割边
         const tempEndNode = {
@@ -666,36 +576,27 @@ function planKMLRoute(startCoordinate, endCoordinate) {
 
         // 分割边
         splitEdgeAtPoint(endEdge, endSegment.projectionPoint, tempEndNode, endInfo.segmentIndex);
-        console.log('终点投影在线段中间（距起点' + distToStart.toFixed(3) + 'm，距终点' + distToEnd.toFixed(3) + 'm），创建新节点:', actualEndNodeId);
     }
 
     // 重新构建邻接表（如果创建了新节点）
     kmlGraph = buildAdjacencyList();
-    console.log('✅ 图重建完成，节点数:', kmlNodes.length, '边数:', kmlEdges.length);
+
+    console.log('准备使用Dijkstra算法:', {
+        起点节点ID: actualStartNodeId,
+        终点节点ID: actualEndNodeId,
+        起点坐标: kmlNodes.find(n => n.id === actualStartNodeId),
+        终点坐标: kmlNodes.find(n => n.id === actualEndNodeId)
+    });
 
     // 使用Dijkstra算法计算路径
-    console.log('-------------------------------------');
-    console.log('🔍 开始Dijkstra算法');
-    console.log('  起点节点ID:', actualStartNodeId);
-    console.log('  终点节点ID:', actualEndNodeId);
-    console.log('-------------------------------------');
-
     const result = dijkstra(actualStartNodeId, actualEndNodeId);
 
     if (!result) {
-        console.error('❌ Dijkstra算法未找到连接路径');
-        console.error('  起点节点ID:', actualStartNodeId, '-> 节点坐标:', kmlNodes.find(n => n.id === actualStartNodeId));
-        console.error('  终点节点ID:', actualEndNodeId, '-> 节点坐标:', kmlNodes.find(n => n.id === actualEndNodeId));
-        console.error('  请检查这两个节点是否在同一个连通图中');
+        console.error('Dijkstra算法未找到连接路径');
         return null;
     }
 
-    console.log('✅ Dijkstra算法成功找到路径');
-    console.log('  路径点数:', result.path.length);
-    console.log('  路径总距离:', result.distance.toFixed(2), '米');
-    console.log('  路径前5个点:', result.path.slice(0, 5));
-    console.log('  路径完整数据:', JSON.stringify(result.path));
-    console.log('=====================================');
+    console.log(`Dijkstra算法返回路径，共${result.path.length}个点`);
 
     // 验证路径中的所有坐标
     const validPath = [];
@@ -709,15 +610,17 @@ function planKMLRoute(startCoordinate, endCoordinate) {
             } else {
                 console.error('路径中发现无效坐标:', coord);
             }
+        } else {
+            console.error('路径中坐标格式错误:', coord);
         }
     }
 
+    console.log(`坐标验证后，有效路径点${validPath.length}个`);
+
     if (validPath.length < 2) {
-        console.error('有效路径点不足');
+        console.error('有效路径点不足，Dijkstra返回的路径:', result.path);
         return null;
     }
-
-    console.log('最终路径点数:', validPath.length);
 
     return {
         path: validPath,
@@ -824,25 +727,20 @@ function calculateDistance(coord1, coord2) {
 function displayKMLRoute(routeResult) {
     if (!routeResult || !routeResult.path) return;
 
-    console.log('displayKMLRoute 开始，清除之前的覆盖物');
-
     // 清除之前的路径
     clearPreviousRoute();
 
     // 清理旧的路线Polyline（保留KML线作为底图参考）
     try {
         const allOverlays = map.getAllOverlays();
-        console.log('当前地图上的所有覆盖物数量:', allOverlays.length);
 
         allOverlays.forEach(overlay => {
             if (overlay.CLASS_NAME === 'AMap.Polyline') {
                 const extData = overlay.getExtData ? overlay.getExtData() : null;
                 if (extData && extData.type === '线') {
                     // 这是KML的线，保持可见作为底图参考
-                    console.log('保留KML线作为底图:', extData.name);
                 } else if (!extData || extData.type !== '线') {
                     // 清除旧的路线 Polyline
-                    console.log('清除旧的路线 Polyline');
                     map.remove(overlay);
                 }
             }
@@ -883,29 +781,10 @@ function displayKMLRoute(routeResult) {
         return;
     }
 
-    console.log('准备创建Polyline，路径点数:', validPath.length);
-    console.log('validPath详细内容:', JSON.stringify(validPath));
-
-    // 再次验证每个点
-    for (let i = 0; i < validPath.length; i++) {
-        const point = validPath[i];
-        console.log(`点${i}:`, point, 'lng:', point[0], 'lat:', point[1]);
-        if (isNaN(point[0]) || isNaN(point[1])) {
-            console.error(`点${i}包含NaN!`);
-        }
-    }
-
-    // 检查地图对象
-    console.log('地图对象存在:', !!map);
-    console.log('地图中心:', map ? map.getCenter() : 'N/A');
-    console.log('地图缩放:', map ? map.getZoom() : 'N/A');
-
     // 转换为 AMap.LngLat 对象数组
     const amapPath = validPath.map(coord => {
         return new AMap.LngLat(coord[0], coord[1]);
     });
-
-    console.log('转换后的AMap路径:', amapPath);
 
     // 创建路径线 - 使用更醒目的颜色和宽度
     let polyline;
@@ -920,24 +799,19 @@ function displayKMLRoute(routeResult) {
             lineCap: 'round',         // 圆角端点
             zIndex: 150               // 更高的 z-index，确保在KML线上方
         });
-        console.log('✅ Polyline创建成功');
-        console.log('   路径点数:', amapPath.length);
-        console.log('   颜色: #00C853, 线宽: 8px, 不透明度: 100%, zIndex: 150');
 
         // 直接添加到地图，不使用延迟
         // 延迟可能导致在某些情况下添加失败
         map.add(polyline);
-        console.log('✅ Polyline已立即添加到地图');
 
         // 强制刷新地图渲染
         try {
             map.setZoom(map.getZoom()); // 触发地图重绘
-            console.log('✅ 已触发地图重绘');
         } catch (refreshError) {
             console.warn('触发地图重绘失败（非关键错误）:', refreshError);
         }
     } catch (error) {
-        console.error('❌ 创建或添加Polyline时出错:', error);
+        console.error('创建或添加Polyline时出错:', error);
         console.error('错误详情:', error.stack);
         alert('显示路径时出错: ' + error.message);
         return;
@@ -997,12 +871,8 @@ function displayKMLRoute(routeResult) {
                 bounds.extend(point);
             });
 
-            console.log('设置地图边界以显示完整路径');
-            console.log('路径边界:', bounds);
-
             // 设置地图边界，添加内边距以确保路径不紧贴边缘
             map.setBounds(bounds, false, [50, 50, 50, 50]); // 上右下左的内边距
-            console.log('✅ 已设置地图边界');
         } catch (e) {
             console.error('设置地图边界时出错:', e);
             // 备选方案：设置到路径中心点
@@ -1038,297 +908,4 @@ function clearPreviousRoute() {
         }
         window.currentKMLRoute = null;
     }
-}
-
-// 检测并连接相交的线段（检查所有线段对，而不仅仅是边）
-function connectIntersectingLines(originalLines) {
-    console.log('开始检测线段相交...');
-
-    let intersectionCount = 0;
-
-    // 遍历所有原始线段对，检测每个线段内部的相交
-    for (let i = 0; i < originalLines.length; i++) {
-        const line1 = originalLines[i];
-
-        for (let j = i + 1; j < originalLines.length; j++) {
-            const line2 = originalLines[j];
-
-            // 检查line1和line2的每一对线段
-            for (let seg1 = 0; seg1 < line1.path.length - 1; seg1++) {
-                const p1Start = line1.path[seg1];
-                const p1End = line1.path[seg1 + 1];
-
-                for (let seg2 = 0; seg2 < line2.path.length - 1; seg2++) {
-                    const p2Start = line2.path[seg2];
-                    const p2End = line2.path[seg2 + 1];
-
-                    // 提取坐标
-                    const x1 = p1Start.lng !== undefined ? p1Start.lng : p1Start[0];
-                    const y1 = p1Start.lat !== undefined ? p1Start.lat : p1Start[1];
-                    const x2 = p1End.lng !== undefined ? p1End.lng : p1End[0];
-                    const y2 = p1End.lat !== undefined ? p1End.lat : p1End[1];
-                    const x3 = p2Start.lng !== undefined ? p2Start.lng : p2Start[0];
-                    const y3 = p2Start.lat !== undefined ? p2Start.lat : p2Start[1];
-                    const x4 = p2End.lng !== undefined ? p2End.lng : p2End[0];
-                    const y4 = p2End.lat !== undefined ? p2End.lat : p2End[1];
-
-                    // 检测两条线段是否相交
-                    const intersection = getLineSegmentIntersection(x1, y1, x2, y2, x3, y3, x4, y4);
-
-                    if (intersection) {
-                        console.log(`发现相交点: (${intersection.lng}, ${intersection.lat})`);
-                        intersectionCount++;
-
-                        // 强制创建新的交点节点（不使用findOrCreateNode以避免合并）
-                        const intersectionNode = {
-                            id: kmlNodes.length,
-                            lng: intersection.lng,
-                            lat: intersection.lat
-                        };
-                        kmlNodes.push(intersectionNode);
-
-                        // 查找包含这两个线段的边并分割它们
-                        const edge1 = findEdgeContainingSegment(p1Start, p1End);
-                        const edge2 = findEdgeContainingSegment(p2Start, p2End);
-
-                        if (edge1) {
-                            splitEdgeAtIntersection(edge1, p1Start, p1End, intersectionNode);
-                        }
-                        if (edge2) {
-                            splitEdgeAtIntersection(edge2, p2Start, p2End, intersectionNode);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 如果添加了新的连接，需要清理被分割的旧边并重新构建邻接表
-    if (intersectionCount > 0) {
-        console.log(`共检测到 ${intersectionCount} 个相交点`);
-
-        // 清理被标记删除的边
-        const originalEdgeCount = kmlEdges.length;
-        kmlEdges = kmlEdges.filter(edge => !edge.toDelete);
-        const removedEdgeCount = originalEdgeCount - kmlEdges.length;
-
-        if (removedEdgeCount > 0) {
-            console.log(`清理了 ${removedEdgeCount} 条被分割的旧边`);
-        }
-
-        console.log(`重新构建图结构: ${kmlNodes.length} 节点, ${kmlEdges.length} 边`);
-        kmlGraph = buildAdjacencyList();
-    } else {
-        console.log('未检测到线段相交');
-    }
-}
-
-// 计算两条线段的相交点
-function getLineSegmentIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
-    // 使用参数方程求解线段相交
-    // 线段1: P1 + t * (P2 - P1), t ∈ [0, 1]
-    // 线段2: P3 + u * (P4 - P3), u ∈ [0, 1]
-
-    const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-
-    // 平行或共线
-    if (Math.abs(denom) < 1e-10) {
-        return null;
-    }
-
-    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
-    const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
-
-    // 检查交点是否在线段范围内
-    // 修改逻辑：允许一条线段的端点在另一条线段上（支路连接主路的情况）
-    const epsilon = 0.0001; // 减小容差，更精确
-
-    // t是交点在线段1上的位置，u是交点在线段2上的位置
-    // 至少有一个参数需要在内部（不在端点），这样才是真正的相交
-    const t_valid = t > -epsilon && t < (1 + epsilon); // 在线段1范围内（含端点）
-    const u_valid = u > -epsilon && u < (1 + epsilon); // 在线段2范围内（含端点）
-
-    const t_interior = t > epsilon && t < (1 - epsilon); // 在线段1内部
-    const u_interior = u > epsilon && u < (1 - epsilon); // 在线段2内部
-
-    // 情况1：两条线段真正相交（至少一个在内部）
-    // 情况2：一条线段的端点在另一条线段上（支路）
-    if (t_valid && u_valid && (t_interior || u_interior)) {
-        // 计算交点坐标
-        const intersectionX = x1 + t * (x2 - x1);
-        const intersectionY = y1 + t * (y2 - y1);
-
-        return {
-            lng: intersectionX,
-            lat: intersectionY,
-            t: t,  // 保存参数，用于判断是否在端点
-            u: u
-        };
-    }
-
-    return null;
-}
-
-// 计算点到点之间的转向角度
-function calculateTurnAngleAtPoint(point1, point2, point3) {
-    // 计算从point1到point2的方位角
-    const bearing1 = calculateBearing(point1, point2);
-    // 计算从point2到point3的方位角
-    const bearing2 = calculateBearing(point2, point3);
-
-    // 计算转向角度
-    let angle = bearing2 - bearing1;
-
-    // 规范化角度到 -180 到 180 范围
-    while (angle > 180) angle -= 360;
-    while (angle < -180) angle += 360;
-
-    return angle;
-}
-
-// 计算两点之间的方位角（度，0-360）
-function calculateBearing(coord1, coord2) {
-    let lng1, lat1, lng2, lat2;
-
-    // 处理不同的坐标格式
-    if (coord1.lng !== undefined && coord1.lat !== undefined) {
-        lng1 = coord1.lng;
-        lat1 = coord1.lat;
-    } else if (Array.isArray(coord1)) {
-        lng1 = coord1[0];
-        lat1 = coord1[1];
-    } else {
-        return 0;
-    }
-
-    if (coord2.lng !== undefined && coord2.lat !== undefined) {
-        lng2 = coord2.lng;
-        lat2 = coord2.lat;
-    } else if (Array.isArray(coord2)) {
-        lng2 = coord2[0];
-        lat2 = coord2[1];
-    } else {
-        return 0;
-    }
-
-    const lat1Rad = lat1 * Math.PI / 180;
-    const lat2Rad = lat2 * Math.PI / 180;
-    const deltaLng = (lng2 - lng1) * Math.PI / 180;
-
-    const y = Math.sin(deltaLng) * Math.cos(lat2Rad);
-    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
-              Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(deltaLng);
-
-    const bearing = Math.atan2(y, x) * 180 / Math.PI;
-
-    // 规范化到 0-360 范围
-    return (bearing + 360) % 360;
-}
-
-// 查找包含指定线段的边
-function findEdgeContainingSegment(segStart, segEnd) {
-    const tolerance = 0.00001; // 容差
-
-    for (const edge of kmlEdges) {
-        if (!edge.coordinates || edge.coordinates.length < 2) continue;
-
-        // 检查边的坐标序列中是否包含这个线段
-        for (let i = 0; i < edge.coordinates.length - 1; i++) {
-            const coord1 = edge.coordinates[i];
-            const coord2 = edge.coordinates[i + 1];
-
-            const lng1 = coord1.lng !== undefined ? coord1.lng : coord1[0];
-            const lat1 = coord1.lat !== undefined ? coord1.lat : coord1[1];
-            const lng2 = coord2.lng !== undefined ? coord2.lng : coord2[0];
-            const lat2 = coord2.lat !== undefined ? coord2.lat : coord2[1];
-
-            const sLng = segStart.lng !== undefined ? segStart.lng : segStart[0];
-            const sLat = segStart.lat !== undefined ? segStart.lat : segStart[1];
-            const eLng = segEnd.lng !== undefined ? segEnd.lng : segEnd[0];
-            const eLat = segEnd.lat !== undefined ? segEnd.lat : segEnd[1];
-
-            // 检查是否匹配（考虑容差）
-            if ((Math.abs(lng1 - sLng) < tolerance && Math.abs(lat1 - sLat) < tolerance &&
-                 Math.abs(lng2 - eLng) < tolerance && Math.abs(lat2 - eLat) < tolerance) ||
-                (Math.abs(lng1 - eLng) < tolerance && Math.abs(lat1 - eLat) < tolerance &&
-                 Math.abs(lng2 - sLng) < tolerance && Math.abs(lat2 - sLat) < tolerance)) {
-                return edge;
-            }
-        }
-    }
-
-    return null;
-}
-
-// 在交点处分割边
-function splitEdgeAtIntersection(edge, segmentP1, segmentP2, intersectionNode) {
-    if (!edge.coordinates || edge.coordinates.length < 2) return;
-
-    const tolerance = 0.00001;
-    const intersectionPos = { lng: intersectionNode.lng, lat: intersectionNode.lat };
-
-    // 找到线段在边坐标序列中的位置
-    let segmentIndex = -1;
-    for (let i = 0; i < edge.coordinates.length - 1; i++) {
-        const coord1 = edge.coordinates[i];
-        const coord2 = edge.coordinates[i + 1];
-
-        const lng1 = coord1.lng !== undefined ? coord1.lng : coord1[0];
-        const lat1 = coord1.lat !== undefined ? coord1.lat : coord1[1];
-        const lng2 = coord2.lng !== undefined ? coord2.lng : coord2[0];
-        const lat2 = coord2.lat !== undefined ? coord2.lat : coord2[1];
-
-        const sLng = segmentP1.lng !== undefined ? segmentP1.lng : segmentP1[0];
-        const sLat = segmentP1.lat !== undefined ? segmentP1.lat : segmentP1[1];
-        const eLng = segmentP2.lng !== undefined ? segmentP2.lng : segmentP2[0];
-        const eLat = segmentP2.lat !== undefined ? segmentP2.lat : segmentP2[1];
-
-        if ((Math.abs(lng1 - sLng) < tolerance && Math.abs(lat1 - sLat) < tolerance &&
-             Math.abs(lng2 - eLng) < tolerance && Math.abs(lat2 - eLat) < tolerance) ||
-            (Math.abs(lng1 - eLng) < tolerance && Math.abs(lat1 - eLat) < tolerance &&
-             Math.abs(lng2 - sLng) < tolerance && Math.abs(lat2 - sLat) < tolerance)) {
-            segmentIndex = i;
-            break;
-        }
-    }
-
-    if (segmentIndex === -1) {
-        console.warn('未找到要分割的线段');
-        return;
-    }
-
-    // 获取原边的起点和终点节点
-    const startNode = kmlNodes.find(n => n.id === edge.start);
-    const endNode = kmlNodes.find(n => n.id === edge.end);
-
-    if (!startNode || !endNode) return;
-
-    // 不再检查交点是否接近端点，所有交点都创建独立节点并分割边
-
-    // 分割坐标序列
-    const coords1 = edge.coordinates.slice(0, segmentIndex + 1);
-    coords1.push(intersectionPos);
-
-    const coords2 = [intersectionPos];
-    coords2.push(...edge.coordinates.slice(segmentIndex + 1));
-
-    // 计算两段的距离
-    let dist1 = 0;
-    for (let i = 0; i < coords1.length - 1; i++) {
-        dist1 += calculateDistance(coords1[i], coords1[i + 1]);
-    }
-
-    let dist2 = 0;
-    for (let i = 0; i < coords2.length - 1; i++) {
-        dist2 += calculateDistance(coords2[i], coords2[i + 1]);
-    }
-
-    // 添加新边（不删除旧边，稍后统一清理）
-    addEdge(startNode.id, intersectionNode.id, dist1, coords1);
-    addEdge(intersectionNode.id, endNode.id, dist2, coords2);
-
-    // 标记原边为待删除
-    edge.toDelete = true;
-
-    console.log(`边分割: ${edge.start}->${edge.end} 在交点 ${intersectionNode.id} 处分为两段`);
 }

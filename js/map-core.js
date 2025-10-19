@@ -8,6 +8,27 @@ function initMap() {
     map.on('complete', function() {
         console.log('地图加载完成，准备启动实时定位或恢复状态');
 
+        // 检查是否从搜索页返回并选择了位置
+        const selectedLocationStr = sessionStorage.getItem('selectedLocation');
+        if (selectedLocationStr) {
+            try {
+                const selectedLocation = JSON.parse(selectedLocationStr);
+                console.log('从搜索页返回，选中的位置:', selectedLocation);
+
+                // 清除标记，避免重复处理
+                sessionStorage.removeItem('selectedLocation');
+
+                // 延迟执行高亮逻辑，等待KML数据加载完成
+                // 使用一个标记位，让KML加载完成后再处理
+                window.pendingSelectedLocation = selectedLocation;
+
+                // 不启动实时定位，等待KML加载完成后再处理
+                return;
+            } catch (e) {
+                console.error('处理选中位置失败:', e);
+            }
+        }
+
         // 检查是否从导航页返回
         const mapStateStr = sessionStorage.getItem('mapState');
         let fromNavigation = false;

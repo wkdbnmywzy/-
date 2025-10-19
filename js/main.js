@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 检查URL参数，是否需要自动显示点位选择界面并添加途径点
         checkURLAction();
+
+        // 从sessionStorage恢复路线规划数据
+        restoreRoutePlanningData();
     }, 1000);
 });
 
@@ -66,16 +69,10 @@ function checkURLAction() {
 
     if (action === 'addWaypoint') {
         console.log('检测到添加途径点操作，跳转到点位选择界面');
-        // 显示点位选择界面
+        // 跳转到点位选择界面
         if (typeof showPickerPanel === 'function') {
+            currentInputType = 'waypoint';
             showPickerPanel();
-
-            // 稍微延迟后添加途径点输入框
-            setTimeout(() => {
-                if (typeof addPickerWaypoint === 'function') {
-                    addPickerWaypoint();
-                }
-            }, 200);
         }
 
         // 清除URL参数，避免刷新时重复执行
@@ -167,5 +164,51 @@ function navigateToPage(page) {
             break;
         default:
             console.warn('未知页面:', page);
+    }
+}
+
+/**
+ * 恢复路线规划数据
+ */
+function restoreRoutePlanningData() {
+    const routeData = sessionStorage.getItem('routePlanningData');
+    if (!routeData) {
+        return;
+    }
+
+    try {
+        const data = JSON.parse(routeData);
+        console.log('恢复路线规划数据:', data);
+
+        const startInput = document.getElementById('start-location');
+        const endInput = document.getElementById('end-location');
+
+        if (data.startLocation && startInput) {
+            startInput.value = data.startLocation;
+        }
+        if (data.endLocation && endInput) {
+            endInput.value = data.endLocation;
+        }
+
+        // 恢复途经点
+        if (data.waypoints && data.waypoints.length > 0) {
+            // 先清空现有途经点
+            const waypointsContainer = document.getElementById('waypoints-container');
+            if (waypointsContainer) {
+                waypointsContainer.innerHTML = '';
+            }
+
+            // 添加途经点
+            data.waypoints.forEach((waypoint, index) => {
+                if (typeof addWaypointToUI === 'function') {
+                    addWaypointToUI(waypoint, index);
+                }
+            });
+        }
+
+        // 清除sessionStorage中的数据（已恢复）
+        sessionStorage.removeItem('routePlanningData');
+    } catch (e) {
+        console.error('恢复路线规划数据失败:', e);
     }
 }

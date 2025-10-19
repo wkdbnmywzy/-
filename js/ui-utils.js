@@ -36,15 +36,10 @@ function setupEventListeners() {
     if (searchInput) {
         console.log('找到搜索输入框');
 
-        // 点击搜索框时显示所有KML点位
-        searchInput.addEventListener('focus', function() {
-            // 如果搜索框有内容且存在选中状态，先清空再显示列表
-            if (this.value && window.selectedMarker) {
-                this.value = '';
-            }
-            showAllKMLPoints();
-            // 底部卡片下滑隐藏
-            bottomCard.style.transform = 'translateY(100%)';
+        // 点击搜索框时跳转到搜索界面
+        searchInput.addEventListener('click', function() {
+            console.log('搜索框被点击，跳转到搜索界面');
+            window.location.href = 'search.html';
         });
 
         // 输入搜索时实时筛选
@@ -188,8 +183,6 @@ function setupEventListeners() {
 
     // 地图控制按钮事件
     const locateBtn = document.getElementById('locate-btn');
-    const zoomInBtn = document.getElementById('zoom-in-btn');
-    const zoomOutBtn = document.getElementById('zoom-out-btn');
 
     if (locateBtn) {
         let isBusy = false; // 防止重复点击节流
@@ -198,9 +191,9 @@ function setupEventListeners() {
             if (isBusy) return;
             isBusy = true;
 
-            const icon = locateBtn.querySelector('i');
+            const img = locateBtn.querySelector('img');
             locateBtn.style.opacity = '0.75';
-            if (icon) icon.style.animation = 'spin 0.8s linear infinite';
+            if (img) img.style.animation = 'spin 0.8s linear infinite';
 
             try {
                 // 用户手势下尝试申请方向权限（iOS）
@@ -278,23 +271,11 @@ function setupEventListeners() {
                 }
             } finally {
                 setTimeout(function() {
-                    if (icon) icon.style.animation = '';
+                    if (img) img.style.animation = '';
                     locateBtn.style.opacity = '1';
                     isBusy = false;
                 }, 300);
             }
-        });
-    }
-
-    if (zoomInBtn) {
-        zoomInBtn.addEventListener('click', function() {
-            map.zoomIn();
-        });
-    }
-
-    if (zoomOutBtn) {
-        zoomOutBtn.addEventListener('click', function() {
-            map.zoomOut();
         });
     }
 

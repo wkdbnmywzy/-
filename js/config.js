@@ -9,7 +9,11 @@ const MapConfig = {
         center: [116.397428, 39.90923], // 北京天安门（默认中心）
         viewMode: '3D',
         resizeEnable: true, // 允许地图尺寸自适应窗口变化
-        lang: 'zh_cn' // 中文显示
+        lang: 'zh_cn', // 中文显示
+        showLabel: true, // 显示地图文字标记
+        features: ['bg', 'road', 'building', 'point'], // 显示的地图要素
+        logoUrl: '', // 隐藏logo
+        copyright: '' // 隐藏版权信息
     },
     
     // 所需插件列表（关键补充）
