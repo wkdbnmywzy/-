@@ -75,6 +75,8 @@
     border: 1px solid #e6e9ef;
     border-radius: 12px;
     background: #fff;
+    position: relative; /* 作为绝对定位参照 */
+    padding-right: 56px; /* 预留按钮空间 */
 }
 
 .location-inputs {
@@ -133,6 +135,17 @@
     background: #e6e9ef;
 }
 
+/* 让导航页途径点下划线与“我的位置”分隔线等长 */
+.waypoint-row::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    right: 12px;
+    bottom: 0;
+    height: 1px;
+    background: #e6e9ef;
+}
+
 .swap-btn {
     width: 38px;
     height: 38px;
@@ -145,6 +158,11 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    position: absolute; /* 固定在输入盒子右侧中部 */
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
 }
 
 .swap-btn i {
@@ -221,6 +239,7 @@
 .waypoints-container {
     display: flex;
     flex-direction: column;
+    gap: 0; /* 与起点/终点一致的紧凑间距 */
 }
 
 /* 路线信息 */
@@ -285,17 +304,18 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 8px;
+    margin-top: 0; /* 与其他输入行一致 */
+    position: relative; /* 用伪元素绘制与分隔线等长的下划线 */
 }
 
 .waypoint-row .location-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: #fff;
-    border: 1px solid #e6e9ef;
-    border-radius: 12px;
-    padding: 10px 12px;
+    gap: 12px;
+    background: transparent; /* 移除方框 */
+    border: none;
+    border-radius: 0;
+    padding: 14px 12px 14px 16px; /* 与起点/终点一致 */
     position: relative;
     flex: 1;
 }
@@ -306,6 +326,7 @@
     border: none;
     outline: none;
     font-size: 14px;
+    background: transparent;
 }
 
 .waypoint-row .waypoint-actions button {
@@ -564,10 +585,7 @@
         font-size: 16px;
     }
 
-    /* 移除响应式中的top调整，保持置顶 */
-    .navigation-tip-card {
-        /* top: 70px; 已移除 */
-    }
+    /* 保持导航提示卡片置顶，无需在此处覆盖样式 */
 
     .tip-card-content {
         padding: 16px;
