@@ -22,6 +22,8 @@ body {
     height: 100vh;
     position: relative;
     background: white;
+    display: flex;            /* 使下方 .login-card 的 flex:1 生效 */
+    flex-direction: column;   /* 垂直排列：上地图、下卡片 */
 }
 
 /* 加载界面 */
@@ -81,6 +83,60 @@ body {
     max-width: 480px;
     margin: 0 auto;
     position: relative;
+}
+
+/* 卡片堆叠容器：承载三张可切换的卡片 */
+.card-stack {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0; /* 允许子项等高伸缩 */
+    margin-top: -24px; /* 将顶部重叠提升到容器层 */
+    background: #fff;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden; /* 限制滑入效果只在盒子内显示 */
+}
+
+/* 通用卡片基类：用于切换动画 */
+.card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    background: white;
+}
+
+/* 初始显示的卡片 */
+.card.show {
+    display: flex;
+}
+
+/* 隐藏的卡片不占位 */
+.card.hidden {
+    display: none;
+}
+
+/* 进入/离场动画状态 */
+.card.enter-from-right {
+    display: flex;
+    transform: translateX(100%);
+    transition: transform 0.28s ease;
+}
+.card.enter-active {
+    transform: translateX(0%);
+}
+.card.leave-to-left {
+    display: flex;
+    transform: translateX(0%);
+    transition: transform 0.28s ease;
+}
+.card.leave-active {
+    transform: translateX(-100%);
 }
 
 /* 登录头部 */
@@ -146,42 +202,18 @@ body {
 /* 登录卡片 */
 .login-card {
     flex: 1;
-    background: white;
-    border-radius: 24px 24px 0 0;
-    margin-top: -24px;
+    background: transparent; /* 由容器着色与裁剪 */
     padding: 30px 20px;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-    position: relative;
     z-index: 3;
-    min-height: 450px;
-    display: flex;
-    flex-direction: column;
+    min-height: 0;
 }
 
-/* 项目选择卡片（覆盖层） */
+/* 项目选择卡片（与登录卡片等高，互斥显示） */
 .project-card {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: white;
-    border-radius: 24px 24px 0 0;
+    background: transparent; /* 由容器着色与裁剪 */
     padding: 30px 20px;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
     z-index: 4;
-    min-height: 450px;
-    display: flex;
-    flex-direction: column;
-    transform: translateY(100%);
-    transition: transform 0.3s ease;
-}
-
-.project-card.show {
-    transform: translateY(0);
-}
-
-.project-card.hidden {
-    display: flex;
+    min-height: 0;
 }
 
 /* 项目选择标题 */
@@ -407,6 +439,7 @@ body {
     flex: 0 0 220px; /* 固定较窄宽度 */
     max-width: 60%;
     text-align: left; 
+    border-bottom: 1px solid #E0E0E0; /* 恢复账号/密码下划线 */
 }
 
 .account-input::placeholder {
@@ -418,6 +451,7 @@ body {
     background: transparent;
     box-shadow: none;
     outline: none;
+    border-bottom-color: #237CF3; /* 聚焦高亮 */
 }
 
 /* 小屏幕下进一步缩窄以适配 */
@@ -434,13 +468,14 @@ body {
 }
 
 /* 普通表单输入框样式 */
+/* 统一移除输入框下划线 */
 .form-input {
     width: 100%;
     height: 50px;
     padding: 0 16px;
     border: none;
     background: transparent;
-    border-bottom: 1px solid #E0E0E0;
+    border-bottom: none; /* 去掉下划线 */
     border-radius: 0;
     font-size: 15px;
     color: #333;
@@ -449,7 +484,6 @@ body {
 
 .form-input:focus {
     outline: none;
-    border-bottom-color: #237CF3;
     background: transparent;
 }
 
@@ -580,30 +614,12 @@ body {
     75% { transform: translateX(8px); }
 }
 
-/* 车辆信息登记卡片（覆盖层） */
+/* 车辆信息登记卡片（与登录卡片等高，互斥显示） */
 .vehicle-card {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: white;
-    border-radius: 24px 24px 0 0;
+    background: transparent; /* 由容器着色与裁剪 */
     padding: 30px 20px;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
     z-index: 5;
-    min-height: 450px;
-    display: flex;
-    flex-direction: column;
-    transform: translateY(100%);
-    transition: transform 0.3s ease;
-}
-
-.vehicle-card.show {
-    transform: translateY(0);
-}
-
-.vehicle-card.hidden {
-    display: flex;
+    min-height: 0;
 }
 
 /* 车辆信息标题 */
@@ -622,6 +638,11 @@ body {
     left: 50%;
     transform: translateX(-50%);
     margin: 0;
+}
+
+/* 固定车辆信息登记时，标题改为 #143662 */
+.vehicle-card.fixed .vehicle-title {
+    color: #143662;
 }
 
 /* 车辆信息表单 */
@@ -658,4 +679,12 @@ body {
     .login-card {
         padding: 24px 16px;
     }
+}
+
+/* --- 账号/密码输入下划线强制显示（避免被 .form-input 通用规则覆盖） --- */
+.account-form-group .account-input {
+    border-bottom: 1px solid #E0E0E0 !important;
+}
+.account-form-group .account-input:focus {
+    border-bottom-color: #237CF3 !important;
 }
