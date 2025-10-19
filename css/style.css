@@ -437,6 +437,8 @@ body {
     border-radius: 12px;
     background: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    position: relative; /* 让切换按钮以整个盒子为参照居中定位 */
+    padding-right: 56px; /* 预留按钮空间，避免遮挡输入内容 */
 }
 
 .location-inputs {
@@ -495,6 +497,35 @@ body {
     background: #e6e9ef;
 }
 
+/* 让途径点的下划线与“我的位置”分隔线等长：
+   使用与分隔线相同的左右内边距（16px 左，12px 右）绘制伪元素下划线 */
+.waypoint-row::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    right: 12px;
+    bottom: 0;
+    height: 1px;
+    background: #e6e9ef;
+}
+
+.picker-divider-line::before {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e6e9ef;
+}
+
+.picker-waypoint-row::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    right: 12px;
+    bottom: 0;
+    height: 1px;
+    background: #e6e9ef;
+}
+
 /* 切换按钮 - 在横线右侧 */
 .swap-btn {
     width: 38px;
@@ -508,6 +539,11 @@ body {
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    position: absolute; /* 固定在输入盒子右侧中部 */
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
 }
 
 .swap-btn i {
@@ -590,32 +626,35 @@ body {
     margin-top: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0; /* 与起点/终点行保持一致的紧凑间距 */
 }
 
 .waypoint-row {
     display: flex;
     align-items: center;
     gap: 8px;
+    position: relative; /* 用伪元素绘制与分隔线等长的下划线 */
 }
 
 .waypoint-row .location-item {
     flex: 1;
+    padding: 14px 12px 14px 16px; /* 与起点/终点一致 */
+    border-bottom: none; /* 由父级控制下划线 */
 }
 
 /* 删除途径点按钮 */
 .remove-waypoint-btn {
-    width: 32px;
-    height: 32px;
-    background: transparent;
+    width: 28px;
+    height: 28px;
     border: none;
+    background: transparent;
     color: #999;
-    font-size: 18px;
+    border-radius: 50%;
+    font-size: 16px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
     flex-shrink: 0;
 }
 
@@ -724,6 +763,8 @@ body {
     border: 1px solid #e6e9ef;
     border-radius: 12px;
     background: #fff;
+    position: relative; /* 让切换按钮以整个盒子为参照居中定位 */
+    padding-right: 56px; /* 预留按钮空间 */
 }
 
 .picker-location-inputs {
@@ -792,6 +833,11 @@ body {
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    position: absolute; /* 固定在输入盒子右侧中部 */
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
 }
 
 .picker-swap-btn i {
@@ -874,16 +920,18 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 0; /* 与其他输入行一致 */
+    position: relative; /* 用伪元素绘制与分隔线等长的下划线 */
 }
 
 .picker-waypoint-row .picker-location-row {
     flex: 1;
-    background: white;
-    border: 1px solid #e6e9ef;
-    border-radius: 12px;
-    padding: 12px 15px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    /* 移除方框样式，保持与起点/终点相同的行样式 */
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 14px 12px 14px 16px; /* 与 .picker-location-row 一致 */
+    box-shadow: none;
 }
 
 .picker-waypoint-row .picker-location-row i {
@@ -1104,9 +1152,9 @@ body {
 .waypoint-row {
     display: flex;
     align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
-    gap: 12px;
+    padding: 0; /* 与 location-item 行一致，由子项控制内边距 */
+    gap: 8px;
+    position: relative; /* 用伪元素绘制与分隔线等长的下划线 */
 }
 
 .waypoint-actions {
