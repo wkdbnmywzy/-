@@ -6,6 +6,21 @@ let searchHistory = [];
 let currentActiveInput = null;
 let currentInputType = ''; // 'start', 'end', 'waypoint'
 
+// 判断是否处于“目的地输入”上下文
+function isDestinationContext() {
+    if (currentInputType === 'end') return true;
+    try {
+        const stored = sessionStorage.getItem('routePlanningData');
+        if (stored) {
+            const data = JSON.parse(stored);
+            if (data && data.inputType === 'end') return true;
+        }
+    } catch (e) {
+        // ignore
+    }
+    return false;
+}
+
 // 初始化点选择面板
 function initPointSelectionPanel() {
     setupPickerEventListeners();
@@ -603,6 +618,12 @@ function renderSearchHistory() {
     const historyItems = locationList.querySelectorAll('.picker-location-item:not(:first-child)');
     historyItems.forEach(item => item.remove());
 
+    // 终点输入时不显示历史选点记录（仅保留“我的位置”和分类）
+    if (isDestinationContext()) {
+        console.log('终点输入：隐藏历史记录');
+        return;
+    }
+
     // 如果没有搜索历史，直接返回
     if (!searchHistory || searchHistory.length === 0) {
         console.log('没有搜索历史');
@@ -704,8 +725,8 @@ function searchAndDisplayResults(keyword) {
         });
     }
 
-    // 搜索历史记录
-    if (searchHistory && searchHistory.length > 0) {
+    // 搜索历史记录（终点输入时不加入历史）
+    if (!isDestinationContext() && searchHistory && searchHistory.length > 0) {
         searchHistory.forEach(historyItem => {
             const name = historyItem.name.toLowerCase();
             const address = (historyItem.address || '').toLowerCase();
