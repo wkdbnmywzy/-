@@ -29,9 +29,9 @@
     margin: 20px 15px;
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 16px rgba(33, 150, 243, 0.3);
+    /* box-shadow: 0 4px 16px rgba(33, 150, 243, 0.3); */
     height: 140px;
-    background: linear-gradient(135deg, #42A5F5 0%, #2196F3 100%);
+    background: linear-gradient(135deg,#78B3FF 0%, #2563FF 100%);
 }
 
 .card-background {
@@ -45,7 +45,8 @@
     top: auto;
     left: auto;
     z-index: 1;
-    opacity: 0.2;
+    opacity: 1;
+ 
 }
 
 .driver-info {
