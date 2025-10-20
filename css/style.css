@@ -965,22 +965,22 @@ body {
 /* 完成按钮 */
 .picker-complete-btn {
     width: 100%;
-    height: 52px;
+    height: 40px;
     border: none;
     border-radius: 26px;
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    background: linear-gradient(90deg, #5BA8E3 0%, #4A9CD8 100%);
+    background: linear-gradient(90deg, #2A86FF 0%, #2A86FF 100%);
     color: white;
-    box-shadow: 0 4px 12px rgba(91, 168, 227, 0.3);
+    box-shadow: 0 4px 12px rgba(42, 134, 255, 0.25);
     transition: all 0.3s ease;
     flex-shrink: 0;
 }
 
 .picker-complete-btn:active {
     transform: translateY(1px);
-    box-shadow: 0 2px 8px rgba(91, 168, 227, 0.3);
+    box-shadow: 0 2px 8px rgba(42, 134, 255, 0.25);
 }
 
 .picker-complete-btn:disabled {
@@ -1006,7 +1006,7 @@ body {
 .picker-category-title {
     font-size: 14px;
     font-weight: 600;
-    color: #666;
+    color: #000000 ;
     padding-left: 4px;
 }
 
@@ -1027,11 +1027,10 @@ body {
 .picker-tag {
     display: inline-block;
     padding: 8px 16px;
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 20px;
-    font-size: 13px;
-    color: #333;
+    background: rgba(42, 134, 255, 0.10);
+    border-radius: 4px 4px 4px 4px;
+    font-size: 12px;
+    color: rgba(20, 54, 98, 0.50);
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
@@ -1039,9 +1038,9 @@ body {
 }
 
 .picker-tag:hover {
-    background: #e3f2fd;
-    border-color: #5BA8E3;
-    color: #5BA8E3;
+    background: #2A86FF;
+    border-color: #2A86FF;
+    color: #ffffff;
 }
 
 .picker-tag:active {
