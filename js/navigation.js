@@ -14,8 +14,7 @@ let startMarker = null;
 let endMarker = null;
 let waypointMarkers = [];
 // 导航运动相关对象
-let userMarker = null;            // 代表“我的位置”的移动标记
-let traveledPolyline = null;      // 已走过的路（灰色）
+let userMarker = null;            // 代表"我的位置"的移动标记
 let navigationTimer = null;       // 模拟导航的定时器
 let totalRouteDistance = 0;       // 总路线长度（用于完成统计）
 let navStartTime = 0;             // 导航开始时间（ms）
@@ -27,6 +26,9 @@ let geoErrorNotified = false;     // 避免重复弹错误
 let trackingDeviceOrientationNav = false;
 let deviceOrientationHandlerNav = null;
 let lastDeviceHeadingNav = null; // 度，0-360，顺时针（相对正北）
+let isOffRoute = false;            // 是否偏离路径
+let offRouteThreshold = 5;         // 偏离路径阈值（米），考虑GPS精度设为5米
+let passedRoutePolyline = null;    // 已走过的规划路径（灰色）
 
 // 初始化导航地图
 function initNavigationMap() {
@@ -1344,14 +1346,14 @@ function cleanupMap() {
             navigationMap.remove(waypointMarkers);
             waypointMarkers = [];
         }
-        // 清理"我的位置"与灰色轨迹
+        // 清理"我的位置"与已走路径
         if (userMarker) {
             navigationMap.remove(userMarker);
             userMarker = null;
         }
-        if (traveledPolyline) {
-            navigationMap.remove(traveledPolyline);
-            traveledPolyline = null;
+        if (passedRoutePolyline) {
+            navigationMap.remove(passedRoutePolyline);
+            passedRoutePolyline = null;
         }
         if (navigationTimer) {
             clearInterval(navigationTimer);
@@ -1442,6 +1444,7 @@ function startNavigationUI() {
     }
 
     isNavigating = true;
+    isOffRoute = false;  // 重置偏离路径状态
 
     // 停止导航前的实时位置追踪
     stopRealtimePositionTracking();
@@ -1811,11 +1814,64 @@ function updateDirectionIcon(directionType, distanceToNext) {
     const actionText = document.getElementById('tip-action-text');
     const distanceAheadElem = document.getElementById('tip-distance-ahead');
     const distanceUnitElem = document.querySelector('.tip-distance-unit');
+    const directionIconContainer = document.querySelector('.tip-direction-icon');
+    const tipDetailsElem = document.querySelector('.tip-details');
+    const tipDividerElem = document.querySelector('.tip-divider');
 
     const basePath = 'images/工地数字导航小程序切图/司机/2X/导航/';
 
     let iconPath = '';
     let actionName = '';
+
+    // 检查是否偏离路径
+    if (isOffRoute) {
+        console.log('updateDirectionIcon: 检测到偏离路径，显示"请前往起点"');
+
+        // 隐藏图标
+        if (directionIconContainer) {
+            directionIconContainer.style.display = 'none';
+        }
+
+        // 隐藏距离和时间信息
+        if (tipDetailsElem) {
+            tipDetailsElem.style.display = 'none';
+        }
+
+        // 隐藏分隔线
+        if (tipDividerElem) {
+            tipDividerElem.style.display = 'none';
+        }
+
+        // 显示"请前往起点"
+        if (distanceAheadElem) {
+            distanceAheadElem.textContent = '请';
+        }
+        if (actionText) {
+            actionText.textContent = '前往起点';
+        }
+        if (distanceUnitElem) {
+            distanceUnitElem.style.display = 'none';
+        }
+
+        console.log('已更新UI显示"请前往起点"');
+        return;  // 偏离路径时直接返回，不执行后续正常导航的逻辑
+    }
+
+    // 正常导航逻辑（未偏离路径时）
+    // 显示图标
+    if (directionIconContainer) {
+        directionIconContainer.style.display = 'flex';
+    }
+
+    // 显示距离和时间信息
+    if (tipDetailsElem) {
+        tipDetailsElem.style.display = 'flex';
+    }
+
+    // 显示分隔线
+    if (tipDividerElem) {
+        tipDividerElem.style.display = 'block';
+    }
 
     // 计算显示的距离（四舍五入）
     const distance = Math.round(distanceToNext || 0);
@@ -1983,22 +2039,6 @@ function startSimulatedNavigation() {
         map: navigationMap
     });
 
-    // 创建灰色已走路径
-    if (traveledPolyline) {
-        navigationMap.remove(traveledPolyline);
-        traveledPolyline = null;
-    }
-    traveledPolyline = new AMap.Polyline({
-        path: [path[0]],
-        strokeColor: '#9E9E9E',
-        strokeWeight: 8,
-        strokeOpacity: 0.9,
-        lineJoin: 'round',
-        lineCap: 'round',
-        zIndex: 110,
-        map: navigationMap
-    });
-
     // 模拟行进参数
     const intervalMs = 300; // 刷新频率
     const metersPerTick = (VEHICLE_SPEED / 3600) * (intervalMs / 1000);
@@ -2029,7 +2069,18 @@ function startRealNavigationTracking() {
         return;
     }
 
-    // 固定一份完整规划路径，作为“剩余路线”的参考
+    // 清理之前的标记（确保重新开始）
+    if (userMarker && navigationMap) {
+        navigationMap.remove(userMarker);
+        userMarker = null;
+    }
+    if (passedRoutePolyline && navigationMap) {
+        navigationMap.remove(passedRoutePolyline);
+        passedRoutePolyline = null;
+    }
+    lastGpsPos = null;
+
+    // 固定一份完整规划路径，作为"剩余路线"的参考
     const fullPathRaw = routePolyline && typeof routePolyline.getPath === 'function' ? routePolyline.getPath() : [];
     if (!fullPathRaw || fullPathRaw.length < 2) return;
     const fullPath = fullPathRaw.map(p => normalizeLngLat(p));
@@ -2101,18 +2152,6 @@ function startRealNavigationTracking() {
                 });
 
                 console.log('导航中我的位置标记创建成功');
-
-                if (traveledPolyline) { navigationMap.remove(traveledPolyline); traveledPolyline = null; }
-                traveledPolyline = new AMap.Polyline({
-                    path: [curr],
-                    strokeColor: '#9E9E9E',
-                    strokeWeight: 8,
-                    strokeOpacity: 0.9,
-                    lineJoin: 'round',
-                    lineCap: 'round',
-                    zIndex: 110,
-                    map: navigationMap
-                });
             }
 
             // 计算朝向并旋转：优先使用设备方向 heading；否则用移动向量
@@ -2137,14 +2176,27 @@ function startRealNavigationTracking() {
             lastGpsPos = curr;
             userMarker.setPosition(curr);
 
-            // 灰色轨迹追加
-            const traveledPath = traveledPolyline.getPath();
-            traveledPath.push(curr);
-            traveledPolyline.setPath(traveledPath);
-
-            // 计算与规划路径最近的点索引，用于剩余路径与提示
+            // 检查是否偏离路径并更新路径显示
             const segIndex = findClosestPathIndex(curr, fullPath);
-            updateRemainingPolyline(curr, fullPath, Math.max(0, segIndex));
+            isOffRoute = checkIfOffRoute(curr, fullPath);
+            console.log('偏离路径状态:', isOffRoute);
+
+            // 根据是否偏离路径决定如何显示路线
+            if (isOffRoute) {
+                // 偏离路径时：恢复完整的绿色规划路径，隐藏灰色已走路径
+                if (routePolyline && fullPath.length > 0) {
+                    routePolyline.setPath(fullPath);
+                }
+                if (passedRoutePolyline && navigationMap) {
+                    navigationMap.remove(passedRoutePolyline);
+                    passedRoutePolyline = null;
+                }
+                console.log('已偏离路径，显示完整规划路径');
+            } else {
+                // 在路径上时：将规划路径分为已走部分（灰色）和剩余部分（绿色）
+                updatePathSegments(curr, fullPath, segIndex);
+                console.log('在路径上，显示分段路径');
+            }
 
             // 视图跟随
             try { navigationMap.setCenter(curr); } catch (e) {}
@@ -2181,7 +2233,7 @@ function stopRealNavigationTracking() {
     }
     lastGpsPos = null;
     if (userMarker && navigationMap) { navigationMap.remove(userMarker); userMarker = null; }
-    if (traveledPolyline && navigationMap) { navigationMap.remove(traveledPolyline); traveledPolyline = null; }
+    if (passedRoutePolyline && navigationMap) { navigationMap.remove(passedRoutePolyline); passedRoutePolyline = null; }
     // 停止设备方向监听
     tryStopDeviceOrientationNav();
 }
@@ -2196,6 +2248,27 @@ function findClosestPathIndex(point, path) {
         if (d < minDist) { minDist = d; minIdx = i; }
     }
     return minIdx;
+}
+
+// 检查当前位置是否偏离规划路径
+function checkIfOffRoute(currentPosition, path) {
+    if (!path || path.length === 0) return false;
+
+    // 找到距离当前位置最近的路径点
+    let minDist = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < path.length; i++) {
+        const d = calculateDistanceBetweenPoints(currentPosition, path[i]);
+        if (d < minDist) {
+            minDist = d;
+        }
+    }
+
+    console.log(`距离路径最近距离: ${minDist.toFixed(2)}米, 阈值: ${offRouteThreshold}米`);
+
+    // 如果最近距离超过阈值，认为偏离路径
+    const offRoute = minDist > offRouteThreshold;
+    console.log(`偏离判断结果: ${offRoute ? '偏离' : '在路径上'}`);
+    return offRoute;
 }
 
 // 模拟导航定时器（该函数需要在startSimulatedNavigation中调用）
@@ -2237,13 +2310,8 @@ function startNavigationTimer(path, segIndex, currPos, intervalMs, metersPerTick
         } catch (e) {}
         userMarker.setPosition(currPos);
 
-        // 追加到灰色已走路径
-        const traveledPath = traveledPolyline.getPath();
-        traveledPath.push(currPos);
-        traveledPolyline.setPath(traveledPath);
-
-        // 将剩余路径（绿色）更新为从当前点开始
-        updateRemainingPolyline(currPos, path, segIndex);
+        // 将规划路径分为已走部分（灰色）和剩余部分（绿色）
+        updatePathSegments(currPos, path, segIndex);
 
         // 地图视野跟随（可根据需要降低频率）
         try { navigationMap.setCenter(currPos); } catch (e) {}
@@ -2264,13 +2332,56 @@ function stopSimulatedNavigation() {
         navigationMap.remove(userMarker);
         userMarker = null;
     }
-    if (traveledPolyline && navigationMap) {
-        navigationMap.remove(traveledPolyline);
-        traveledPolyline = null;
+    if (passedRoutePolyline && navigationMap) {
+        navigationMap.remove(passedRoutePolyline);
+        passedRoutePolyline = null;
     }
 }
 
-// 更新剩余绿色路线为：当前点 + 后续节点
+// 更新路径显示：将规划路径分为已走部分（灰色）和剩余部分（绿色）
+function updatePathSegments(currentPos, fullPath, segIndex) {
+    if (!routePolyline || !fullPath || fullPath.length < 2) return;
+
+    // 已走过的路径部分：从起点到当前位置最近点
+    const passedPath = fullPath.slice(0, segIndex + 1);
+    if (passedPath.length > 0) {
+        passedPath.push(currentPos); // 包含当前位置
+    }
+
+    // 剩余路径部分：从当前位置到终点
+    const remaining = [currentPos].concat(fullPath.slice(segIndex + 1));
+
+    // 更新或创建灰色已走路���
+    if (passedPath.length >= 2) {
+        if (!passedRoutePolyline) {
+            passedRoutePolyline = new AMap.Polyline({
+                path: passedPath,
+                strokeColor: '#9E9E9E',
+                strokeWeight: 8,
+                strokeOpacity: 0.9,
+                lineJoin: 'round',
+                lineCap: 'round',
+                zIndex: 110,
+                map: navigationMap
+            });
+        } else {
+            passedRoutePolyline.setPath(passedPath);
+        }
+    } else if (passedRoutePolyline) {
+        // 如果已走路径太短，移除灰色线
+        navigationMap.remove(passedRoutePolyline);
+        passedRoutePolyline = null;
+    }
+
+    // 更新绿色剩余路径
+    if (remaining.length >= 2) {
+        routePolyline.setPath(remaining);
+    } else {
+        routePolyline.setPath([currentPos]);
+    }
+}
+
+// 更新剩余绿色路线为：当前点 + 后续节点（旧函数，保留用于兼容）
 function updateRemainingPolyline(currentPos, fullPath, segIndex) {
     if (!routePolyline) return;
     const remaining = [currentPos].concat(fullPath.slice(segIndex + 1));
