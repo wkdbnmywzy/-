@@ -1211,8 +1211,28 @@ body {
     color: #007bff;
 }
 
+/* 使用图片替换“我的位置”图标 */
+.picker-location-item .icon-my-location {
+    width: 18px;
+    height: 18px;
+    border-radius: 0px;
+    border: 0px solid #143662;
+    object-fit: contain;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
 .picker-location-item .fa-clock {
     color: #999;
+}
+
+/* 历史记录项图标（替换时钟为图片） */
+.picker-location-item .icon-history-location {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
 .picker-location-text {
@@ -1241,31 +1261,26 @@ body {
 }
 
 .picker-add-icon {
-    width: 28px;
-    height: 28px;
+    width: 18px;
+    height: 18px;
     border: none;
-    background: #5BA8E3;
-    color: white;
-    border-radius: 50%;
-    font-size: 18px;
+    background-color: transparent;
+    background-image: url('../images/工地数字导航小程序切图/司机/2X/导航/添加地点.png');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    border-radius: 0;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-block;
     flex-shrink: 0;
-    transition: all 0.2s ease;
-    font-weight: 300;
-    line-height: 1;
+    transition: transform 0.2s ease;
+    padding: 0;
+    font-size: 0; /* 隐藏可能的文本内容 */
 }
 
-.picker-add-icon:hover {
-    background: #4A9CD8;
-    transform: scale(1.1);
-}
+.picker-add-icon:hover { transform: scale(1.1); }
 
-.picker-add-icon:active {
-    transform: scale(0.95);
-}
+.picker-add-icon:active { transform: scale(0.95); }
 
 .waypoint-row {
     display: flex;
