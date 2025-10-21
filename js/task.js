@@ -165,7 +165,7 @@ class TaskManager {
                     time: '10:00 - 11:00',
                     location: [118.806877, 32.070255]
                 },
-                status: '待开始',
+                status: '已逾期',
                 color: 'pink'
             },
             {
@@ -185,7 +185,7 @@ class TaskManager {
                     time: '16:00 - 17:00',
                     location: [118.806877, 32.070255]
                 },
-                status: '待开始',
+                status: '未开始',
                 color: 'blue'
             },
             {
@@ -205,7 +205,7 @@ class TaskManager {
                     time: '11:00 - 12:00',
                     location: [118.806877, 32.070255]
                 },
-                status: '待开始',
+                status: '未开始',
                 color: 'green'
             }
         ];
@@ -259,17 +259,47 @@ class TaskManager {
      * - task.color: 'blue' = 其他状态任务 (头部白色背景)
      */
     createTaskCard(task) {
-        const card = document.createElement('div');
-        card.className = `task-card task-${task.color}`;
+    const card = document.createElement('div');
+    const statusText = task.status || '进行中';
+    const statusClass = this.getStatusClass(statusText);
+    card.className = `task-card task-${task.color} task-status-${statusClass.replace('status-','')}`;
+
         card.innerHTML = `
             <div class="task-card-header">
                 <div class="task-card-left">
                     <div class="task-card-name">${task.name}</div>
                     <div class="task-card-type">${task.type}</div>
                 </div>
-                <button class="task-card-nav" data-task-id="${task.id}">
-                    <i class="fas fa-location-dot"></i>
-                </button>
+                <div class="task-card-status ${statusClass}">${statusText}</div>
+            </div>
+
+            <!-- 任务名称下方显示起点/终点与时间 -->
+            <div class="task-timeline timeline-horizontal">
+                <div class="timeline-row">
+                    <div class="timeline-point start"></div>
+                    <div class="timeline-info">
+                        <div class="timeline-location">${task.startPoint.name}</div>
+                        <div class="timeline-date">${task.startPoint.date}</div>
+                        <div class="timeline-time">${task.startPoint.time}</div>
+                    </div>
+                </div>
+                <div class="timeline-status">
+                    <span class="status-badge">${task.status}</span>
+                </div>
+                <div class="timeline-separator" aria-hidden="true"></div>
+                <div class="timeline-row">
+                    <div class="timeline-point end"></div>
+                    <div class="timeline-info end-info">
+                        <div class="timeline-location-row">
+                            <div class="timeline-location">${task.endPoint.name}</div>
+                            <button class="task-card-nav" data-task-id="${task.id}" aria-label="开始导航">
+                                <img class="nav-icon" src="images/工地数字导航小程序切图/司机/2X/导航/定位-1.png" alt="" aria-hidden="true" />
+                            </button>
+                        </div>
+                        <div class="timeline-date">${task.endPoint.date}</div>
+                        <div class="timeline-time">${task.endPoint.time}</div>
+                    </div>
+                </div>
             </div>
 
             <div class="task-detail-section">
@@ -279,28 +309,6 @@ class TaskManager {
                 </div>
                 <div class="task-detail-content">
                     <div class="task-detail-text">${task.description}</div>
-
-                    <div class="task-timeline">
-                        <div class="timeline-row">
-                            <div class="timeline-point start"></div>
-                            <div class="timeline-info">
-                                <div class="timeline-location">${task.startPoint.name}</div>
-                                <div class="timeline-date">${task.startPoint.date}</div>
-                                <div class="timeline-time">${task.startPoint.time}</div>
-                            </div>
-                        </div>
-                        <div class="timeline-status">
-                            <span class="status-badge">${task.status}</span>
-                        </div>
-                        <div class="timeline-row">
-                            <div class="timeline-point end"></div>
-                            <div class="timeline-info">
-                                <div class="timeline-location">${task.endPoint.name}</div>
-                                <div class="timeline-date">${task.endPoint.date}</div>
-                                <div class="timeline-time">${task.endPoint.time}</div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         `;
@@ -312,13 +320,26 @@ class TaskManager {
         });
 
         // 绑定导航按钮事件
-        const navBtn = card.querySelector('.task-card-nav');
-        navBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.showNavigationDialog(task);
-        });
+        const navBtn = card.querySelector('.timeline-info.end-info .task-card-nav');
+        if (navBtn) {
+            navBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showNavigationDialog(task);
+            });
+        }
 
         return card;
+    }
+
+    /**
+     * 将状态文本映射为样式类
+     */
+    getStatusClass(statusText) {
+        const t = (statusText || '').trim();
+        if (t === '进行中') return 'status-in-progress';
+        if (t === '已逾期') return 'status-overdue';
+    if (t === '未开始') return 'status-not-started';
+        return 'status-in-progress';
     }
 
     /**
