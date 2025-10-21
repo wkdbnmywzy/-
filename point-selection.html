@@ -91,9 +91,9 @@
             <!-- 地点列表 -->
             <div class="picker-location-list" id="picker-location-list">
                 <div class="picker-location-item">
-                    <i class="fas fa-location-arrow"></i>
+                    <img class="icon-my-location" src="images/工地数字导航小程序切图/司机/2X/导航/我的位置.png" alt="我的位置" />
                     <div class="picker-location-text">我的位置</div>
-                    <button class="picker-add-icon">+</button>
+                    <button class="picker-add-icon" aria-label="添加地点"></button>
                 </div>
                 <!-- 历史搜索将动态插入此处 -->
             </div>
@@ -179,7 +179,7 @@
                     <div class="picker-location-name">${point.name}</div>
                     ${point.description ? `<div class="picker-location-desc">${point.description}</div>` : ''}
                 </div>
-                <button class="picker-add-icon">+</button>
+                <button class="picker-add-icon" aria-label="添加地点"></button>
             `;
 
             // 点击整个项目或加号按钮都可以选择
