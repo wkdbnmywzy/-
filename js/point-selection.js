@@ -5,6 +5,8 @@
 let searchHistory = [];
 let currentActiveInput = null;
 let currentInputType = ''; // 'start', 'end', 'waypoint'
+let pickerPreferBelow = false; // 本页会话内，是否优先在下方显示“添加途径点”
+let hideBelowAddSection = false; // 是否隐藏下方“添加途径点”区域（点击完成后）
 
 // 判断是否处于“目的地输入”上下文
 function isDestinationContext() {
@@ -21,6 +23,17 @@ function isDestinationContext() {
     return false;
 }
 
+        // 添加区域最右侧“完成”按钮 - 等效于上方完成
+        const addCompleteBtn = document.getElementById('picker-add-complete-btn');
+        if (addCompleteBtn) {
+            addCompleteBtn.addEventListener('click', function() {
+                console.log('点击下方区域的完成按钮：隐藏下方添加控件及文字');
+                hideBelowAddSection = true;
+                const below = document.getElementById('picker-add-waypoint-section');
+                if (below) below.style.display = 'none';
+            });
+        }
+
 // 初始化点选择面板
 function initPointSelectionPanel() {
     setupPickerEventListeners();
@@ -35,6 +48,9 @@ function setupPickerEventListeners() {
     const pickerCompleteBtn = document.getElementById('picker-complete-btn');
     const pickerBackBtn = document.getElementById('picker-back-btn');
     const pickerAddWaypointBtn = document.getElementById('picker-add-waypoint-btn');
+    const pickerAddWaypointBtnRight = document.getElementById('picker-add-waypoint-btn-right');
+    const pickerAddWaypointRightCtrl = document.getElementById('picker-add-waypoint-right');
+    const pickerAddWaypointSection = document.getElementById('picker-add-waypoint-section');
     const pickerStartInput = document.getElementById('picker-start-location');
     const pickerEndInput = document.getElementById('picker-end-location');
     const pickerLocationInputs = document.querySelector('.picker-location-inputs');
@@ -172,11 +188,76 @@ function setupPickerEventListeners() {
         });
     }
 
-    // 添加途经点按钮（面板内）
+    // 添加途经点按钮（面板内，下方）- 在“请输入目的地”下面插入内联编辑行
     if (pickerAddWaypointBtn) {
         pickerAddWaypointBtn.addEventListener('click', function() {
-            addPickerWaypoint();
+            handlePickerAddWaypointClick('below');
         });
+    }
+    // 右侧悬浮按钮同样触发添加
+    if (pickerAddWaypointBtnRight) {
+        pickerAddWaypointBtnRight.addEventListener('click', function() {
+            // 切换为“下方添加”模式
+            pickerPreferBelow = true;
+            const below = document.getElementById('picker-add-waypoint-section');
+            const right = document.getElementById('picker-add-waypoint-right');
+            const contentEl = document.querySelector('.picker-content');
+            if (below) below.style.display = '';
+            if (right) right.style.display = 'none';
+            if (contentEl) contentEl.classList.remove('has-right-add');
+            handlePickerAddWaypointClick('right');
+        });
+    }
+
+    // 根据进入来源调整控件：
+    // - 从首页点击“添加途径点”或处于途径点上下文：显示下方，隐藏右侧
+    // - 从首页点击“我的位置/请输入目的地”进入：显示右侧，隐藏下方
+    try {
+        const stored = sessionStorage.getItem('routePlanningData');
+        const ref = sessionStorage.getItem('pointSelectionReferrer');
+    let showBelow = false;
+        let showRight = false;
+
+        if (pickerPreferBelow) {
+            showBelow = true;
+            showRight = false;
+        } else if (stored) {
+            const data = JSON.parse(stored);
+            if (data && Array.isArray(data.waypoints) && data.waypoints.length > 0) {
+                // 已有途径点：显示下方控件
+                showBelow = true;
+                showRight = false;
+            } else if (data && (data.autoAddWaypoint === true || data.inputType === 'waypoint')) {
+                showBelow = true;
+                showRight = false;
+            } else if (data && (data.inputType === 'start' || data.inputType === 'end')) {
+                showBelow = false;
+                showRight = true;
+            } else {
+                // 兜底：偏向右侧
+                showBelow = false;
+                showRight = true;
+            }
+        } else {
+            // 无数据：偏向右侧
+            showBelow = false;
+            showRight = true;
+        }
+
+    // 若用户点击了下方完成，则强制隐藏下方
+    if (hideBelowAddSection) showBelow = false;
+    if (pickerAddWaypointSection) pickerAddWaypointSection.style.display = showBelow ? '' : 'none';
+        if (pickerAddWaypointRightCtrl) pickerAddWaypointRightCtrl.style.display = showRight ? '' : 'none';
+        const contentEl = document.querySelector('.picker-content');
+        if (contentEl) {
+            if (showRight) contentEl.classList.add('has-right-add'); else contentEl.classList.remove('has-right-add');
+        }
+    } catch (e) {
+        // 解析失败时，兜底显示右侧
+        const contentEl = document.querySelector('.picker-content');
+        if (pickerAddWaypointRightCtrl) pickerAddWaypointRightCtrl.style.display = '';
+        if (pickerAddWaypointSection) pickerAddWaypointSection.style.display = 'none';
+        if (contentEl) contentEl.classList.add('has-right-add');
     }
 
     // 点选择面板的转换起点终点按钮
@@ -225,6 +306,11 @@ function addPickerWaypoint(waypointValue) {
     const removeBtn = waypointRow.querySelector('.picker-remove-waypoint-btn');
     removeBtn.addEventListener('click', function() {
         waypointRow.remove();
+        // 删除后若数量未达上限且没有内联编辑器，则恢复右侧添加控件
+        const count = waypointsContainer.querySelectorAll('.picker-waypoint-row').length;
+        if (count < 2 && !document.getElementById('picker-inline-waypoint-editor')) {
+            showPickerAddControl();
+        }
     });
 
     // 绑定输入框事件
@@ -269,6 +355,161 @@ function addPickerWaypoint(waypointValue) {
         if (!initialValue) {
             setTimeout(() => inputEl.focus(), 50);
         }
+    }
+}
+
+// ===== 内联“新建途径点”逻辑（目的地下方） =====
+const INLINE_PICKER_WAYPOINT_EDITOR_ID = 'picker-inline-waypoint-editor';
+
+function hidePickerAddControl() {
+    // 下方保持可用；仅隐藏右侧
+    const right = document.getElementById('picker-add-waypoint-right');
+    if (right) right.style.display = 'none';
+}
+
+function showPickerAddControl() {
+    // 根据来源或当前上下文恢复展示位置：
+    // 若当前处于途径点编辑上下文（有内联编辑器刚关闭），优先显示下方；
+    const below = document.getElementById('picker-add-waypoint-section');
+    const right = document.getElementById('picker-add-waypoint-right');
+    let preferBelow = !!document.getElementById(INLINE_PICKER_WAYPOINT_EDITOR_ID);
+
+    // 若页面上已经存在途径点，则优先显示下方
+    const waypointsContainer = document.getElementById('picker-waypoints-container');
+    const domCount = waypointsContainer ? waypointsContainer.querySelectorAll('.picker-waypoint-row').length : 0;
+    if (!preferBelow && domCount > 0) {
+        preferBelow = true;
+    }
+
+    // 本页切换偏好优先
+    if (!preferBelow && typeof pickerPreferBelow !== 'undefined' && pickerPreferBelow) {
+        preferBelow = true;
+    }
+
+    // 若没有内联编辑器，根据进入来源再判断
+    if (!preferBelow) {
+        try {
+            const stored = sessionStorage.getItem('routePlanningData');
+            if (stored) {
+                const data = JSON.parse(stored);
+                if (data && (data.autoAddWaypoint === true || data.inputType === 'waypoint')) {
+                    preferBelow = true;
+                } else if (data && (data.inputType === 'start' || data.inputType === 'end')) {
+                    preferBelow = false;
+                }
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    const contentEl = document.querySelector('.picker-content');
+    if (hideBelowAddSection) {
+        // 完成后保持隐藏下方
+        if (below) below.style.display = 'none';
+        if (right) right.style.display = '';
+        if (contentEl) contentEl.classList.add('has-right-add');
+        return;
+    }
+    if (below) below.style.display = preferBelow ? '' : 'none';
+    if (right) right.style.display = preferBelow ? 'none' : '';
+    if (contentEl) {
+        if (!preferBelow) contentEl.classList.add('has-right-add'); else contentEl.classList.remove('has-right-add');
+    }
+}
+
+function handlePickerAddWaypointClick(source) {
+    const waypointsContainer = document.getElementById('picker-waypoints-container');
+        const currentCount = waypointsContainer ? waypointsContainer.querySelectorAll('.picker-waypoint-row').length : 0;
+    if (currentCount >= 2) {
+        alert('最多只能添加 2 个途经点');
+        return;
+    }
+
+    // 下方按钮：直接在起点与终点之间添加正式的途径点行
+        if (source === 'below') {
+            addPickerWaypoint('');
+            const inputs = document.querySelectorAll('.picker-waypoint-input');
+            const last = inputs[inputs.length - 1];
+            if (last) setTimeout(() => last.focus(), 30);
+            return;
+        }
+
+    // 若已存在内联编辑器则聚焦（兜底逻辑）
+    if (document.getElementById(INLINE_PICKER_WAYPOINT_EDITOR_ID)) {
+        const input = document.getElementById('picker-inline-waypoint-input');
+        if (input) input.focus();
+        return;
+    }
+
+    // 点击右侧时：切换到“下方添加”模式，并直接添加正式的途径点行（计入数量）
+    if (source === 'right') {
+        pickerPreferBelow = true;
+        const below = document.getElementById('picker-add-waypoint-section');
+        const right = document.getElementById('picker-add-waypoint-right');
+        const contentEl = document.querySelector('.picker-content');
+        if (below) below.style.display = '';
+        if (right) right.style.display = 'none';
+        if (contentEl) contentEl.classList.remove('has-right-add');
+        // 清理可能残留的内联编辑器
+        const inlineRow = document.getElementById(INLINE_PICKER_WAYPOINT_EDITOR_ID);
+        if (inlineRow) inlineRow.remove();
+
+        // 添加正式途径点行并聚焦
+        addPickerWaypoint('');
+        const inputs = document.querySelectorAll('.picker-waypoint-input');
+        const last = inputs[inputs.length - 1];
+        if (last) setTimeout(() => last.focus(), 30);
+        return;
+    }
+
+    // 其他来源（兜底）：使用目的地下方的内联编辑器
+    createInlinePickerWaypointEditor();
+}
+
+function createInlinePickerWaypointEditor() {
+    const endInput = document.getElementById('picker-end-location');
+    const endRow = endInput ? endInput.closest('.picker-location-row') : null;
+    if (!endRow) return;
+
+    const row = document.createElement('div');
+    row.className = 'picker-inline-waypoint-row';
+    row.id = INLINE_PICKER_WAYPOINT_EDITOR_ID;
+    row.innerHTML = `
+        <div class="picker-location-row">
+            <i class="fas fa-dot-circle" style="color:#BDBDBD"></i>
+            <input type="text" placeholder="请输入途经点" class="picker-waypoint-input" id="picker-inline-waypoint-input">
+        </div>
+        <button class="picker-inline-complete-btn" id="picker-inline-complete-btn">完成</button>
+    `;
+
+    // 插入到目的地行后面
+    endRow.insertAdjacentElement('afterend', row);
+
+    // 不隐藏下方添加控件；若此前展示右侧，已在点击事件中切换为下方
+
+    // 绑定事件
+    const inputEl = document.getElementById('picker-inline-waypoint-input');
+    const completeBtn = document.getElementById('picker-inline-complete-btn');
+    if (inputEl) setTimeout(() => inputEl.focus(), 30);
+
+    if (completeBtn) {
+        completeBtn.addEventListener('click', function() {
+            const value = (inputEl?.value || '').trim();
+            if (!value) {
+                alert('请输入途经点');
+                inputEl?.focus();
+                return;
+            }
+            // 将值添加到正式途经点容器（目的地上方）
+            addPickerWaypoint(value);
+            // 移除编辑器
+            row.remove();
+            // 若未达上限，恢复右侧控件
+            const waypointsContainer = document.getElementById('picker-waypoints-container');
+            const count = waypointsContainer ? waypointsContainer.querySelectorAll('.picker-waypoint-row').length : 0;
+            if (count < 2) {
+                showPickerAddControl();
+            }
+        });
     }
 }
 
