@@ -880,7 +880,7 @@ function renderSearchHistory() {
         item.className = 'picker-location-item';
 
         // 构建HTML
-        const iconHTML = '<i class="fas fa-clock"></i>';
+        const iconHTML = '<img class="icon-history-location" src="images/工地数字导航小程序切图/司机/2X/导航/历史位置.png" alt="历史位置" />';
         const nameText = historyItem.name || '未知地点';
         const addressText = historyItem.address || '';
 
@@ -890,7 +890,7 @@ function renderSearchHistory() {
                 <div class="picker-location-name">${nameText}</div>
                 <div class="picker-location-desc">${addressText}</div>
             </div>
-            <button class="picker-add-icon">+</button>
+            <button class="picker-add-icon" aria-label="添加地点"></button>
         `;
 
         locationList.appendChild(item);
@@ -1026,8 +1026,10 @@ function displaySearchResults(results, keyword) {
         let iconHTML;
         if (result.type === 'kml-point') {
             iconHTML = '<i class="fas fa-map-pin" style="color: #888;"></i>';
+        } else if (result.type === 'history') {
+            iconHTML = '<img class="icon-history-location" src="images/工地数字导航小程序切图/司机/2X/导航/历史位置.png" alt="历史位置" />';
         } else {
-            iconHTML = '<i class="fas fa-clock"></i>';
+            iconHTML = '<i class="fas fa-map-pin" style="color: #888;"></i>';
         }
 
         // 高亮匹配的文本
@@ -1040,7 +1042,7 @@ function displaySearchResults(results, keyword) {
                 <div class="picker-location-name">${highlightedName}</div>
                 <div class="picker-location-desc">${highlightedAddress}</div>
             </div>
-            <button class="picker-add-icon">+</button>
+            <button class="picker-add-icon" aria-label="添加地点"></button>
         `;
 
         // 存储数据到元素
@@ -1088,14 +1090,15 @@ function restoreDefaultDisplay() {
 
     // 重新插入"我的位置"
     if (locationList) {
-        const myLocationExists = locationList.querySelector('.fa-location-arrow');
+        // 查找新的图片图标
+        const myLocationExists = locationList.querySelector('.icon-my-location');
         if (!myLocationExists) {
             const myLocationItem = document.createElement('div');
             myLocationItem.className = 'picker-location-item';
             myLocationItem.innerHTML = `
-                <i class="fas fa-location-arrow"></i>
+                <img class="icon-my-location" src="images/工地数字导航小程序切图/司机/2X/导航/我的位置.png" alt="我的位置" />
                 <div class="picker-location-text">我的位置</div>
-                <button class="picker-add-icon">+</button>
+                <button class="picker-add-icon" aria-label="添加地点"></button>
             `;
             locationList.insertBefore(myLocationItem, locationList.firstChild);
         }
