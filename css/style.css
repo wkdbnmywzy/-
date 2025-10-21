@@ -738,6 +738,11 @@ body {
     -ms-overflow-style: none; /* IE and Edge */
 }
 
+/* 当右侧悬浮“添加途径点”展示时，给内容区域额外的右侧留白，避免被容器裁切 */
+.picker-content.has-right-add {
+    padding-right: 80px; /* >= 60px 的外溢空间 + 原有 20px */
+}
+
 .picker-content::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
 }
@@ -753,8 +758,9 @@ body {
 
 .picker-route-selector {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column; /* 改为纵向堆叠：添加途径点显示在输入区域下方 */
+    align-items: stretch;
+    gap: 8px;
     position: relative;
 }
 
@@ -765,6 +771,7 @@ body {
     background: #fff;
     position: relative; /* 让切换按钮以整个盒子为参照居中定位 */
     padding-right: 56px; /* 预留按钮空间 */
+    margin-bottom: 8px; /* 移除最外层卡片后，增加与下方元素间距 */
 }
 
 .picker-location-inputs {
@@ -860,16 +867,47 @@ body {
 }
 
 .picker-add-waypoint {
-    position: absolute;
-    right: -60px;
-    top: 50%;
-    transform: translateY(-50%);
+    position: static;            /* 不再悬浮在右侧 */
+    right: auto;
+    top: auto;
+    transform: none;
+    display: flex;               /* 左侧“添加途径点” + 右侧“完成” */
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between; /* 右侧完成按钮在最右边 */
+    gap: 8px;
+    padding-left: 4px;           /* 与输入内容轻微对齐 */
+    margin-top: 8px;             /* 与输入卡片保持间距 */
+}
+
+.picker-add-left { /* 左侧（图标+文案） */
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 右侧的完成按钮（要求的配色与圆角） */
+.picker-add-complete-btn {
+    background: #2A86FF;
+    color: #fff;
+    border: none;
+    border-radius: 999px; /* 等同于 999px 999px 999px 999px */
+    width: 103px;
+    height: 30px;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 600;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    flex-shrink: 0;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(42,134,255,0.25);
+}
+
+.picker-add-complete-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 8px rgba(42,134,255,0.25);
 }
 
 .picker-add-btn {
@@ -905,6 +943,59 @@ body {
 }
 
 .picker-waypoint-label {
+    font-size: 12px;
+    color: #666;
+}
+
+/* 下方“添加途径点”文案（两行） */
+.picker-labels {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+}
+
+.picker-add-label {
+    width: 62px;
+    height: 14px;
+    font-family: "OPPO Sans 4.0", "OPPO Sans 40", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 400;
+    font-size: 12px;
+    color: #143662;
+    line-height: 14px;
+    text-align: left;
+    font-style: normal;
+    text-transform: none;
+}
+
+.picker-add-hint {
+    margin-top: 2px;
+    width: 70px;
+    height: 8px;
+    font-size: 8px;
+    color: rgba(35,124,243,0.6);
+    line-height: 8px;
+    text-align: left;
+    font-style: normal;
+    text-transform: none;
+    font-weight: 400;
+    white-space: nowrap; /* 一行显示 */
+}
+
+/* 路线规划页右侧悬浮的添加途径点控件（当从首页点击起点/终点进入时显示） */
+.picker-add-waypoint-right {
+    position: absolute;
+    right: -60px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.picker-add-waypoint-right .picker-waypoint-label {
     font-size: 12px;
     color: #666;
 }
@@ -976,6 +1067,34 @@ body {
     box-shadow: 0 4px 12px rgba(42, 134, 255, 0.25);
     transition: all 0.3s ease;
     flex-shrink: 0;
+}
+
+/* 路线规划页：目的地下方的内联完成按钮（蓝色） */
+.picker-inline-complete-btn {
+    height: 32px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 16px;
+    background: #2A86FF;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(42,134,255,0.25);
+    flex-shrink: 0;
+}
+
+.picker-inline-complete-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 8px rgba(42,134,255,0.25);
+}
+
+/* 内联编辑行容器（与其他行对齐） */
+.picker-inline-waypoint-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
 }
 
 .picker-complete-btn:active {
