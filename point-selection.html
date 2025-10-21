@@ -18,36 +18,49 @@
         </div>
 
         <div class="picker-content">
-            <!-- 路线规划卡片 -->
-            <div class="picker-route-card">
-                <div class="picker-route-selector">
-                    <div class="picker-location-inputs-wrapper">
-                        <div class="picker-location-inputs">
-                            <div class="picker-location-row">
-                                <i class="fas fa-circle picker-start-icon"></i>
-                                <input type="text" placeholder="我的位置" id="picker-start-location">
-                            </div>
-                            <div class="picker-divider-line">
-                                <button class="picker-swap-btn" id="picker-swap-btn">
-                                    <i class="fas fa-exchange-alt"></i>
-                                </button>
-                            </div>
-                            <div class="picker-waypoints-container" id="picker-waypoints-container">
-                                <!-- 途经点将动态添加 -->
-                            </div>
-                            <div class="picker-location-row">
-                                <i class="fas fa-circle picker-end-icon"></i>
-                                <input type="text" placeholder="请输入目的地" id="picker-end-location">
-                            </div>
+            <!-- 路线规划输入区域（移除最外层盒子，只显示内部输入盒子） -->
+            <div class="picker-route-selector">
+                <div class="picker-location-inputs-wrapper">
+                    <div class="picker-location-inputs">
+                        <div class="picker-location-row">
+                            <i class="fas fa-circle picker-start-icon"></i>
+                            <input type="text" placeholder="我的位置" id="picker-start-location">
                         </div>
-                    </div>
-                    <div class="picker-add-waypoint">
-                        <div class="picker-add-btn" id="picker-add-waypoint-btn">
-                            <img src="images/工地数字导航小程序切图/司机/2X/导航/添加途径点.png" alt="添加途径点">
+                        <div class="picker-divider-line">
+                            <button class="picker-swap-btn" id="picker-swap-btn">
+                                <i class="fas fa-exchange-alt"></i>
+                            </button>
                         </div>
-                        <div class="picker-waypoint-label">途经点</div>
+                        <div class="picker-waypoints-container" id="picker-waypoints-container">
+                            <!-- 途经点将动态添加 -->
+                        </div>
+                        <div class="picker-location-row">
+                            <i class="fas fa-circle picker-end-icon"></i>
+                            <input type="text" placeholder="请输入目的地" id="picker-end-location">
+                        </div>
                     </div>
                 </div>
+                <!-- 右侧悬浮的“添加途径点”控件（当从首页点击起点/终点进入时显示） -->
+                <div class="picker-add-waypoint-right" id="picker-add-waypoint-right">
+                    <div class="picker-add-btn" id="picker-add-waypoint-btn-right">
+                        <img src="images/工地数字导航小程序切图/司机/2X/导航/添加途径点.png" alt="添加途径点">
+                    </div>
+                    <div class="picker-waypoint-label">途经点</div>
+                </div>
+            </div>
+
+            <!-- 添加途径点按钮（不在任何盒子中，位于卡片下方） -->
+            <div class="picker-add-waypoint" id="picker-add-waypoint-section">
+                <div class="picker-add-left">
+                    <div class="picker-add-btn" id="picker-add-waypoint-btn">
+                        <img src="images/工地数字导航小程序切图/司机/2X/导航/添加途径点.png" alt="添加途径点">
+                    </div>
+                    <div class="picker-labels">
+                        <div class="picker-add-label">添加途径点</div>
+                        <div class="picker-add-hint">还可添加一个途径点</div>
+                    </div>
+                </div>
+                <button class="picker-add-complete-btn" id="picker-add-complete-btn">完成</button>
             </div>
 
             <!-- 完成按钮 -->
