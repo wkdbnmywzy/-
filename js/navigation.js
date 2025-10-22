@@ -2438,6 +2438,8 @@ function tryStartDeviceOrientationNav() {
                 heading = e.webkitCompassHeading; // iOS Safari，已相对正北
             } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
                 heading = e.alpha; // 部分安卓浏览器返回相对正北
+                // 对非iOS设备（Android）进行取反修正
+                heading = 360 - heading;
             }
             if (heading === null) return;
             if (heading < 0) heading += 360;
