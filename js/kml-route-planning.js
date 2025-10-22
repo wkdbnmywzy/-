@@ -517,6 +517,77 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         终点最近线段距离: `${endSegment.distance.toFixed(2)}米`
     });
 
+    // 特殊情况：检查起点和终点是否在同一条边上
+    if (startSegment.edge === endSegment.edge) {
+        console.log('起点和终点在同一条线段上，沿线段路径规划');
+
+        // 获取线段的坐标数组
+        const edgeCoords = startSegment.edge.coordinates;
+        if (!edgeCoords || edgeCoords.length < 2) {
+            console.error('线段坐标无效');
+            return null;
+        }
+
+        // 获取起点和终点在线段上的位置索引
+        const startSegIdx = startSegment.info.segmentIndex;
+        const endSegIdx = endSegment.info.segmentIndex;
+        const startProj = startSegment.projectionPoint;
+        const endProj = endSegment.projectionPoint;
+
+        console.log('线段索引:', { 起点索引: startSegIdx, 终点索引: endSegIdx, 线段总长度: edgeCoords.length });
+
+        // 构建起点到终点的路径（沿着线段的实际形状）
+        let segmentPath = [];
+
+        if (startSegIdx === endSegIdx) {
+            // 起点和终点投影在同一小段上，直接连接两个投影点
+            segmentPath.push([startProj.lng, startProj.lat]);
+            segmentPath.push([endProj.lng, endProj.lat]);
+        } else {
+            // 起点和终点在不同的小段上
+            // 添加起点投影点
+            segmentPath.push([startProj.lng, startProj.lat]);
+
+            // 确定遍历方向
+            if (startSegIdx < endSegIdx) {
+                // 正向遍历：从起点向终点
+                for (let i = startSegIdx + 1; i <= endSegIdx; i++) {
+                    const coord = edgeCoords[i];
+                    if (coord && coord.lng !== undefined && coord.lat !== undefined) {
+                        segmentPath.push([coord.lng, coord.lat]);
+                    }
+                }
+            } else {
+                // 反向遍历：从起点向终点（终点索引更小）
+                for (let i = startSegIdx; i >= endSegIdx + 1; i--) {
+                    const coord = edgeCoords[i];
+                    if (coord && coord.lng !== undefined && coord.lat !== undefined) {
+                        segmentPath.push([coord.lng, coord.lat]);
+                    }
+                }
+            }
+
+            // 添加终点投影点
+            segmentPath.push([endProj.lng, endProj.lat]);
+        }
+
+        // 计算路径距离
+        let pathDistance = 0;
+        for (let i = 0; i < segmentPath.length - 1; i++) {
+            pathDistance += calculateDistance(
+                {lng: segmentPath[i][0], lat: segmentPath[i][1]},
+                {lng: segmentPath[i + 1][0], lat: segmentPath[i + 1][1]}
+            );
+        }
+
+        console.log(`同一线段路径规划完成: ${segmentPath.length}个点, 距离${pathDistance.toFixed(2)}米`);
+
+        return {
+            path: segmentPath,
+            distance: pathDistance
+        };
+    }
+
     let actualStartNodeId = null;
     let actualEndNodeId = null;
 

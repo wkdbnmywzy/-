@@ -1941,40 +1941,31 @@ function updateDirectionIcon(directionType, distanceToNext) {
     // 计算显示的距离（四舍五入）
     const distance = Math.round(distanceToNext || 0);
 
-    // 重置图标旋转样式
-    let iconRotation = 0;
-
     switch (directionType) {
         case 'forward':
             iconPath = basePath + '直行.png';
             actionName = '前进';
-            iconRotation = 0;
             break;
         case 'backward':
-            iconPath = basePath + '直行.png'; // 使用直行图标
+            iconPath = basePath + '掉头.png';
             actionName = '后退';
-            iconRotation = 180; // 旋转180度表示后退
             break;
         case 'left':
             iconPath = basePath + '左转.png';
             actionName = '左转';
-            iconRotation = 0;
             break;
         case 'right':
             iconPath = basePath + '右转.png';
             actionName = '右转';
-            iconRotation = 0;
             break;
         case 'uturn':
             iconPath = basePath + '掉头.png';
             actionName = '掉头';
-            iconRotation = 0;
             break;
         case 'straight':
         default:
             iconPath = basePath + '直行.png';
             actionName = '直行';
-            iconRotation = 0;
             break;
     }
 
@@ -1982,12 +1973,6 @@ function updateDirectionIcon(directionType, distanceToNext) {
     if (directionImg) {
         directionImg.src = iconPath;
         directionImg.alt = actionName;
-        // 应用旋转样式
-        if (iconRotation !== 0) {
-            directionImg.style.transform = `rotate(${iconRotation}deg)`;
-        } else {
-            directionImg.style.transform = 'none';
-        }
     }
 
     // 更新提示文本
@@ -2481,49 +2466,34 @@ function stopSimulatedNavigation() {
 function updatePathSegments(currentPos, fullPath, segIndex) {
     if (!routePolyline || !fullPath || fullPath.length < 2) return;
 
-    // 更新用户走过的最远点索引（只增不减）
-    if (segIndex > maxPassedSegIndex) {
-        maxPassedSegIndex = segIndex;
-        console.log('更新最远已走点索引:', maxPassedSegIndex);
-    }
+    // 如果用户不在规划路径上（偏离路径），不显示灰色已走路径
+    if (isOffRoute) {
+        console.log('用户偏离路径，不显示灰色已走路径');
 
-    // 判断用户是否在路径上
-    const onRoute = !isOffRoute;
-
-    // 已走过的路径部分：使用历史最远点索引
-    let passedPath = [];
-    if (maxPassedSegIndex >= 0) {
-        passedPath = fullPath.slice(0, maxPassedSegIndex + 1);
-
-        // 如果用户当前在路径上，将当前位置也加入已走路径
-        if (onRoute && segIndex === maxPassedSegIndex) {
-            passedPath.push(currentPos);
+        // 移除灰色已走路径（如果存在）
+        if (passedRoutePolyline && navigationMap) {
+            navigationMap.remove(passedRoutePolyline);
+            passedRoutePolyline = null;
         }
+
+        // 显示完整的绿色规划路径
+        routePolyline.setPath(fullPath);
+        return;
     }
 
-    // 剩余路径部分的计算
-    let remaining = [];
-    if (onRoute) {
-        // 在路径上：从当前位置到终点
-        remaining = [currentPos].concat(fullPath.slice(segIndex + 1));
-    } else {
-        // 偏离路径：从最远已走点到终点（保持完整的绿色规划路径）
-        if (maxPassedSegIndex >= 0 && maxPassedSegIndex < fullPath.length - 1) {
-            remaining = fullPath.slice(maxPassedSegIndex);
-        } else {
-            remaining = fullPath.slice();
-        }
+    // 用户在路径上，正常显示灰色已走路径和绿色剩余路径
+    console.log('用户在路径上，显示灰色已走路径');
+
+    // 已走过的路径部分：从起点到当前位置最近点
+    const passedPath = fullPath.slice(0, segIndex + 1);
+    if (passedPath.length > 0) {
+        passedPath.push(currentPos); // 包含当前位置
     }
 
-    console.log('路径状态:', {
-        在路径上: onRoute,
-        当前索引: segIndex,
-        最远索引: maxPassedSegIndex,
-        灰色路径点数: passedPath.length,
-        绿色路径点数: remaining.length
-    });
+    // 剩余路径部分：从当前位置到终点
+    const remaining = [currentPos].concat(fullPath.slice(segIndex + 1));
 
-    // 更新或创建灰色已走路径（即使偏离也保留）
+    // 更新或创建灰色已走路���
     if (passedPath.length >= 2) {
         if (!passedRoutePolyline) {
             passedRoutePolyline = new AMap.Polyline({
