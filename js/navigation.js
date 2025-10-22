@@ -15,6 +15,8 @@ let endMarker = null;
 let waypointMarkers = [];
 // 导航运动相关对象
 let userMarker = null;            // 代表"我的位置"的移动标记
+let accuracyCircle = null;        // GPS精度圈
+let currentAccuracy = 0;          // 当前GPS精度（米）
 let navigationTimer = null;       // 模拟导航的定时器
 let totalRouteDistance = 0;       // 总路线长度（用于完成统计）
 let navStartTime = 0;             // 导航开始时间（ms）
@@ -2108,20 +2110,32 @@ function startSimulatedNavigation() {
     if (!rawPath || rawPath.length < 2) return;
     const path = rawPath.map(p => normalizeLngLat(p));
 
-    // 创建移动的“我的位置”标记
+    // 创建移动的"我的位置"标记
     if (userMarker) {
         navigationMap.remove(userMarker);
         userMarker = null;
     }
+
+    // 使用与首页相同的带方向箭头图标
+    const iconCfg = MapConfig.markerStyles.headingLocation || {};
+    const w = (iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
+    const h = (iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
+
+    let iconImage = iconCfg.icon;
+    // 如果开启箭头模式或 PNG 未配置，则改用 SVG 箭头，以确保旋转效果明显
+    if (iconCfg.useSvgArrow === true || !iconImage) {
+        iconImage = createHeadingArrowDataUrl('#007bff');
+    }
+
     const myIcon = new AMap.Icon({
-        size: new AMap.Size(30, 30),
-        image: MapConfig.markerStyles.currentLocation.icon,
-        imageSize: new AMap.Size(30, 30)
+        size: new AMap.Size(w, h),
+        image: iconImage,
+        imageSize: new AMap.Size(w, h)
     });
     userMarker = new AMap.Marker({
         position: path[0],
         icon: myIcon,
-        offset: new AMap.Pixel(-15, -15),
+        offset: new AMap.Pixel(-(w/2), -(h/2)),
         zIndex: 120,
         angle: 0,
         map: navigationMap
@@ -2148,6 +2162,124 @@ function startSimulatedNavigation() {
 }
 
 // 真实GPS导航追踪
+// ====== 创建或更新GPS精度圈 ======
+function updateAccuracyCircle(position, accuracy) {
+    if (!navigationMap) {
+        console.error('updateAccuracyCircle: navigationMap不存在');
+        return;
+    }
+
+    currentAccuracy = accuracy || 10; // 默认10米精度
+    const displayRadius = currentAccuracy / 4; // 显示半径为实际精度的1/4
+
+    if (!accuracyCircle) {
+        // 创建精度圈 - 使用非常明显的样式便于调试
+        console.log('准备创建GPS精度圈，中心:', position, '实际精度:', currentAccuracy, '米, 显示半径:', displayRadius, '米');
+
+        try {
+            accuracyCircle = new AMap.Circle({
+                center: position,
+                radius: displayRadius,
+                strokeColor: '#4A90E2',      // 蓝色边框
+                strokeWeight: 2,              // 较细的边框
+                strokeOpacity: 0.4,           // 高透明度边框
+                fillColor: '#4A90E2',         // 蓝色填充
+                fillOpacity: 0.15,            // 高透明度填充
+                zIndex: 100,                  // 在路径上方，位置标记下方
+                bubble: true,                 // 允许事件冒泡
+                visible: true                 // 显式设置为可见
+            });
+
+            // 显式添加到地图
+            accuracyCircle.setMap(navigationMap);
+
+            console.log('GPS精度圈创建成功:', accuracyCircle);
+            console.log('精度圈属性:', {
+                center: accuracyCircle.getCenter(),
+                radius: accuracyCircle.getRadius(),
+                visible: accuracyCircle.getOptions().visible,
+                map: accuracyCircle.getMap()
+            });
+
+            // 强制显示并刷新地图
+            setTimeout(() => {
+                if (accuracyCircle && typeof accuracyCircle.show === 'function') {
+                    accuracyCircle.show();
+                }
+                if (navigationMap) {
+                    navigationMap.setZoom(navigationMap.getZoom());
+                }
+                console.log('精度圈强制显示完成');
+            }, 100);
+        } catch (e) {
+            console.error('创建GPS精度圈失败:', e);
+        }
+    } else {
+        // 更新精度圈位置和半径
+        const displayRadius = currentAccuracy / 4; // 显示半径为实际精度的1/4
+        console.log('更新GPS精度圈，中心:', position, '实际精度:', currentAccuracy, '米, 显示半径:', displayRadius, '米');
+        try {
+            accuracyCircle.setCenter(position);
+            accuracyCircle.setRadius(displayRadius);
+        } catch (e) {
+            console.error('更新GPS精度圈失败:', e);
+        }
+    }
+}
+
+// ====== 检查用户是否在规划路线上（考虑精度圈） ======
+function checkIfOnRouteWithAccuracy(userPos, routePath, accuracy) {
+    if (!routePath || routePath.length === 0) return true;
+
+    // 使用精度圈半径作为判断依据
+    const threshold = Math.max(accuracy || 10, offRouteThreshold);
+
+    // 检查精度圈是否与路线相交
+    for (let i = 0; i < routePath.length - 1; i++) {
+        const p1 = routePath[i];
+        const p2 = routePath[i + 1];
+
+        // 计算点到线段的距离
+        const distance = pointToSegmentDistance(userPos, p1, p2);
+
+        // 如果距离小于精度圈半径，则认为在路线上
+        if (distance <= threshold) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ====== 计算点到线段的距离 ======
+function pointToSegmentDistance(point, segStart, segEnd) {
+    const [px, py] = point;
+    const [x1, y1] = segStart;
+    const [x2, y2] = segEnd;
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    if (dx === 0 && dy === 0) {
+        // 线段退化为点
+        return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    }
+
+    // 计算投影参数t
+    let t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+    t = Math.max(0, Math.min(1, t)); // 限制在[0,1]范围内
+
+    // 计算最近点
+    const nearestX = x1 + t * dx;
+    const nearestY = y1 + t * dy;
+
+    // 返回距离（经纬度近似计算）
+    const distDeg = Math.sqrt((px - nearestX) ** 2 + (py - nearestY) ** 2);
+    // 粗略转换为米（1度约111km）
+    return distDeg * 111000;
+}
+
+// ====== 开始实时GPS导航（真实导航） ======
 function startRealNavigationTracking() {
     if (!('geolocation' in navigator)) {
         if (!geoErrorNotified) {
@@ -2161,6 +2293,10 @@ function startRealNavigationTracking() {
     if (userMarker && navigationMap) {
         navigationMap.remove(userMarker);
         userMarker = null;
+    }
+    if (accuracyCircle && navigationMap) {
+        navigationMap.remove(accuracyCircle);
+        accuracyCircle = null;
     }
     if (passedRoutePolyline && navigationMap) {
         navigationMap.remove(passedRoutePolyline);
@@ -2209,6 +2345,11 @@ function startRealNavigationTracking() {
             } catch (e) { console.warn('WGS84->GCJ-02 转换失败，使用原始坐标:', e); }
             const curr = [lng, lat];
 
+            // 获取GPS精度并更新精度圈
+            const accuracy = pos.coords.accuracy || 10; // 默认10米
+            updateAccuracyCircle(curr, accuracy);
+            console.log('GPS位置更新, 精度:', accuracy, '米, 位置:', curr);
+
             // 初始化标记与灰色路径
             if (!userMarker) {
                 // 使用与首页相同的配置
@@ -2243,31 +2384,32 @@ function startRealNavigationTracking() {
             }
 
             // 计算朝向并旋转：优先使用设备方向 heading；否则用移动向量
+            let heading = null;
             if (typeof lastDeviceHeadingNav === 'number') {
-                const heading = lastDeviceHeadingNav;
+                heading = lastDeviceHeadingNav;
+            } else if (lastGpsPos) {
+                const moveDist = calculateDistanceBetweenPoints(lastGpsPos, curr);
+                if (moveDist > 0.5) { // 小于0.5米忽略抖动
+                    heading = calculateBearingBetweenPoints(lastGpsPos, curr);
+                }
+            }
+
+            // 应用朝向角度（图标跟随地图旋转）
+            if (heading !== null) {
                 if (typeof userMarker.setAngle === 'function') {
                     userMarker.setAngle(heading);
                 } else if (typeof userMarker.setRotation === 'function') {
                     userMarker.setRotation(heading);
                 }
-            } else if (lastGpsPos) {
-                const moveDist = calculateDistanceBetweenPoints(lastGpsPos, curr);
-                if (moveDist > 0.5) { // 小于0.5米忽略抖动
-                    const bearing = calculateBearingBetweenPoints(lastGpsPos, curr);
-                    if (typeof userMarker.setAngle === 'function') {
-                        userMarker.setAngle(bearing);
-                    } else if (typeof userMarker.setRotation === 'function') {
-                        userMarker.setRotation(bearing);
-                    }
-                }
             }
             lastGpsPos = curr;
             userMarker.setPosition(curr);
 
-            // 检查是否偏离路径并更新路径显示
+            // 检查是否偏离路径并更新路径显示（使用精度圈判断）
             const segIndex = findClosestPathIndex(curr, fullPath);
-            isOffRoute = checkIfOffRoute(curr, fullPath);
-            console.log('偏离路径状态:', isOffRoute);
+            const onRoute = checkIfOnRouteWithAccuracy(curr, fullPath, accuracy);
+            isOffRoute = !onRoute;
+            console.log('精度:', accuracy, 'm, 偏离路径状态:', isOffRoute);
 
             // 根据是否偏离路径决定如何显示路线
             if (isOffRoute) {
@@ -2321,6 +2463,7 @@ function stopRealNavigationTracking() {
     }
     lastGpsPos = null;
     if (userMarker && navigationMap) { navigationMap.remove(userMarker); userMarker = null; }
+    if (accuracyCircle && navigationMap) { navigationMap.remove(accuracyCircle); accuracyCircle = null; }
     if (passedRoutePolyline && navigationMap) { navigationMap.remove(passedRoutePolyline); passedRoutePolyline = null; }
     // 停止设备方向监听
     tryStopDeviceOrientationNav();
@@ -2636,8 +2779,9 @@ function tryStartDeviceOrientationNav() {
             // 保存最新朝向，供其他逻辑（例如 GPS 更新）使用
             lastDeviceHeadingNav = corrected;
 
-            // 如果“我的位置”标记已存在，则尝试设置其旋转角度
+            // 如果"我的位置"标记已存在，则尝试设置其旋转角度
             if (userMarker) {
+                // 直接应用朝向角度（图标跟随地图旋转）
                 try {
                     if (typeof userMarker.setAngle === 'function') {
                         // 高德标记常用方法：setAngle
@@ -2753,6 +2897,11 @@ function startRealtimePositionTracking() {
             const curr = [lng, lat];
             console.log('当前位置:', curr);
 
+            // 获取GPS精度并更新精度圈
+            const accuracy = pos.coords.accuracy || 10; // 默认10米
+            updateAccuracyCircle(curr, accuracy);
+            console.log('GPS精度:', accuracy, '米');
+
             // 创建或更新"我的位置"标记
             if (!userMarker) {
                 console.log('准备创建我的位置标记...');
@@ -2800,10 +2949,24 @@ function startRealtimePositionTracking() {
             }
 
             // 计算并更新朝向
+            let heading = null;
             if (typeof lastDeviceHeadingNav === 'number') {
                 // 优先使用设备方向
-                const heading = lastDeviceHeadingNav;
+                heading = lastDeviceHeadingNav;
                 console.log('使用设备方向更新朝向:', heading);
+            } else if (lastGpsPos) {
+                // 使用GPS移动方向
+                const moveDist = calculateDistanceBetweenPoints(lastGpsPos, curr);
+                console.log('GPS移动距离:', moveDist, 'm');
+                if (moveDist > 0.5) {
+                    heading = calculateBearingBetweenPoints(lastGpsPos, curr);
+                    console.log('使用GPS移动方向更新朝向:', heading);
+                }
+            }
+
+            // 应用朝向角度（图标跟随地图旋转）
+            if (heading !== null) {
+                console.log('地图旋转角度:', navigationMap.getRotation(), '应用标记角度:', heading);
                 try {
                     if (typeof userMarker.setAngle === 'function') {
                         userMarker.setAngle(heading);
@@ -2812,23 +2975,6 @@ function startRealtimePositionTracking() {
                     }
                 } catch (e) {
                     console.error('设置标记角度失败:', e);
-                }
-            } else if (lastGpsPos) {
-                // 使用GPS移动方向
-                const moveDist = calculateDistanceBetweenPoints(lastGpsPos, curr);
-                console.log('GPS移动距离:', moveDist, 'm');
-                if (moveDist > 0.5) {
-                    const bearing = calculateBearingBetweenPoints(lastGpsPos, curr);
-                    console.log('使用GPS移动方向更新朝向:', bearing);
-                    try {
-                        if (typeof userMarker.setAngle === 'function') {
-                            userMarker.setAngle(bearing);
-                        } else if (typeof userMarker.setRotation === 'function') {
-                            userMarker.setRotation(bearing);
-                        }
-                    } catch (e) {
-                        console.error('设置标记角度失败:', e);
-                    }
                 }
             }
 
@@ -2861,5 +3007,10 @@ function stopRealtimePositionTracking() {
             console.error('停止位置追踪失败:', e);
         }
         preNavWatchId = null;
+    }
+    // 清理精度圈
+    if (accuracyCircle && navigationMap) {
+        navigationMap.remove(accuracyCircle);
+        accuracyCircle = null;
     }
 }

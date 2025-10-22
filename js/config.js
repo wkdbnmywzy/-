@@ -27,15 +27,14 @@ const MapConfig = {
         copyright: '' // 隐藏版权信息
     },
     
-    // 所需插件列表（关键补充）
+    // 所需插件列表
     plugins: [
-        'AMap.Geolocation',    // 定位插件
         'AMap.Geocoder',       // 地理编码插件（地址与坐标互转）
-        'AMap.Riding',         // 骑行路线规划（如果需要）
-        'AMap.Driving',        // 驾车路线规划（如果需要）
-        'AMap.Walking',        // 步行路线规划（如果需要）
+        'AMap.Riding',         // 骑行路线规划
+        'AMap.Driving',        // 驾车路线规划
+        'AMap.Walking',        // 步行路线规划
         'AMap.Scale',          // 比例尺插件
-        'AMap.ToolBar'         // 工具栏插件（含缩放、定位按钮）
+        'AMap.ToolBar'         // 工具栏插件（含缩放按钮）
     ],
     
     // 标记样式配置

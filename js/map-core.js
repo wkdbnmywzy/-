@@ -122,88 +122,82 @@ function initMap() {
 function getCurrentLocation() {
     console.log('开始获取位置...');
 
-    // 使用高德地图定位插件
-    AMap.plugin('AMap.Geolocation', function() {
-        var geolocation = new AMap.Geolocation({
-            enableHighAccuracy: true,  // 是否使用高精度定位，默认：true
-            timeout: 15000,             // 超过15秒后停止定位（增加超时以获取更准确位置）
-            maximumAge: 0,              // 不使用缓存，始终获取最新位置
-            position: 'RB',             // 定位按钮的停靠位置
-            offset: [10, 20],           // 定位按钮与设置的停靠位置的偏移量
-            zoomToAccuracy: true,       // 定位成功后是否自动调整地图视野到定位点
-            showButton: false,          // 是否显示定位按钮
-            showMarker: false,          // 是否显示定位点
-            showCircle: false,          // 是否显示定位精度圈
-            panToLocation: true,        // 定位成功后将定位到的位置作为地图中心点
-            extensions: 'all',          // 返回地址信息
-            convert: false,              // 自动偏移坐标
-            GeoLocationFirst: true,     // 优先使用浏览器定位
-            noIpLocate: 0,              // 启用IP定位作为辅助
-            noGeoLocation: 0            // 启用浏览器定位
-        });
+    // 使用浏览器原生定位
+    if (!('geolocation' in navigator)) {
+        console.error('浏览器不支持定位');
+        alert('当前浏览器不支持定位功能');
+        if (document.getElementById('start-location')) {
+            document.getElementById('start-location').value = '北京市';
+        }
+        return;
+    }
 
-        geolocation.getCurrentPosition(function(status, result) {
-            if (status === 'complete') {
-                console.log('位置获取成功:', result);
-                console.log('定位精度(米):', result.accuracy);
-                console.log('定位��式:', result.location_type);
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+    };
 
-                var lng = result.position.lng;
-                var lat = result.position.lat;
-                console.log('原始坐标(WGS84):', lng, lat);
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            console.log('位置获取成功:', position);
+            console.log('定位精度(米):', position.coords.accuracy);
 
-                // 手动转换WGS84到GCJ02（高德坐标系）
-                const converted = wgs84ToGcj02(lng, lat);
-                lng = converted[0];
-                lat = converted[1];
-                console.log('转换后坐标(GCJ02):', lng, lat);
+            var lng = position.coords.longitude;
+            var lat = position.coords.latitude;
+            console.log('原始坐标(WGS84):', lng, lat);
 
-                currentPosition = [lng, lat];
+            // 手动转换WGS84到GCJ02（高德坐标系）
+            const converted = wgs84ToGcj02(lng, lat);
+            lng = converted[0];
+            lat = converted[1];
+            console.log('转换后坐标(GCJ02):', lng, lat);
 
-                // 更新地图中心和缩放级别
-                map.setZoomAndCenter(15, [lng, lat]);
+            currentPosition = [lng, lat];
 
-                // 强制刷新地图
-                setTimeout(function() {
-                    if (map && typeof map.resize === 'function') {
-                        map.resize();
-                    }
-                }, 200);
+            // 更新地图中心和缩放级别
+            map.setZoomAndCenter(15, [lng, lat]);
 
-                // 添加当前位置标记
-                var marker = new AMap.Marker({
-                    position: [lng, lat],
-                    icon: new AMap.Icon({
-                        size: new AMap.Size(30, 30),
-                        image: MapConfig.markerStyles.currentLocation.icon,
-                        imageSize: new AMap.Size(30, 30)
-                    }),
-                    // 圆形"我的位置"图标用居中对齐
-                    offset: new AMap.Pixel(-15, -15),
-                    map: map,
-                    zIndex: 999
-                });
-                markers.push(marker);
-                initialLocationMarker = marker;
-
-                // 更新起点输入框
-                if (document.getElementById('start-location')) {
-                    // 如果返回了地址信息，使用地址；否则使用"我的位置"
-                    if (result.formattedAddress) {
-                        document.getElementById('start-location').value = result.formattedAddress;
-                    } else {
-                        document.getElementById('start-location').value = '我的位置';
-                    }
+            // 强制刷新地图
+            setTimeout(function() {
+                if (map && typeof map.resize === 'function') {
+                    map.resize();
                 }
-            } else {
-                console.error('定位失败:', result);
-                // 使用默认位置
-                if (document.getElementById('start-location')) {
-                    document.getElementById('start-location').value = '北京市';
-                }
+            }, 200);
+
+            // 添加当前位置标记
+            var marker = new AMap.Marker({
+                position: [lng, lat],
+                icon: new AMap.Icon({
+                    size: new AMap.Size(30, 30),
+                    image: MapConfig.markerStyles.currentLocation.icon,
+                    imageSize: new AMap.Size(30, 30)
+                }),
+                // 圆形"我的位置"图标用居中对齐
+                offset: new AMap.Pixel(-15, -15),
+                map: map,
+                zIndex: 999
+            });
+            markers.push(marker);
+            initialLocationMarker = marker;
+
+            // 更新起点输入框
+            if (document.getElementById('start-location')) {
+                document.getElementById('start-location').value = '我的位置';
             }
-        });
-    });
+        },
+        function(error) {
+            console.error('定位失败:', error);
+            console.error('错误代码:', error.code);
+            console.error('错误信息:', error.message);
+            alert('无法获取位置，请检查定位权限\n错误: ' + error.message);
+            // 使用默认位置
+            if (document.getElementById('start-location')) {
+                document.getElementById('start-location').value = '北京市';
+            }
+        },
+        options
+    );
 }
 
 function clearMarkers() {
@@ -217,36 +211,29 @@ function clearMarkers() {
 function startRealtimeLocationTracking() {
     if (isRealtimeLocating) return;
 
-    console.log('启动高德地图实时定位');
+    console.log('启动浏览器原生实时定位');
 
-    // 使用高德地图定位插件
-    AMap.plugin('AMap.Geolocation', function() {
-        var geolocation = new AMap.Geolocation({
-            enableHighAccuracy: true,  // 是否使用高精度定位
-            timeout: 15000,             // 超过15秒后停止定位（增加超时时间以获取更准确位置）
-            maximumAge: 0,              // 不使用缓存，始终获取最新位置
-            convert: false,             // 关闭自动偏移，使用手动转换
-            showButton: false,          // 是否显示定位按钮
-            showMarker: false,          // 是否显示定位点（我们自己绘制）
-            showCircle: false,          // 是否显示定位精度圈
-            panToLocation: false,       // 不自动移动地图（我们手动控制）
-            zoomToAccuracy: false,      // 不自动调整缩放
-            extensions: 'all',          // 返回完整信息
-            useNative: true,            // 优先使用设备定位
-            GeoLocationFirst: true,     // 优先使用浏览器定位
-            noIpLocate: 0,              // 启用IP定位作为辅助（0为启用，3为禁用）
-            noGeoLocation: 0            // 启用浏览器定位（0为启用，3为禁用）
-        });
+    // 使用浏览器原生定位
+    if (!('geolocation' in navigator)) {
+        console.error('浏览器不支持定位');
+        alert('当前浏览器不支持定位功能');
+        return;
+    }
 
-        // 监听定位成功事件
-        geolocation.on('complete', function(result) {
-            console.log('高德定位成功:', result);
-            console.log('定位精度(米):', result.accuracy);
-            console.log('定位方式:', result.location_type); // 'html5'表示浏览器定位，'ip'表示IP定位
-            console.log('原始坐标(WGS84可能):', result.position);
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+    };
 
-            let lng = result.position.lng;
-            let lat = result.position.lat;
+    // 开始持续监听位置变化
+    const watchId = navigator.geolocation.watchPosition(
+        function(position) {
+            console.log('浏览器定位成功:', position);
+            console.log('定位精度(米):', position.coords.accuracy);
+
+            let lng = position.coords.longitude;
+            let lat = position.coords.latitude;
             console.log('原始坐标(WGS84):', lng, lat);
 
             // 手动转换WGS84到GCJ02（高德坐标系）
@@ -293,33 +280,32 @@ function startRealtimeLocationTracking() {
                 selfMarker.setPosition(curr);
             }
 
-            // 处理方向角
-            // 高德定位返回的heading（单位：度，范围0-360，正北为0）
-            if (result.heading !== undefined && result.heading !== null && !isNaN(result.heading)) {
-                lastDeviceHeadingIndex = result.heading;
-                console.log('使用高德定位返回的heading:', result.heading);
-                try {
-                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(result.heading);
-                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(result.heading);
-                } catch (e) {}
+            // 处理方向角（从浏览器API获取）
+            let heading = null;
+            if (position.coords.heading !== undefined && position.coords.heading !== null && !isNaN(position.coords.heading)) {
+                heading = position.coords.heading;
+                lastDeviceHeadingIndex = position.coords.heading;
+                console.log('使用浏览器返回的heading:', position.coords.heading);
             } else {
                 // 如果没有方向角，尝试使用设备方向或根据移动计算
                 if (lastDeviceHeadingIndex !== null) {
+                    heading = lastDeviceHeadingIndex;
                     console.log('使用设备方向角:', lastDeviceHeadingIndex);
-                    try {
-                        if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(lastDeviceHeadingIndex);
-                        else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(lastDeviceHeadingIndex);
-                    } catch (e) {}
                 } else if (lastGpsPosIndex) {
                     const bearing = calcBearingSimple(lastGpsPosIndex, curr);
                     console.log('根据GPS位置计算方位角:', bearing, '从', lastGpsPosIndex, '到', curr);
                     if (!isNaN(bearing)) {
-                        try {
-                            if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(bearing);
-                            else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(bearing);
-                        } catch (e) {}
+                        heading = bearing;
                     }
                 }
+            }
+
+            // 应用朝向角度（图标跟随地图旋转）
+            if (heading !== null) {
+                try {
+                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
+                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
+                } catch (e) {}
             }
 
             lastGpsPosIndex = curr;
@@ -335,30 +321,22 @@ function startRealtimeLocationTracking() {
             // 更新输入框
             const startInput = document.getElementById('start-location');
             if (startInput && (!startInput.value || startInput.value === '北京市')) {
-                if (result.formattedAddress) {
-                    startInput.value = result.formattedAddress;
-                } else {
-                    startInput.value = '我的位置';
-                }
+                startInput.value = '我的位置';
             }
 
             // 启动设备方向监听（用于更精确的箭头旋转）
             tryStartDeviceOrientationIndex();
-        });
-
-        // 监听定位失败事件
-        geolocation.on('error', function(result) {
-            console.error('高德定位失败:', result);
-            alert('无法获取实时定位: ' + (result.message || '未知错误'));
+        },
+        function(error) {
+            console.error('浏览器定位失败:', error);
+            alert('无法获取实时定位: ' + error.message);
             stopRealtimeLocationTracking();
-        });
+        },
+        options
+    );
 
-        // 开始监听位置变化
-        geolocation.watchPosition();
-
-        // 保存geolocation实例，用于停止定位
-        window.amapGeolocation = geolocation;
-    });
+    // 保存watchId，用于停止定位
+    window.browserGeolocationWatchId = watchId;
 
     isRealtimeLocating = true;
 
@@ -377,13 +355,191 @@ function startRealtimeLocationTracking() {
 
 function stopRealtimeLocationTracking() {
     try {
-        // 停止高德地图定位
-        if (window.amapGeolocation && typeof window.amapGeolocation.clearWatch === 'function') {
-            window.amapGeolocation.clearWatch();
-            window.amapGeolocation = null;
+        // 停止浏览器定位
+        if (window.browserGeolocationWatchId !== undefined && window.browserGeolocationWatchId !== null) {
+            navigator.geolocation.clearWatch(window.browserGeolocationWatchId);
+            window.browserGeolocationWatchId = null;
         }
     } catch (e) {
-        console.error('停止高德定位失败:', e);
+        console.error('停止浏览器定位失败:', e);
+    }
+
+    isRealtimeLocating = false;
+    lastGpsPosIndex = null;
+    // 不强制移除标记，保留当前位置；如需清除可在此移除
+    tryStopDeviceOrientationIndex();
+    // 更新定位按钮UI
+    try {
+        const locateBtn = document.getElementById('locate-btn');
+        if (locateBtn) {
+            locateBtn.classList.remove('active');
+            locateBtn.title = '定位到当前位置';
+        }
+    } catch (e) {}
+}
+
+function clearMarkers() {
+    markers.forEach(function(marker) {
+        map.remove(marker);
+    });
+    markers = [];
+}
+
+// ====== 首页地图：实时定位与箭头随手机方向旋转 ======
+function startRealtimeLocationTracking() {
+    if (isRealtimeLocating) return;
+
+    console.log('启动浏览器原生实时定位');
+
+    // 使用浏览器原生定位
+    if (!('geolocation' in navigator)) {
+        console.error('浏览器不支持定位');
+        alert('当前浏览器不支持定位功能');
+        return;
+    }
+
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+    };
+
+    // 开始持续监听位置变化
+    const watchId = navigator.geolocation.watchPosition(
+        function(position) {
+            console.log('浏览器定位成功:', position);
+            console.log('定位精度(米):', position.coords.accuracy);
+
+            let lng = position.coords.longitude;
+            let lat = position.coords.latitude;
+            console.log('原始坐标(WGS84):', lng, lat);
+
+            // 手动转换WGS84到GCJ02（高德坐标系）
+            const converted = wgs84ToGcj02(lng, lat);
+            lng = converted[0];
+            lat = converted[1];
+            console.log('转换后坐标(GCJ02):', lng, lat);
+
+            const curr = [lng, lat];
+            currentPosition = curr;
+
+            // 开启实时定位时，移除一次性初始定位标记，避免重复
+            if (initialLocationMarker) {
+                try { map.remove(initialLocationMarker); } catch (e) {}
+                initialLocationMarker = null;
+            }
+
+            // 初始化或更新自身标记
+            if (!selfMarker) {
+                const iconCfg = MapConfig.markerStyles.headingLocation || {};
+                var w = (iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
+                var h = (iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
+
+                let iconImage = iconCfg.icon;
+                // 如果开启箭头模式或 PNG 未配置，则改用 SVG 箭头，以确保旋转效果明显
+                if (iconCfg.useSvgArrow === true || !iconImage) {
+                    iconImage = createHeadingArrowDataUrl('#007bff');
+                }
+
+                const icon = new AMap.Icon({
+                    size: new AMap.Size(w, h),
+                    image: iconImage,
+                    imageSize: new AMap.Size(w, h)
+                });
+                selfMarker = new AMap.Marker({
+                    position: curr,
+                    icon: icon,
+                    offset: new AMap.Pixel(-(w/2), -(h/2)),
+                    zIndex: 1000,
+                    angle: 0,
+                    map: map
+                });
+            } else {
+                selfMarker.setPosition(curr);
+            }
+
+            // 处理方向角（从浏览器API获取）
+            let heading = null;
+            if (position.coords.heading !== undefined && position.coords.heading !== null && !isNaN(position.coords.heading)) {
+                heading = position.coords.heading;
+                lastDeviceHeadingIndex = position.coords.heading;
+                console.log('使用浏览器返回的heading:', position.coords.heading);
+            } else {
+                // 如果没有方向角，尝试使用设备方向或根据移动计算
+                if (lastDeviceHeadingIndex !== null) {
+                    heading = lastDeviceHeadingIndex;
+                    console.log('使用设备方向角:', lastDeviceHeadingIndex);
+                } else if (lastGpsPosIndex) {
+                    const bearing = calcBearingSimple(lastGpsPosIndex, curr);
+                    console.log('根据GPS位置计算方位角:', bearing, '从', lastGpsPosIndex, '到', curr);
+                    if (!isNaN(bearing)) {
+                        heading = bearing;
+                    }
+                }
+            }
+
+            // 应用朝向角度（图标跟随地图旋转）
+            if (heading !== null) {
+                try {
+                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
+                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
+                } catch (e) {}
+            }
+
+            lastGpsPosIndex = curr;
+
+            // 首次进入或用户点击定位后，自动居中
+            if (!isRealtimeLocating) {
+                map.setZoomAndCenter(17, curr);
+            } else {
+                // 跟随中心
+                map.setCenter(curr);
+            }
+
+            // 更新输入框
+            const startInput = document.getElementById('start-location');
+            if (startInput && (!startInput.value || startInput.value === '北京市')) {
+                startInput.value = '我的位置';
+            }
+
+            // 启动设备方向监听（用于更精确的箭头旋转）
+            tryStartDeviceOrientationIndex();
+        },
+        function(error) {
+            console.error('浏览器定位失败:', error);
+            alert('无法获取实时定位: ' + error.message);
+            stopRealtimeLocationTracking();
+        },
+        options
+    );
+
+    // 保存watchId，用于停止定位
+    window.browserGeolocationWatchId = watchId;
+
+    isRealtimeLocating = true;
+
+    // 在用户手势触发时优先尝试开启设备方向监听，提升 iOS 权限通过概率
+    tryStartDeviceOrientationIndex();
+
+    // 更新定位按钮UI
+    try {
+        const locateBtn = document.getElementById('locate-btn');
+        if (locateBtn) {
+            locateBtn.classList.add('active');
+            locateBtn.title = '定位到当前位置';
+        }
+    } catch (e) {}
+}
+
+function stopRealtimeLocationTracking() {
+    try {
+        // 停止浏览器定位
+        if (window.browserGeolocationWatchId !== undefined && window.browserGeolocationWatchId !== null) {
+            navigator.geolocation.clearWatch(window.browserGeolocationWatchId);
+            window.browserGeolocationWatchId = null;
+        }
+    } catch (e) {
+        console.error('停止浏览器定位失败:', e);
     }
 
     isRealtimeLocating = false;
@@ -453,6 +609,7 @@ function tryStartDeviceOrientationIndex() {
 
             lastDeviceHeadingIndex = heading;
             if (selfMarker) {
+                // 直接应用朝向角度（图标跟随地图旋转）
                 try {
                     if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
                     else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
