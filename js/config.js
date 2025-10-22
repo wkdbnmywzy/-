@@ -2,7 +2,18 @@
 const MapConfig = {
     // API密钥（请确保已在高德开放平台申请并启用对应服务）
     key: '02e4976e38eb8bc8bcf71a9c485cc2ae',
-    
+
+    // 方向角配置
+    orientationConfig: {
+        // Android设备是否需要反转alpha值
+        // true: heading = 360 - alpha (大多数Android设备)
+        // false: heading = alpha (少数Android设备)
+        androidNeedsInversion: true,
+
+        // 是否启用调试日志
+        debugMode: true
+    },
+
     // 地图初始配置
     mapConfig: {
         zoom: 13,
