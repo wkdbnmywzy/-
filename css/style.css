@@ -738,9 +738,15 @@ body {
     -ms-overflow-style: none; /* IE and Edge */
 }
 
-/* 当右侧悬浮“添加途径点”展示时，给内容区域额外的右侧留白，避免被容器裁切 */
-.picker-content.has-right-add {
-    padding-right: 80px; /* >= 60px 的外溢空间 + 原有 20px */
+/* 右侧悬浮“添加途径点”不再侵占内容宽度，保持内容满行展示 */
+/* 当右侧悬浮按钮展示时，仅对输入容器增加额外的右侧留白，避免与交换按钮/文本重叠 */
+.picker-content.has-right-add .picker-location-inputs-wrapper {
+    padding-right: 120px; /* 预留右侧悬浮控件宽度 */
+}
+
+/* has-right-add 状态下，交换按钮左移，避免与右侧悬浮控件重叠 */
+.picker-content.has-right-add .picker-swap-btn {
+    right: 64px;
 }
 
 .picker-content::-webkit-scrollbar {
@@ -984,7 +990,7 @@ body {
 /* 路线规划页右侧悬浮的添加途径点控件（当从首页点击起点/终点进入时显示） */
 .picker-add-waypoint-right {
     position: absolute;
-    right: -60px;
+    right: 12px; /* 放入可视区域内，不再压缩内容宽度 */
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -993,6 +999,7 @@ body {
     justify-content: center;
     gap: 4px;
     flex-shrink: 0;
+    z-index: 3;
 }
 
 .picker-add-waypoint-right .picker-waypoint-label {
@@ -1131,17 +1138,11 @@ body {
 
 .picker-category-tags {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap; /* 标签自动换行以占满一行 */
     gap: 8px;
-    overflow-x: auto;
-    /* 隐藏滚动条 */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    overflow-x: visible; /* 不使用横向滚动，保持满行布局 */
 }
 
-.picker-category-tags::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
-}
 
 .picker-tag {
     display: inline-block;
