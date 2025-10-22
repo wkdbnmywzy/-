@@ -2426,43 +2426,79 @@ function finishNavigation() {
     showNavigationCompleteModal(totalRouteDistance || 0, totalMinutes);
 }
 
-// ====== 设备方向（导航页）支持 ======
 function tryStartDeviceOrientationNav() {
+    // 如果已经在监听设备方向，则直接返回
     if (trackingDeviceOrientationNav) return;
+
+    // 判断是否为 iOS 设备（iOS 需要显式请求方向权限）
     const isIOS = /iP(ad|hone|od)/i.test(navigator.userAgent);
+
+    // 启动监听的实际逻辑（封装为 start 以便在请求权限后调用）
     const start = () => {
+        // 若图标初始朝向不是向上，可通过此偏移调整最终角度（单位：度）
+        const ICON_ROTATION_OFFSET = 0;
+
+        // 处理 deviceorientation 事件的回调
         deviceOrientationHandlerNav = function(e) {
             if (!e) return;
             let heading = null;
+
+            // iOS Safari 提供 webkitCompassHeading（0-360，参考真北）
             if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
-                heading = e.webkitCompassHeading; // iOS Safari，已相对正北
+                heading = e.webkitCompassHeading;
+            // 其他浏览器可能只提供 alpha（设备绕 Z 轴的旋转角）
             } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
-                heading = e.alpha; // 部分安卓浏览器返回相对正北
+                heading = e.alpha;
             }
             if (heading === null) return;
-            if (heading < 0) heading += 360;
-            heading = (360 - heading) % 360;
-            lastDeviceHeadingNav = heading;
+
+            // 规范化到 0-360 范围，避免负值或超出范围
+            heading = ((heading % 360) + 360) % 360;
+
+            // 关键：将设备朝向取反，使地图上的箭头朝向与设备朝向一致
+            // 解释：设备的 alpha/heading 表示设备“朝向”的角度，要让箭头指向用户面向的方向，
+            // 需要将该角度取反（360 - heading），并加上图标初始偏移以校正图标本身的朝向。
+            const corrected = ((360 - heading) + ICON_ROTATION_OFFSET) % 360;
+
+            // 保存最新朝向，供其他逻辑（例如 GPS 更新）使用
+            lastDeviceHeadingNav = corrected;
+
+            // 如果“我的位置”标记已存在，则尝试设置其旋转角度
             if (userMarker) {
                 try {
-                    if (typeof userMarker.setAngle === 'function') userMarker.setAngle(heading);
-                    else if (typeof userMarker.setRotation === 'function') userMarker.setRotation(heading);
-                } catch (err) {}
+                    if (typeof userMarker.setAngle === 'function') {
+                        // 高德标记常用方法：setAngle
+                        userMarker.setAngle(corrected);
+                    } else if (typeof userMarker.setRotation === 'function') {
+                        // 某些版本可能使用 setRotation
+                        userMarker.setRotation(corrected);
+                    }
+                } catch (err) {
+                    // 忽略设置角度时的异常（兼容不同版本或未实现的方法）
+                }
             }
         };
+
+        // 注册全局 deviceorientation 事件（捕获阶段 true）
         window.addEventListener('deviceorientation', deviceOrientationHandlerNav, true);
         trackingDeviceOrientationNav = true;
     };
+
     try {
+        // iOS 13+ 要求页面主动请求 DeviceOrientation 权限
         if (isIOS && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission().then(state => {
                 if (state === 'granted') start();
                 else console.warn('用户拒绝设备方向权限');
             }).catch(err => console.warn('请求方向权限失败:', err));
         } else {
+            // 非 iOS 或不需要权限的浏览器直接开始监听
             start();
         }
-    } catch (e) { console.warn('开启方向监听失败:', e); }
+    } catch (e) {
+        // 捕获任何意外错误，避免阻断导航流程
+        console.warn('开启方向监听失败:', e);
+    }
 }
 
 function tryStopDeviceOrientationNav() {
