@@ -2433,17 +2433,23 @@ function tryStartDeviceOrientationNav() {
     const start = () => {
         deviceOrientationHandlerNav = function(e) {
             if (!e) return;
+            
             let heading = null;
+            
+            // 获取原始方向数据
             if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
-                heading = e.webkitCompassHeading; // iOS Safari，已相对正北
+                heading = e.webkitCompassHeading;
             } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
-                heading = e.alpha; // 部分安卓浏览器返回相对正北
-                // 对非iOS设备（Android）进行取反修正
-                heading = 360 - heading;
+                heading = e.alpha;
             }
+            
             if (heading === null) return;
-            if (heading < 0) heading += 360;
+            
+            // 强制反向：如果向左转图标向右转，就完全反向处理
+            heading = (360 - heading) % 360;
+            
             lastDeviceHeadingNav = heading;
+            
             if (userMarker) {
                 try {
                     if (typeof userMarker.setAngle === 'function') userMarker.setAngle(heading);
