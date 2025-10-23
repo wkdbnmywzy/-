@@ -35,6 +35,14 @@ let isOffRoute = false;            // 是否偏离路径
 let offRouteThreshold = 15;        // 偏离路径阈值（米），考虑GPS精度设为15米
 let passedRoutePolyline = null;    // 已走过的规划路径（灰色）
 let maxPassedSegIndex = -1;        // 记录用户走过的最远路径点索引
+// 接近起点自动“以我为起点”阈值（米）
+let startRebaseThresholdMeters = 25; // 可按需微调，建议20~30米
+try {
+    if (typeof MapConfig !== 'undefined' && MapConfig && MapConfig.navigationConfig &&
+        typeof MapConfig.navigationConfig.startRebaseDistanceMeters === 'number') {
+        startRebaseThresholdMeters = MapConfig.navigationConfig.startRebaseDistanceMeters;
+    }
+} catch (e) { /* 忽略配置读取错误，使用默认值 */ }
 
 // 初始化导航地图
 function initNavigationMap() {
@@ -2498,8 +2506,17 @@ function startRealNavigationTracking() {
             userMarker.setPosition(curr);
 
             // 检查是否偏离路径并更新路径显示（使用精度圈判断）
-            const segIndex = findClosestPathIndex(curr, fullPath);
-            const onRoute = checkIfOnRouteWithAccuracy(curr, fullPath, accuracy);
+            // 额外逻辑：若接近“原始起点”，则将当前位置视为起点开始导航
+            let segIndex = findClosestPathIndex(curr, fullPath);
+            const distToStart = calculateDistanceBetweenPoints(curr, fullPath[0]);
+            let onRoute;
+            if (distToStart <= (startRebaseThresholdMeters || 25)) {
+                // 视为在路上，且以当前位置作为新的起点进行分段绘制
+                onRoute = true;
+                segIndex = 0;
+            } else {
+                onRoute = checkIfOnRouteWithAccuracy(curr, fullPath, accuracy);
+            }
             isOffRoute = !onRoute;
             console.log('精度:', accuracy, 'm, 偏离路径状态:', isOffRoute);
 
