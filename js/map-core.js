@@ -209,6 +209,39 @@ function clearMarkers() {
     markers = [];
 }
 
+// 统一应用朝向到标记：考虑地图旋转与角度偏移
+function applyHeadingToMarker(rawHeading) {
+    if (!selfMarker || rawHeading === null || rawHeading === undefined || isNaN(rawHeading)) return;
+    try {
+        // 归一化原始角度
+        let heading = rawHeading % 360;
+        if (heading < 0) heading += 360;
+
+        // 地图当前旋转角（顺时针为正，AMap 单位：度）
+        let mapRotation = 0;
+        try { mapRotation = map && typeof map.getRotation === 'function' ? (map.getRotation() || 0) : 0; } catch (e) { mapRotation = 0; }
+
+        // 配置中的固定偏移（用于素材基准、磁偏近似或机型校准）
+        let angleOffset = 0;
+        if (MapConfig && MapConfig.orientationConfig && typeof MapConfig.orientationConfig.angleOffset === 'number') {
+            angleOffset = MapConfig.orientationConfig.angleOffset;
+        }
+
+        // 最终角度：设备朝向 + 固定偏移 - 地图旋转
+        let finalAngle = (heading + angleOffset - mapRotation) % 360;
+        if (finalAngle < 0) finalAngle += 360;
+
+        if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+            console.log('[heading]', { heading, angleOffset, mapRotation, finalAngle });
+        }
+
+        if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
+        else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
+    } catch (err) {
+        console.error('应用朝向到标记失败:', err);
+    }
+}
+
 // ====== 首页地图：实时定位与箭头随手机方向旋转 ======
 function startRealtimeLocationTracking() {
     if (isRealtimeLocating) return;
@@ -491,19 +524,9 @@ function startRealtimeLocationTracking() {
                 }
             }
 
-            // 应用角度偏移量（如果图标基准方向与正北存在差异，例如PNG箭头默认朝右，则可在 config.js 中配置 angleOffset）
+            // 统一通过 helper 应用朝向（会考虑地图旋转与角度偏移）
             if (heading !== null) {
-                try {
-                    if (MapConfig.orientationConfig && MapConfig.orientationConfig.angleOffset) {
-                        heading = (heading + MapConfig.orientationConfig.angleOffset) % 360;
-                        if (heading < 0) heading += 360;
-                    }
-
-                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
-                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
-                } catch (e) {
-                    console.error('设置标记角度失败:', e);
-                }
+                applyHeadingToMarker(heading);
             }
 
             lastGpsPosIndex = curr;
@@ -639,20 +662,8 @@ function tryStartDeviceOrientationIndex() {
 
             lastDeviceHeadingIndex = heading;
             if (selfMarker) {
-                // 应用朝向角度（图标固定指向真实世界的手机头部方向）
-                // setAngle设置的是相对于地图坐标系的角度，地图旋转时标记会自动跟随
-                try {
-                    let finalAngle = heading;
-                    // 统一在此再次应用 angleOffset，确保两条路径（浏览器地理 heading 与设备方向事件）一致
-                    if (MapConfig.orientationConfig && MapConfig.orientationConfig.angleOffset) {
-                        finalAngle = (finalAngle + MapConfig.orientationConfig.angleOffset) % 360;
-                        if (finalAngle < 0) finalAngle += 360;
-                    }
-                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
-                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
-                } catch (err) {
-                    console.error('设置标记角度失败:', err);
-                }
+                // 统一通过 helper 应用朝向（会考虑地图旋转与角度偏移）
+                applyHeadingToMarker(heading);
             }
         };
 
