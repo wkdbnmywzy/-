@@ -102,6 +102,8 @@ const MapConfig = {
         endArrivalDistanceMeters: 12,
         // 是否要求到达起点附近再开始沿路网导航
         requireStartAtOrigin: true,
+        // 与下一个转向的距离大于该阈值时，顶部图标优先显示“直行”，避免误解为仍需立即转向（单位：米）
+        turnPromptDistanceMeters: 40,
         // 提示模式：'path'（基于路网，默认）或 'heading'（基于用户朝向）
         promptMode: 'path'
     }
