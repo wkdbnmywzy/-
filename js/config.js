@@ -10,6 +10,12 @@ const MapConfig = {
         // false: heading = alpha (少数Android设备)
         androidNeedsInversion: true,
 
+        // 方向角度偏移量（度）
+        // 如果图标朝向与实际方向相差180度，设置为180
+        // 如果图标朝向与实际方向相差90度，设置为90或-90
+        // 默认为0（不偏移）
+        angleOffset: 0,
+
         // 是否启用调试日志
         debugMode: true
     },
