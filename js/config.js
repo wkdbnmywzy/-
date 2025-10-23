@@ -92,6 +92,14 @@ const MapConfig = {
             strokeWeight: 6,
             strokeOpacity: 0.8
         }
+    },
+
+    // 导航参数配置
+    navigationConfig: {
+        // 接近起点时，允许“以我为起点”自动对齐到路网的距离（米）
+        startRebaseDistanceMeters: 25,
+        // 判定到达终点的沿路网剩余距离（米）。建议10~15米，过大会提前结束
+        endArrivalDistanceMeters: 12
     }
 };
 
