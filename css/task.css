@@ -1,8 +1,44 @@
 /* 任务页面容器 */
 .container {
-    max-width: 480px;
+    width: 100%;
     margin: 0 auto;
     position: relative;
+    /* 在大屏设备上限制最大宽度，保持合理的阅读体验 */
+    max-width: 100%;
+}
+
+/* 在大屏设备上优化布局 */
+@media (min-width: 768px) {
+    .container {
+        max-width: 768px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .container {
+        max-width: 1024px;
+    }
+    
+    .task-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    
+    .task-card {
+        flex: 1 1 calc(33.333% - 16px);
+        margin-bottom: 0;
+    }
+}
+
+@media (min-width: 1440px) {
+    .container {
+        max-width: 1200px;
+    }
+    
+    .task-card {
+        flex: 1 1 calc(25% - 16px);
+    }
 }
 
 /* 任务页面样式 */
