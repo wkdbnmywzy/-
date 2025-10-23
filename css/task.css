@@ -615,6 +615,7 @@
     padding: 8px;
 }
 
+/* 任务页面导航栏样式继承自主页面 */
 .nav-icon-img {
     width: 24px;
     height: 24px;
@@ -631,6 +632,38 @@
     color: #5BA8E3;
     font-weight: 500;
 }
+
+/* 任务页面导航栏在特定设备上的额外调整 */
+@media (max-width: 320px) {
+    .task-page {
+        padding-bottom: 50px; /* 调整为小屏导航栏高度 */
+    }
+}
+
+@media (max-height: 500px) {
+    .task-page {
+        padding-bottom: 45px; /* 调整为超小高度导航栏高度 */
+    }
+}
+
+@media (orientation: landscape) {
+    .task-page {
+        padding-bottom: 45px; /* 调整为横屏导航栏高度 */
+    }
+}
+
+@media (min-width: 768px) {
+    .task-page {
+        padding-bottom: 70px; /* 调整为大屏导航栏高度 */
+    }
+}
+
+@media (min-width: 1024px) {
+    .task-page {
+        padding-bottom: 80px; /* 调整为大屏导航栏高度 */
+    }
+}
+
 
 /* 响应式设计 - 适配各种手机机型长宽布局 */
 
