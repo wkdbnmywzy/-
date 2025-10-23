@@ -1448,7 +1448,8 @@ body {
 }
 
 
-/* 响应式调整 */
+/* 响应式调整 - 适配各种手机机型长宽布局 */
+/* 针对小高度设备（如横屏手机、小屏手机） */
 @media (max-height: 700px) {
     .bottom-card {
         bottom: 60px;
@@ -1471,6 +1472,201 @@ body {
 
     .bottom-nav {
         padding: 8px 0;
+    }
+}
+
+/* 针对超小高度设备（如横屏模式） */
+@media (max-height: 500px) {
+    .bottom-card {
+        bottom: 40px;
+        padding: 10px;
+        transform: translateY(calc(100% - 150px));
+    }
+
+    .route-planning-section {
+        min-height: 120px;
+        max-height: 200px;
+    }
+
+    .search-container {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        padding: 8px 10px;
+    }
+
+    .map-controls {
+        bottom: 180px;
+        right: 15px;
+    }
+
+    .control-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+}
+
+/* 针对超小宽度设备 */
+@media (max-width: 320px) {
+    .container {
+        max-width: 100%;
+    }
+
+    .search-container {
+        padding: 8px 10px;
+    }
+
+    .search-box input {
+        font-size: 14px;
+    }
+
+    .bottom-card {
+        padding: 15px 60px 15px 15px;
+    }
+
+    .location-item input {
+        font-size: 14px;
+    }
+
+    .nav-text {
+        font-size: 10px;
+    }
+
+    .nav-icon {
+        font-size: 18px;
+    }
+}
+
+/* 针对大屏手机设备 */
+@media (min-width: 414px) and (min-height: 800px) {
+    .container {
+        max-width: 100%;
+    }
+
+    .search-container {
+        padding: 15px 20px;
+    }
+
+    .search-box input {
+        font-size: 18px;
+    }
+
+    .bottom-card {
+        padding: 25px 80px 25px 25px;
+    }
+
+    .location-item input {
+        font-size: 16px;
+    }
+
+    .map-controls {
+        bottom: 260px;
+        right: 25px;
+    }
+
+    .control-btn {
+        width: 52px;
+        height: 52px;
+        font-size: 22px;
+    }
+}
+
+/* 针对宽屏设备（横屏模式） */
+@media (orientation: landscape) {
+    .container {
+        max-width: 100%;
+    }
+
+    .status-bar {
+        padding: 5px 15px;
+        height: 36px;
+    }
+
+    .header {
+        padding: 8px 15px;
+        height: 44px;
+    }
+
+    .search-container {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        padding: 8px 12px;
+    }
+
+    .map-controls {
+        bottom: 20px;
+        right: 15px;
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .control-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+
+    .bottom-card {
+        bottom: 0;
+        left: 0;
+        right: 0;
+        border-radius: 0;
+        padding: 10px 15px;
+        max-height: 40vh;
+        overflow-y: auto;
+    }
+
+    .bottom-nav {
+        padding: 5px 0;
+        height: 40px;
+    }
+
+    .nav-icon {
+        font-size: 16px;
+        margin-bottom: 2px;
+    }
+
+    .nav-text {
+        font-size: 10px;
+    }
+}
+
+/* 针对带刘海或打孔屏的手机 */
+@supports (padding: max(0px)) {
+    .status-bar {
+        padding-top: max(8px, env(safe-area-inset-top));
+        height: max(44px, 44px + env(safe-area-inset-top));
+    }
+
+    .header {
+        padding-top: max(12px, env(safe-area-inset-top));
+    }
+
+    .bottom-nav {
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+
+    .bottom-card {
+        bottom: max(20px, env(safe-area-inset-bottom));
+    }
+
+    .map-controls {
+        bottom: max(240px, 240px + env(safe-area-inset-bottom));
+    }
+}
+
+/* 适配超长屏设备（如全面屏手机） */
+@media (aspect-ratio: 2/3) {
+    .map-controls {
+        bottom: 220px;
+    }
+}
+
+@media (aspect-ratio: 9/19.5) or (aspect-ratio: 9/20) {
+    .map-controls {
+        bottom: 250px;
     }
 }
 
