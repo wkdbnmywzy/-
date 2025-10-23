@@ -2,7 +2,25 @@
 // 地图初始化和基本操作
 
 function initMap() {
-    map = new AMap.Map('map-container', MapConfig.mapConfig);
+    // 首页地图不允许旋转，避免用户在放大/缩小时出现地图旋转
+    const homeMapOptions = Object.assign({}, MapConfig.mapConfig, {
+        rotateEnable: false,  // 禁用旋转手势
+        pitchEnable: false    // 可选：禁用俯仰，减少误操作
+    });
+    map = new AMap.Map('map-container', homeMapOptions);
+
+    // 如果外部状态曾改变过旋转角，这里强制归零一次
+    try { if (typeof map.setRotation === 'function') map.setRotation(0); } catch (e) {}
+
+    // 兜底：缩放过程中若出现旋转变化，立即恢复为0
+    try {
+        map.on('zoomchange', function() {
+            try {
+                const r = (typeof map.getRotation === 'function') ? (map.getRotation() || 0) : 0;
+                if (r !== 0 && typeof map.setRotation === 'function') map.setRotation(0);
+            } catch (e) {}
+        });
+    } catch (e) {}
     
     // 地图旋转时，标记会自动跟随地图旋转，无需手动处理
 
