@@ -1838,6 +1838,49 @@ function navApplyHeadingToMarker(rawHeading) {
     }
 }
 
+// 计算用于“转向提示判断”的有效用户朝向（度，0-360）
+// 说明：
+// - 使用设备朝向为主（lastDeviceHeadingNav）
+// - 应用静态与动态偏移（纠正机型/传感器180°翻转等问题）
+// - 不扣除地图旋转（地图旋转不影响真实世界的左/右判断）
+// - 若无设备朝向，则回退用最近两次GPS的移动方向
+function getEffectiveUserHeading(currPos) {
+    let heading = null;
+
+    // 1) 优先用设备朝向
+    if (typeof lastDeviceHeadingNav === 'number') {
+        heading = lastDeviceHeadingNav;
+    }
+
+    // 2) 应用静态与动态偏移（若存在）
+    let angleOffset = 0;
+    try {
+        if (MapConfig && MapConfig.orientationConfig && typeof MapConfig.orientationConfig.angleOffset === 'number') {
+            angleOffset = MapConfig.orientationConfig.angleOffset;
+        }
+    } catch (e) {}
+
+    if (typeof heading === 'number') {
+        heading = heading + (dynamicAngleOffsetNav || 0) + angleOffset;
+        // 归一化 0..360
+        heading = ((heading % 360) + 360) % 360;
+        return heading;
+    }
+
+    // 3) 回退：用最近两次GPS位置的运动方向（若可用）
+    try {
+        if (lastGpsPos && currPos) {
+            const moveDist = calculateDistanceBetweenPoints(lastGpsPos, currPos);
+            if (isFinite(moveDist) && moveDist > 0.5) {
+                const bearing = calculateBearingBetweenPoints(lastGpsPos, currPos);
+                if (isFinite(bearing)) return bearing;
+            }
+        }
+    } catch (e) {}
+
+    return null;
+}
+
 // 角度绝对差（0..180）
 function navAngleAbsDiff(a, b) {
     let d = ((a - b + 540) % 360) - 180; // -180..180
@@ -1910,13 +1953,13 @@ function getNavigationDirection() {
         return 'straight';
     }
 
-    // 获取用户当前朝向（设备方向或GPS移动方向）
-    let userHeading = null;
-    if (typeof lastDeviceHeadingNav === 'number') {
-        userHeading = lastDeviceHeadingNav;
-    } else if (userMarker && typeof userMarker.getAngle === 'function') {
-        userHeading = userMarker.getAngle();
-    }
+    // 获取用户当前位置（用于回退计算朝向）
+    const currentPos = userMarker ?
+        [userMarker.getPosition().lng, userMarker.getPosition().lat] :
+        navigationPath[currentIdx];
+
+    // 获取用户当前有效朝向（应用传感器校准偏移，不受地图旋转影响）
+    let userHeading = getEffectiveUserHeading(currentPos);
 
     // 如果没有用户朝向信息，使用传统的路径转向判断
     if (userHeading === null) {
@@ -1925,9 +1968,6 @@ function getNavigationDirection() {
 
     // 计算从当前位置到下一个路径点的方向
     const nextPoint = navigationPath[Math.min(currentIdx + 1, navigationPath.length - 1)];
-    const currentPos = userMarker ?
-        [userMarker.getPosition().lng, userMarker.getPosition().lat] :
-        navigationPath[currentIdx];
 
     // 计算路径方向（从当前位置到下一点）
     const pathBearing = calculateBearingBetweenPoints(currentPos, nextPoint);
