@@ -97,9 +97,13 @@ const MapConfig = {
     // 导航参数配置
     navigationConfig: {
         // 接近起点时，允许“以我为起点”自动对齐到路网的距离（米）
-        startRebaseDistanceMeters: 25,
+         startRebaseDistanceMeters: 15,
         // 判定到达终点的沿路网剩余距离（米）。建议10~15米，过大会提前结束
-        endArrivalDistanceMeters: 12
+        endArrivalDistanceMeters: 12,
+        // 是否要求到达起点附近再开始沿路网导航
+        requireStartAtOrigin: true,
+        // 提示模式：'path'（基于路网，默认）或 'heading'（基于用户朝向）
+        promptMode: 'path'
     }
 };
 
