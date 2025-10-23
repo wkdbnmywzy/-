@@ -274,7 +274,7 @@ body {
 /* 底部卡片 */
 .bottom-card {
     position: absolute;
-    bottom: max(20px, env(safe-area-inset-bottom));
+    bottom: 40px;
     left: 0;
     right: 0;
     z-index: 90;
