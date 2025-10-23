@@ -1722,15 +1722,25 @@ function findNextTurnPoint() {
         return;
     }
 
-    const TURN_ANGLE_THRESHOLD = 15; // 转向角度阈值（度）
+    // 提高阈值，降低直线或轻微噪声导致的误判
+    const TURN_ANGLE_THRESHOLD = 30; // 转向角度阈值（度）
+    const MIN_SEGMENT_LEN_M = 10;   // 参与判断的相邻线段最小长度（米）
 
     // 从当前位置开始查找
     for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
-        const angle = calculateTurnAngle(
-            navigationPath[i - 1],
-            navigationPath[i],
-            navigationPath[i + 1]
-        );
+        // 跳过极短线段引起的“锯齿”抖动
+        const segLenPrev = calculateDistanceBetweenPoints(navigationPath[i - 1], navigationPath[i]);
+        const segLenNext = calculateDistanceBetweenPoints(navigationPath[i], navigationPath[i + 1]);
+        if (segLenPrev < MIN_SEGMENT_LEN_M || segLenNext < MIN_SEGMENT_LEN_M) {
+            continue;
+        }
+
+        // 使用前后各两个点（如有）进行角度平滑，减小微小偏折的影响
+        const p1 = (i - 2 >= 0) ? navigationPath[i - 2] : navigationPath[i - 1];
+        const p2 = navigationPath[i];
+        const p3 = (i + 2 < navigationPath.length) ? navigationPath[i + 2] : navigationPath[i + 1];
+
+        const angle = calculateTurnAngle(p1, p2, p3);
 
         // 如果转向角度大于阈值，认为是一个转向点
         if (Math.abs(angle) > TURN_ANGLE_THRESHOLD) {
@@ -2064,12 +2074,12 @@ function getTraditionalNavigationDirection() {
     // 根据角度判断转向类型（修正方向：正=右转，负=左转）
     if (angle > 135 || angle < -135) {
         return 'uturn'; // 掉头（大于135度）
-    } else if (angle > 15 && angle <= 135) {
-        return 'right'; // 右转（15-135度）
-    } else if (angle < -15 && angle >= -135) {
-        return 'left'; // 左转（-15到-135度）
+    } else if (angle > 30 && angle <= 135) {
+        return 'right'; // 右转（30-135度）
+    } else if (angle < -30 && angle >= -135) {
+        return 'left'; // 左转（-30到-135度）
     } else {
-        return 'straight'; // 直行（-15到15度）
+        return 'straight'; // 直行（-30到30度）
     }
 }
 
