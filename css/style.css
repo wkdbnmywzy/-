@@ -1376,6 +1376,101 @@ body {
     pointer-events: auto;
 }
 
+/* 导航栏响应式设计 */
+@media (max-width: 320px) {
+    .bottom-nav {
+        height: 50px;
+        padding: 8px 0;
+    }
+    
+    .nav-icon-img {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .nav-text {
+        font-size: 10px;
+    }
+}
+
+@media (max-height: 500px) {
+    .bottom-nav {
+        height: 45px;
+        padding: 6px 0;
+    }
+    
+    .nav-icon-img {
+        width: 18px;
+        height: 18px;
+        margin-bottom: 2px;
+    }
+    
+    .nav-text {
+        font-size: 9px;
+    }
+}
+
+@media (orientation: landscape) {
+    .bottom-nav {
+        height: 45px;
+        padding: 6px 0;
+    }
+    
+    .nav-icon-img {
+        width: 18px;
+        height: 18px;
+        margin-bottom: 2px;
+    }
+    
+    .nav-text {
+        font-size: 9px;
+    }
+}
+
+@media (min-width: 768px) {
+    .bottom-nav {
+        height: 70px;
+        padding: 12px 0;
+    }
+    
+    .nav-icon-img {
+        width: 28px;
+        height: 28px;
+        margin-bottom: 6px;
+    }
+    
+    .nav-text {
+        font-size: 14px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .bottom-nav {
+        height: 80px;
+        padding: 15px 0;
+        max-width: 1024px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 20px 20px 0 0;
+    }
+    
+    .nav-icon-img {
+        width: 32px;
+        height: 32px;
+        margin-bottom: 8px;
+    }
+    
+    .nav-text {
+        font-size: 16px;
+    }
+}
+
+@media (min-width: 1440px) {
+    .bottom-nav {
+        max-width: 1200px;
+    }
+}
+
 .nav-item {
     display: flex;
     flex-direction: column;
