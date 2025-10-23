@@ -595,3 +595,338 @@
     color: #5BA8E3;
     font-weight: 500;
 }
+
+/* 响应式设计 - 适配各种手机机型长宽布局 */
+
+/* 针对小高度设备（如横屏手机、小屏手机） */
+@media (max-height: 700px) {
+    .task-page {
+        padding-bottom: 50px;
+    }
+
+    .task-header {
+        padding: 8px 12px;
+    }
+
+    .task-title {
+        font-size: 16px;
+    }
+
+    .task-list {
+        padding: 8px 12px;
+    }
+
+    .task-card {
+        padding: 12px;
+        margin-bottom: 8px;
+    }
+
+    .task-card-name {
+        font-size: 15px;
+    }
+
+    .task-card-type {
+        font-size: 13px;
+    }
+
+    .task-detail-title {
+        font-size: 13px;
+    }
+
+    .task-detail-text {
+        font-size: 12px;
+    }
+
+    .empty-icon svg {
+        width: 160px;
+        height: 120px;
+    }
+
+    .empty-text {
+        font-size: 14px;
+    }
+}
+
+/* 针对超小高度设备（如横屏模式） */
+@media (max-height: 500px) {
+    .task-page {
+        padding-bottom: 40px;
+    }
+
+    .task-header {
+        padding: 6px 10px;
+        height: 40px;
+    }
+
+    .task-title {
+        font-size: 15px;
+    }
+
+    .task-list {
+        padding: 6px 10px;
+    }
+
+    .task-card {
+        padding: 10px;
+        margin-bottom: 6px;
+    }
+
+    .task-card-name {
+        font-size: 14px;
+    }
+
+    .task-card-type {
+        font-size: 12px;
+    }
+
+    .task-detail-title {
+        font-size: 12px;
+    }
+
+    .task-detail-text {
+        font-size: 11px;
+        padding: 8px 0 6px 0;
+    }
+
+    .empty-icon svg {
+        width: 120px;
+        height: 96px;
+    }
+
+    .empty-text {
+        font-size: 13px;
+    }
+
+    .task-timeline {
+        padding: 12px 0 0 0;
+    }
+
+    .timeline-row {
+        margin-bottom: 6px;
+    }
+
+    .timeline-info {
+        padding-bottom: 6px;
+    }
+
+    .timeline-horizontal {
+        gap: 16px;
+    }
+
+    .timeline-horizontal .timeline-separator {
+        width: 40px;
+    }
+}
+
+/* 针对超小宽度设备 */
+@media (max-width: 320px) {
+    .container {
+        max-width: 100%;
+    }
+
+    .task-header {
+        padding: 8px 10px;
+    }
+
+    .task-title {
+        font-size: 16px;
+    }
+
+    .task-card {
+        padding: 12px;
+    }
+
+    .task-card-name {
+        font-size: 15px;
+    }
+
+    .task-card-type {
+        font-size: 13px;
+    }
+
+    .task-detail-title {
+        font-size: 13px;
+    }
+
+    .task-detail-text {
+        font-size: 12px;
+    }
+
+    .empty-icon svg {
+        width: 160px;
+        height: 120px;
+    }
+
+    .empty-text {
+        font-size: 14px;
+    }
+
+    .task-card-status {
+        width: 70px;
+        font-size: 14px;
+    }
+}
+
+/* 针对大屏手机设备 */
+@media (min-width: 414px) and (min-height: 800px) {
+    .container {
+        max-width: 100%;
+    }
+
+    .task-header {
+        padding: 16px 20px;
+    }
+
+    .task-title {
+        font-size: 20px;
+    }
+
+    .task-list {
+        padding: 16px 20px;
+    }
+
+    .task-card {
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+
+    .task-card-name {
+        font-size: 18px;
+    }
+
+    .task-card-type {
+        font-size: 16px;
+    }
+
+    .task-detail-title {
+        font-size: 16px;
+    }
+
+    .task-detail-text {
+        font-size: 14px;
+        padding: 16px 0 10px 0;
+    }
+
+    .empty-icon svg {
+        width: 240px;
+        height: 192px;
+    }
+
+    .empty-text {
+        font-size: 18px;
+    }
+
+    .task-timeline {
+        padding: 20px 0 0 0;
+    }
+
+    .timeline-row {
+        margin-bottom: 12px;
+    }
+
+    .timeline-info {
+        padding-bottom: 12px;
+    }
+
+    .timeline-horizontal {
+        gap: 32px;
+    }
+
+    .timeline-horizontal .timeline-separator {
+        width: 80px;
+    }
+}
+
+/* 针对宽屏设备（横屏模式） */
+@media (orientation: landscape) {
+    .container {
+        max-width: 100%;
+    }
+
+    .task-page {
+        padding-bottom: 40px;
+    }
+
+    .task-header {
+        padding: 6px 15px;
+        height: 40px;
+    }
+
+    .task-title {
+        font-size: 16px;
+    }
+
+    .task-list {
+        padding: 8px 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .task-card {
+        flex: 1 1 calc(50% - 5px);
+        margin-bottom: 0;
+        min-height: 180px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .task-detail-content.expanded {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .empty-icon svg {
+        width: 160px;
+        height: 128px;
+    }
+
+    .empty-text {
+        font-size: 15px;
+    }
+
+    .timeline-horizontal {
+        margin-top: 10px;
+    }
+}
+
+/* 针对带刘海或打孔屏的手机 */
+@supports (padding: max(0px)) {
+    .task-header {
+        padding-top: max(12px, env(safe-area-inset-top));
+        height: max(56px, 56px + env(safe-area-inset-top));
+    }
+
+    .task-page {
+        padding-bottom: max(60px, 60px + env(safe-area-inset-bottom));
+    }
+
+    .nav-confirm-dialog {
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+}
+
+/* 适配超长屏设备（如全面屏手机） */
+@media (aspect-ratio: 2/3) {
+    .task-list {
+        padding: 10px 14px;
+    }
+
+    .task-card {
+        margin-bottom: 10px;
+    }
+}
+
+@media (aspect-ratio: 9/19.5) or (aspect-ratio: 9/20) {
+    .task-list {
+        padding: 12px 16px;
+    }
+
+    .task-card {
+        margin-bottom: 12px;
+    }
+
+    .task-detail-content.expanded {
+        max-height: 400px;
+    }
+}
