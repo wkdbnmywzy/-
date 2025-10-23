@@ -2088,6 +2088,15 @@ function updateDirectionIcon(directionType, distanceToNext) {
     let iconPath = '';
     let actionName = '';
 
+    // 当距离下一次转向较远时，优先展示“直行”以避免用户误解为仍需立即右/左转
+    // 可通过 MapConfig.navigationConfig.turnPromptDistanceMeters 配置阈值（默认40米）
+    let turnPromptThreshold = 40;
+    try {
+        if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnPromptDistanceMeters === 'number') {
+            turnPromptThreshold = MapConfig.navigationConfig.turnPromptDistanceMeters;
+        }
+    } catch (e) {}
+
     // 检查是否偏离路径
     if (isOffRoute) {
         console.log('updateDirectionIcon: 检测到偏离路径，显示"请前往起点"');
@@ -2144,7 +2153,15 @@ function updateDirectionIcon(directionType, distanceToNext) {
     // 重置图标旋转样式
     let iconRotation = 0;
 
-    switch (directionType) {
+    // 如果距离下一次转向大于阈值，则图标优先展示“直行”，文案显示“距离下一次转向还有 X 米”
+    // 注意：偏离路线(offroute)或即将掉头(backward/uturn)时不应用该直行覆盖逻辑
+    const farFromNextTurn = isFinite(distance) && distance > turnPromptThreshold;
+    let effectiveDirection = directionType;
+    if (farFromNextTurn && directionType !== 'offroute' && directionType !== 'backward' && directionType !== 'uturn') {
+        effectiveDirection = 'forward';
+    }
+
+    switch (effectiveDirection) {
         case 'forward':
             iconPath = basePath + '直行.png';
             actionName = '前进';
@@ -2191,7 +2208,7 @@ function updateDirectionIcon(directionType, distanceToNext) {
     }
 
     // 更新提示文本
-    if (directionType === 'straight' || directionType === 'forward') {
+    if (effectiveDirection === 'straight' || effectiveDirection === 'forward') {
         // 直行/前进时显示："XXX 米"
         if (distanceAheadElem) {
             distanceAheadElem.textContent = distance;
