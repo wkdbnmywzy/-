@@ -2506,14 +2506,13 @@ function startRealNavigationTracking() {
             userMarker.setPosition(curr);
 
             // 检查是否偏离路径并更新路径显示（使用精度圈判断）
-            // 额外逻辑：若接近“原始起点”，则将当前位置视为起点开始导航
+            // 额外逻辑：若接近“原始起点”，则强制视为在路上（但不改动最近路段索引），以便按路网进行分段绘制
             let segIndex = findClosestPathIndex(curr, fullPath);
             const distToStart = calculateDistanceBetweenPoints(curr, fullPath[0]);
             let onRoute;
             if (distToStart <= (startRebaseThresholdMeters || 25)) {
-                // 视为在路上，且以当前位置作为新的起点进行分段绘制
+                // 视为在路上：允许按路网进行分段
                 onRoute = true;
-                segIndex = 0;
             } else {
                 onRoute = checkIfOnRouteWithAccuracy(curr, fullPath, accuracy);
             }
@@ -2532,7 +2531,7 @@ function startRealNavigationTracking() {
                 }
                 console.log('已偏离路径，显示完整规划路径');
             } else {
-                // 在路径上时：将规划路径分为已走部分（灰色）和剩余部分（绿色）
+                // 在路径上时：将规划路径分为已走部分（灰色）和剩余部分（绿色），并将分割点对齐到路网
                 updatePathSegments(curr, fullPath, segIndex);
                 console.log('在路径上，显示分段路径');
             }
@@ -2728,9 +2727,14 @@ function stopSimulatedNavigation() {
 function updatePathSegments(currentPos, fullPath, segIndex) {
     if (!routePolyline || !fullPath || fullPath.length < 2) return;
 
-    // 更新用户走过的最远点索引（只增不减）
-    if (segIndex > maxPassedSegIndex) {
-        maxPassedSegIndex = segIndex;
+    // 将当前位置投影到路网（找到最近线段与投影点），确保分段点在路网上
+    const projection = projectPointOntoPathMeters(currentPos, fullPath);
+    const routePoint = projection ? projection.projected : currentPos;
+    const routeSegIndex = projection ? projection.index : segIndex;
+
+    // 更新用户走过的最远点索引（只增不减），使用路网索引
+    if (routeSegIndex > maxPassedSegIndex) {
+        maxPassedSegIndex = routeSegIndex;
         console.log('更新最远已走点索引:', maxPassedSegIndex);
     }
 
@@ -2741,18 +2745,17 @@ function updatePathSegments(currentPos, fullPath, segIndex) {
     let passedPath = [];
     if (maxPassedSegIndex >= 0) {
         passedPath = fullPath.slice(0, maxPassedSegIndex + 1);
-
-        // 如果用户当前在路径上，将当前位置也加入已走路径
-        if (onRoute && segIndex === maxPassedSegIndex) {
-            passedPath.push(currentPos);
+        // 若当前在路上，并且分割点位于当前最远路段末端，则追加投影点，保证灰线沿路网到达“离我最近的路点”
+        if (onRoute && routeSegIndex === maxPassedSegIndex) {
+            passedPath.push(routePoint);
         }
     }
 
     // 剩余路径部分的计算
     let remaining = [];
     if (onRoute) {
-        // 在路径上：从当前位置到终点
-        remaining = [currentPos].concat(fullPath.slice(segIndex + 1));
+        // 在路径上：从路网上的投影点到终点（保持绿色线完全沿路网）
+        remaining = [routePoint].concat(fullPath.slice(routeSegIndex + 1));
     } else {
         // 偏离路径：从最远已走点到终点（保持完整的绿色规划路径）
         if (maxPassedSegIndex >= 0 && maxPassedSegIndex < fullPath.length - 1) {
@@ -2798,19 +2801,47 @@ function updatePathSegments(currentPos, fullPath, segIndex) {
     if (remaining.length >= 2) {
         routePolyline.setPath(remaining);
     } else {
-        routePolyline.setPath([currentPos]);
+        routePolyline.setPath([routePoint]);
     }
 }
 
 // 更新剩余绿色路线为：当前点 + 后续节点（旧函数，保留用于兼容）
 function updateRemainingPolyline(currentPos, fullPath, segIndex) {
     if (!routePolyline) return;
-    const remaining = [currentPos].concat(fullPath.slice(segIndex + 1));
+    // 使用投影点，确保路线对齐路网
+    const projection = projectPointOntoPathMeters(currentPos, fullPath);
+    const routePoint = projection ? projection.projected : currentPos;
+    const remaining = [routePoint].concat(fullPath.slice((projection ? projection.index : segIndex) + 1));
     if (remaining.length >= 2) {
         routePolyline.setPath(remaining);
     } else {
-        routePolyline.setPath([currentPos]);
+        routePolyline.setPath([routePoint]);
     }
+}
+
+// 将一个地理点投影到路径上（近似平面计算），返回最近线段索引、投影比例t以及投影点
+function projectPointOntoPathMeters(point, path) {
+    if (!path || path.length < 2 || !point) return null;
+    const p = normalizeLngLat(point);
+    let best = null;
+    for (let i = 0; i < path.length - 1; i++) {
+        const a = normalizeLngLat(path[i]);
+        const b = normalizeLngLat(path[i + 1]);
+        const dx = (b[0] - a[0]);
+        const dy = (b[1] - a[1]);
+        const len2 = dx*dx + dy*dy;
+        let t = 0;
+        if (len2 > 0) {
+            t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+            t = Math.max(0, Math.min(1, t));
+        }
+        const proj = [a[0] + t * dx, a[1] + t * dy];
+        const dist = calculateDistanceBetweenPoints(p, proj);
+        if (!best || dist < best.distance) {
+            best = { index: i, t, projected: proj, distance: dist };
+        }
+    }
+    return best;
 }
 
 // 规范化点为 [lng, lat]
