@@ -9,7 +9,7 @@ function initMap() {
         // 如果存在设备方向角度，重新应用方向角度
         if (lastDeviceHeadingIndex !== null && selfMarker) {
             const mapRotation = map.getRotation() || 0;
-            const finalAngle = lastDeviceHeadingIndex - mapRotation;
+            const finalAngle = lastDeviceHeadingIndex + mapRotation;
             if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
             else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
         }
@@ -502,13 +502,14 @@ function startRealtimeLocationTracking() {
 
             // 应用朝向角度（图标固定指向真实世界的手机头部方向）
             // 使用绝对角度，让图标始终指向真北参考系下的手机朝向
-            // 当地图旋转时，需要减去地图旋转角度，保持图标指向真实方向
+            // 当地图旋转时，需要加上地图旋转角度，保持图标指向真实方向
             if (heading !== null) {
                 try {
                     // 获取地图当前旋转角度（默认为0）
                     const mapRotation = map.getRotation() || 0;
                     // 计算图标应该显示的角度（相对于地图坐标系）
-                    const finalAngle = heading - mapRotation;
+                    // 地图旋转时，图标也要跟着旋转相同角度，才能保持指向真实方向
+                    const finalAngle = heading + mapRotation;
 
                     if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
                     else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
@@ -641,10 +642,10 @@ function tryStartDeviceOrientationIndex() {
             lastDeviceHeadingIndex = heading;
             if (selfMarker) {
                 // 应用朝向角度（图标固定指向真实世界的手机头部方向）
-                // 需要减去地图旋转角度，以保持图标在真实世界中的方向不变
+                // 需要加上地图旋转角度，以保持图标在真实世界中的方向不变
                 try {
                     const mapRotation = map.getRotation() || 0;
-                    const finalAngle = heading - mapRotation;
+                    const finalAngle = heading + mapRotation;
 
                     if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
                     else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);

@@ -2404,7 +2404,8 @@ function startRealNavigationTracking() {
                         mapRotation = navigationMap.getRotation() || 0;
                     }
                     // 计算图标应该显示的角度（相对于地图坐标系）
-                    const markerAngle = heading - mapRotation;
+                    // 地图旋转时，图标也要跟着旋转相同角度，才能保持指向真实方向
+                    const markerAngle = heading + mapRotation;
 
                     if (typeof userMarker.setAngle === 'function') {
                         userMarker.setAngle(markerAngle);
@@ -2804,7 +2805,7 @@ function tryStartDeviceOrientationNav() {
                         mapRotation = navigationMap.getRotation() || 0;
                     }
                     // 计算图标应该显示的角度（相对于地图坐标系）
-                    const markerAngle = corrected - mapRotation;
+                    const markerAngle = corrected + mapRotation;
 
                     if (typeof userMarker.setAngle === 'function') {
                         // 高德标记常用方法：setAngle
@@ -2988,7 +2989,7 @@ function startRealtimePositionTracking() {
             }
 
             // 应用朝向角度（图标相对于地图保持正确方向）
-            // 计算图标相对于地图的角度 = 设备朝向 - 地图旋转角度
+            // 计算图标相对于地图的角度 = 设备朝向 + 地图旋转角度
             if (heading !== null) {
                 try {
                     // 获取地图当前旋转角度（默认为0）
@@ -2997,7 +2998,8 @@ function startRealtimePositionTracking() {
                         mapRotation = navigationMap.getRotation() || 0;
                     }
                     // 计算图标应该显示的角度（相对于地图坐标系）
-                    const markerAngle = heading - mapRotation;
+                    // 地图旋转时，图标也要跟着旋转相同角度，才能保持指向真实方向
+                    const markerAngle = heading + mapRotation;
                     console.log('地图旋转角度:', mapRotation, '设备朝向:', heading, '应用标记角度:', markerAngle);
 
                     if (typeof userMarker.setAngle === 'function') {
