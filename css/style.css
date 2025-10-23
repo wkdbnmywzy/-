@@ -1374,6 +1374,7 @@ body {
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     height: 60px;
     pointer-events: auto;
+    width: 100%;
 }
 
 .nav-item {
@@ -1646,6 +1647,7 @@ body {
 
     .bottom-nav {
         padding-bottom: max(8px, env(safe-area-inset-bottom));
+        width: 100%;
     }
 
     .bottom-card {
@@ -1654,6 +1656,77 @@ body {
 
     .map-controls {
         bottom: max(240px, 240px + env(safe-area-inset-bottom));
+    }
+}
+
+/* 大屏设备导航栏优化 */
+@media (min-width: 768px) {
+    .bottom-nav {
+        height: 70px;
+        padding: 12px 5%;
+        width: 100%;
+        justify-content: space-evenly;
+    }
+    
+    .nav-icon-img {
+        width: 28px;
+        height: 28px;
+        margin-bottom: 6px;
+    }
+    
+    .nav-text {
+        font-size: 14px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .bottom-nav {
+        height: 80px;
+        padding: 15px 5%;
+        width: 100%;
+        max-width: none;
+        left: 0;
+        transform: none;
+        border-radius: 20px 20px 0 0;
+        justify-content: center;
+        gap: 60px;
+    }
+    
+    .nav-icon-img {
+        width: 32px;
+        height: 32px;
+        margin-bottom: 8px;
+    }
+    
+    .nav-text {
+        font-size: 16px;
+    }
+    
+    .nav-item {
+        min-width: 120px;
+        max-width: 200px;
+    }
+}
+
+@media (min-width: 1440px) {
+    .bottom-nav {
+        padding: 18px 5%;
+        gap: 80px;
+    }
+    
+    .nav-item {
+        min-width: 150px;
+        max-width: 240px;
+    }
+    
+    .nav-icon-img {
+        width: 36px;
+        height: 36px;
+        margin-bottom: 10px;
+    }
+    
+    .nav-text {
+        font-size: 18px;
     }
 }
 
