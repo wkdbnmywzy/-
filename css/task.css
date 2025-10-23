@@ -1,10 +1,11 @@
-/* 任务页面容器 */
+/* 任务页面容器 - 与首页保持一致 */
 .container {
-    width: 100%;
+    width: 100vw;
+    height: 100vh;
     margin: 0 auto;
     position: relative;
-    /* 在大屏设备上限制最大宽度，保持合理的阅读体验 */
     max-width: 100%;
+    overflow: hidden;
 }
 
 /* 在大屏设备上优化布局 */
@@ -588,31 +589,32 @@
     background-color: #BDBDBD;
 }
 
-/* 底部导航栏样式更新 */
+/* 底部导航栏样式 - 与首页保持一致 */
 .bottom-nav {
-    position: fixed;
+    position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60px;
-    background-color: #FFFFFF;
+    z-index: 100;
+    background: white;
     display: flex;
     justify-content: space-around;
-    align-items: center;
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    max-width: 480px;
-    margin: 0 auto;
+    padding: 10px 0;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    height: 60px;
+    pointer-events: auto;
+    width: 100%;
 }
 
 .nav-item {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    flex: 1;
     cursor: pointer;
     padding: 8px;
+    pointer-events: auto;
 }
 
 /* 任务页面导航栏样式继承自主页面 */
@@ -624,7 +626,7 @@
 
 .nav-text {
     font-size: 12px;
-    color: #666666;
+    color: #666;
     transition: color 0.3s ease;
 }
 
