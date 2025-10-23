@@ -672,13 +672,13 @@ function displayKMLFeatures(features, fileName) {
         const featureCoordinates = [feature.geometry.coordinates];
         allCoordinates.push(...featureCoordinates);
 
-        // 使用文本标记代替圆形序号
+        // 使用图标标记
         const marker = new AMap.Marker({
             position: feature.geometry.coordinates,
             map: map,
             title: feature.name,
             content: createNamedPointMarkerContent(feature.name, feature.geometry.style),
-            offset: new AMap.Pixel(-16, -16),
+            offset: new AMap.Pixel(-16, -35),  // 调整offset让点位在图标和文字之间
             zIndex: 100
         });
 
@@ -688,9 +688,9 @@ function displayKMLFeatures(features, fileName) {
             description: feature.description
         });
 
-        // 添加点击事件
+        // 添加点击事件 - 切换图标状态
         marker.on('click', function() {
-            showFeatureInfo(feature);
+            toggleIconState(marker);
         });
 
         layerMarkers.push(marker);
@@ -887,31 +887,173 @@ function createPointMarkerContent(name, index, style) {
     `;
 }
 
+// 切换图标状态（down/up）
+function toggleIconState(marker) {
+    const content = marker.getContent();
+    if (typeof content === 'string') {
+        const div = document.createElement('div');
+        div.innerHTML = content;
+        const iconDiv = div.querySelector('.kml-icon-marker');
+
+        if (iconDiv) {
+            const currentState = iconDiv.dataset.state;
+            const iconType = iconDiv.dataset.iconType;
+            const name = iconDiv.dataset.name;
+
+            // 切换状态
+            const newState = currentState === 'down' ? 'up' : 'down';
+            const newIconPath = getIconPath(iconType, newState);
+
+            // 更新图标
+            const img = iconDiv.querySelector('img');
+            if (img) {
+                img.src = newIconPath;
+                iconDiv.dataset.state = newState;
+                marker.setContent(div.innerHTML);
+            }
+        }
+    }
+}
+
+// 根据名称确定图标类型
+function getIconTypeByName(name) {
+    if (!name) return 'building';
+
+    const nameLower = name.toLowerCase();
+
+    // 堆场（优先级最高，因为"堆场1号门"应该识别为堆场）
+    if (name.includes('堆场')) {
+        return 'yard';
+    }
+    // 加工厂/加工区
+    if (name.includes('加工')) {
+        return 'workshop';
+    }
+    // 门类（进出口）
+    if (name.includes('门') || nameLower.includes('gate')) {
+        return 'entrance';
+    }
+    // 默认建筑
+    return 'building';
+}
+
+// 判断点位是否可选（可用于导航）
+function isPointSelectable(name) {
+    // "所有"或其他不可选的点位返回false
+    if (!name || name === '所有' || name.includes('不可选')) {
+        return false;
+    }
+    // 默认为可选
+    return true;
+}
+
+// 获取图标路径
+function getIconPath(iconType, state = 'up') {
+    const iconMap = {
+        'entrance': '出入口',
+        'yard': '堆场',
+        'workshop': '加工区',
+        'building': '建筑'
+    };
+
+    const iconName = iconMap[iconType] || iconMap['building'];
+    return `images/工地数字导航小程序切图/图标/${iconName}-${state}.png`;
+}
+
+// 获取标签样式（根据图标类型）
+function getLabelStyle(iconType, isSelected = false, isSelectable = true) {
+    // 不可选中文字的样式
+    if (!isSelectable) {
+        return {
+            fillColor: '#C8C8C8',
+            strokeColor: '#FFFFFF',
+            strokeWidth: 0.5,
+            fontSize: 10,
+            fontWeight: 'normal'
+        };
+    }
+
+    // 未选中状态的填充色配置
+    const unselectedColors = {
+        'workshop': '#C6B8F9',  // 加工区
+        'yard': '#CCAE96',       // 堆场
+        'building': '#B4B4B4',   // 建筑
+        'entrance': '#8F8F8F'    // 出入口
+    };
+
+    // 选中状态的填充色配置
+    const selectedColors = {
+        'workshop': '#8B7CCD',   // 加工区
+        'yard': '#B5835A',       // 堆场
+        'building': '#949494',   // 建筑
+        'entrance': '#54A338'    // 出入口
+    };
+
+    const fillColor = isSelected
+        ? (selectedColors[iconType] || selectedColors['building'])
+        : (unselectedColors[iconType] || unselectedColors['building']);
+
+    return {
+        fillColor: fillColor,
+        strokeColor: '#FFFFFF',
+        strokeWidth: 1,
+        fontSize: 12,
+        fontWeight: isSelected ? '600' : 'normal'  // SemiBold约600，Regular约400
+    };
+}
+
 // 使用名称的点标记样式（支持样式覆盖）
 function createNamedPointMarkerContent(name, style) {
-    const bgColor = style?.color || 'linear-gradient(135deg, #4A90E2 0%, #357ABD 100%)';
-    
+    const iconType = getIconTypeByName(name);
+    const iconPath = getIconPath(iconType, 'down');
+    const selectable = isPointSelectable(name);
+    const labelStyle = getLabelStyle(iconType, false, selectable);
+
     return `
         <div style="
-            background: ${bgColor};
-            color: white;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            border: 2px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-            cursor: pointer;
-            transition: all 0.2s ease;
-        "
-        onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.35)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.25)';"
-        title="${name}"
-        >
-            <i class="fas fa-map-marker-alt"></i>
+            gap: 0;
+            position: relative;
+        ">
+            <div class="kml-icon-marker"
+                 data-icon-type="${iconType}"
+                 data-state="down"
+                 data-name="${name}"
+                 style="
+                    width: 32px;
+                    height: 32px;
+                    cursor: ${selectable ? 'pointer' : 'default'};
+                    transition: all 0.2s ease;
+                    margin-bottom: -4px;
+                 "
+                 title="${name}">
+                <img src="${iconPath}"
+                     style="width: 100%; height: 100%; object-fit: contain;"
+                     alt="${name}">
+            </div>
+            <div style="
+                width: 6px;
+                height: 6px;
+                background-color: transparent;
+                border-radius: 50%;
+                position: relative;
+            "></div>
+            <div class="kml-label" style="
+                color: ${labelStyle.fillColor};
+                font-size: ${labelStyle.fontSize}px;
+                font-weight: ${labelStyle.fontWeight};
+                white-space: nowrap;
+                text-align: center;
+                user-select: none;
+                margin-top: 0px;
+                text-shadow:
+                    -${labelStyle.strokeWidth}px -${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor},
+                    ${labelStyle.strokeWidth}px -${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor},
+                    -${labelStyle.strokeWidth}px ${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor},
+                    ${labelStyle.strokeWidth}px ${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor};
+            ">${name}</div>
         </div>
     `;
 }
