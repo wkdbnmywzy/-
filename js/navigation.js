@@ -28,6 +28,9 @@ let geoErrorNotified = false;     // 避免重复弹错误
 let trackingDeviceOrientationNav = false;
 let deviceOrientationHandlerNav = null;
 let lastDeviceHeadingNav = null; // 度，0-360，顺时针（相对正北）
+// 导航页动态角度偏移：用于自动修正稳定的180°反向
+let dynamicAngleOffsetNav = 0; // 0 或 180
+let calibrationStateNav = { count0: 0, count180: 0, locked: false };
 let isOffRoute = false;            // 是否偏离路径
 let offRouteThreshold = 15;        // 偏离路径阈值（米），考虑GPS精度设为15米
 let passedRoutePolyline = null;    // 已走过的规划路径（灰色）
@@ -1786,6 +1789,94 @@ function calculateBearingBetweenPoints(point1, point2) {
     return (bearing + 360) % 360;
 }
 
+// === 统一将朝向应用到导航页“我的位置”标记 ===
+function navApplyHeadingToMarker(rawHeading) {
+    if (!userMarker || rawHeading === null || rawHeading === undefined || isNaN(rawHeading)) return;
+    try {
+        // 归一化角度
+        let heading = rawHeading % 360;
+        if (heading < 0) heading += 360;
+
+        // 地图当前旋转角（度）
+        let mapRotation = 0;
+        try { mapRotation = navigationMap && typeof navigationMap.getRotation === 'function' ? (navigationMap.getRotation() || 0) : 0; } catch (e) { mapRotation = 0; }
+
+        // 固定偏移（素材基准/机型校准）
+        let angleOffset = 0;
+        if (MapConfig && MapConfig.orientationConfig && typeof MapConfig.orientationConfig.angleOffset === 'number') {
+            angleOffset = MapConfig.orientationConfig.angleOffset;
+        }
+        // 动态偏移（根据运动方向自动判定是否需要180°翻转）
+        angleOffset += (dynamicAngleOffsetNav || 0);
+
+        // 最终角度 = 设备朝向 + 偏移 - 地图旋转
+        let finalAngle = (heading + angleOffset - mapRotation) % 360;
+        if (finalAngle < 0) finalAngle += 360;
+
+        if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+            console.log('[nav heading]', { heading, angleOffset, mapRotation, finalAngle });
+        }
+
+        if (typeof userMarker.setAngle === 'function') userMarker.setAngle(finalAngle);
+        else if (typeof userMarker.setRotation === 'function') userMarker.setRotation(finalAngle);
+    } catch (err) {
+        console.error('[nav] 应用朝向失败:', err);
+    }
+}
+
+// 角度绝对差（0..180）
+function navAngleAbsDiff(a, b) {
+    let d = ((a - b + 540) % 360) - 180; // -180..180
+    return Math.abs(d);
+}
+
+// 自动校准：使用上一GPS点→当前点的bearing与设备heading对比，稳定在180°附近则翻转
+function attemptAutoCalibrationNav(curr, heading) {
+    if (calibrationStateNav.locked) return;
+    if (heading === null || heading === undefined || isNaN(heading)) return;
+    if (!lastGpsPos) return;
+
+    const dist = calculateDistanceBetweenPoints(lastGpsPos, curr);
+    if (!isFinite(dist) || dist < 5) return; // 小于5米不参与，避免噪声
+
+    const bearing = calculateBearingBetweenPoints(lastGpsPos, curr);
+    if (!isFinite(bearing)) return;
+
+    const diff = navAngleAbsDiff(heading, bearing);
+    if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+        console.log('[nav calibration]', { heading, bearing, diff, dist });
+    }
+
+    const near0 = diff <= 25;
+    const near180 = diff >= 155;
+
+    if (near180) {
+        calibrationStateNav.count180 += 1;
+        calibrationStateNav.count0 = 0;
+    } else if (near0) {
+        calibrationStateNav.count0 += 1;
+        calibrationStateNav.count180 = 0;
+    } else {
+        calibrationStateNav.count0 = Math.max(0, calibrationStateNav.count0 - 1);
+        calibrationStateNav.count180 = Math.max(0, calibrationStateNav.count180 - 1);
+        return;
+    }
+
+    if (calibrationStateNav.count180 >= 4) {
+        dynamicAngleOffsetNav = 180;
+        calibrationStateNav.locked = true;
+        if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+            console.log('[nav calibration] 锁定 180° 偏移');
+        }
+    } else if (calibrationStateNav.count0 >= 4) {
+        dynamicAngleOffsetNav = 0;
+        calibrationStateNav.locked = true;
+        if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+            console.log('[nav calibration] 锁定 0° 偏移');
+        }
+    }
+}
+
 // 获取导航转向类型（基于用户当前朝向）
 function getNavigationDirection() {
     if (!navigationPath || navigationPath.length < 2) {
@@ -2394,15 +2485,11 @@ function startRealNavigationTracking() {
                 }
             }
 
-            // 应用朝向角度（图标固定指向真实世界的手机头部方向）
-            // setAngle设置的是相对于地图坐标系的角度，地图旋转时标记会自动跟随
+            // 应用朝向角度：统一封装并在此路径尝试自动校准（处理稳定180°反向）
             if (heading !== null) {
                 try {
-                    if (typeof userMarker.setAngle === 'function') {
-                        userMarker.setAngle(heading);
-                    } else if (typeof userMarker.setRotation === 'function') {
-                        userMarker.setRotation(heading);
-                    }
+                    attemptAutoCalibrationNav(curr, heading);
+                    navApplyHeadingToMarker(heading);
                 } catch (e) {
                     console.error('设置标记角度失败:', e);
                 }
@@ -2586,14 +2673,7 @@ function startNavigationTimer(path, segIndex, currPos, intervalMs, metersPerTick
         // 更新用户标记位置与朝向
         try {
             const bearing = calculateBearingBetweenPoints(segStart, currPos);
-            if (typeof userMarker.setAngle === 'function') {
-                userMarker.setAngle(bearing);
-            } else {
-                // 兼容：部分版本可能使用 setRotation
-                if (typeof userMarker.setRotation === 'function') {
-                    userMarker.setRotation(bearing);
-                }
-            }
+            navApplyHeadingToMarker(bearing);
         } catch (e) {
             console.error('设置标记角度失败:', e);
         }
@@ -2776,40 +2856,24 @@ function tryStartDeviceOrientationNav() {
             }
             if (heading === null) return;
 
-            // 规范化到 0-360 范围，避免负值或超出范围
-            heading = ((heading % 360) + 360) % 360;
+            // Android 某些浏览器在 absolute 模式下与真实北向相反，按配置反转
+            try {
+                const isAndroid = /Android/i.test(navigator.userAgent);
+                if (isAndroid && e.absolute === true && MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.androidNeedsInversion) {
+                    heading = (360 - heading);
+                }
+            } catch (ex) {}
 
-            // 应用角度偏移量（处理设备特定的方向差异）
-            if (typeof MapConfig !== 'undefined' && MapConfig.orientationConfig && MapConfig.orientationConfig.angleOffset) {
-                heading = (heading + MapConfig.orientationConfig.angleOffset) % 360;
-                if (heading < 0) heading += 360;
-            }
+            // 规范化到 0-360 范围
+            heading = ((heading % 360) + 360) % 360;
 
             // 保存最新朝向，供其他逻辑（例如 GPS 更新）使用
             lastDeviceHeadingNav = heading;
 
             // 如果"我的位置"标记已存在，则尝试设置其旋转角度
             if (userMarker) {
-                // 计算图标相对于地图的角度 = 设备朝向 - 地图旋转角度
-                try {
-                    // 获取地图当前旋转角度（默认为0）
-                    let mapRotation = 0;
-                    if (navigationMap && typeof navigationMap.getRotation === 'function') {
-                        mapRotation = navigationMap.getRotation() || 0;
-                    }
-                    // setAngle设置的是相对于地图坐标系的角度，地图旋转时标记会自动跟随
-                    const markerAngle = heading;
-
-                    if (typeof userMarker.setAngle === 'function') {
-                        // 高德标记常用方法：setAngle
-                        userMarker.setAngle(markerAngle);
-                    } else if (typeof userMarker.setRotation === 'function') {
-                        // 某些版本可能使用 setRotation
-                        userMarker.setRotation(markerAngle);
-                    }
-                } catch (err) {
-                    // 忽略设置角度时的异常（兼容不同版本或未实现的方法）
-                }
+                // 统一封装：角度偏移与地图旋转在内部处理
+                try { navApplyHeadingToMarker(heading); } catch (err) {}
             }
         };
 
@@ -2848,6 +2912,9 @@ function tryStopDeviceOrientationNav() {
     try {
         if (deviceOrientationHandlerNav) {
             window.removeEventListener('deviceorientation', deviceOrientationHandlerNav, true);
+            if ('ondeviceorientationabsolute' in window) {
+                try { window.removeEventListener('deviceorientationabsolute', deviceOrientationHandlerNav, true); } catch (e) {}
+            }
             deviceOrientationHandlerNav = null;
         }
     } catch (e) {}
@@ -2989,15 +3056,11 @@ function startRealtimePositionTracking() {
                 }
             }
 
-            // 应用朝向角度（图标相对于地图保持正确方向）
-            // setAngle设置的是相对于地图坐标系的角度，地图旋转时标记会自动跟随
+            // 应用朝向角度：统一封装并尝试自动校准
             if (heading !== null) {
                 try {
-                    if (typeof userMarker.setAngle === 'function') {
-                        userMarker.setAngle(heading);
-                    } else if (typeof userMarker.setRotation === 'function') {
-                        userMarker.setRotation(heading);
-                    }
+                    attemptAutoCalibrationNav(curr, heading);
+                    navApplyHeadingToMarker(heading);
                 } catch (e) {
                     console.error('设置标记角度失败:', e);
                 }
