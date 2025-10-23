@@ -140,7 +140,7 @@ class TaskManager {
                     location: [118.796877, 32.060255] // 经纬度
                 },
                 endPoint: {
-                    name: '终点项目终点项目',
+                    name: '终点项目',
                     date: '9月26日',
                     time: '17:30 - 18:30',
                     location: [118.806877, 32.070255]
