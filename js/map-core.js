@@ -491,10 +491,14 @@ function startRealtimeLocationTracking() {
                 }
             }
 
-            // 应用朝向角度（图标固定指向真实世界的���机头部方向）
-            // setAngle设置的是相对于地图坐标系的角度，地图旋转时标记会自动跟随
+            // 应用角度偏移量（如果图标基准方向与正北存在差异，例如PNG箭头默认朝右，则可在 config.js 中配置 angleOffset）
             if (heading !== null) {
                 try {
+                    if (MapConfig.orientationConfig && MapConfig.orientationConfig.angleOffset) {
+                        heading = (heading + MapConfig.orientationConfig.angleOffset) % 360;
+                        if (heading < 0) heading += 360;
+                    }
+
                     if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
                     else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
                 } catch (e) {
@@ -603,14 +607,18 @@ function tryStartDeviceOrientationIndex() {
             } else if (typeof e.alpha === 'number' && !isNaN(e.alpha) && e.absolute === true) {
                 // Android: 优先使用 absolute=true 的 alpha（真实罗盘方向）
                 heading = e.alpha;
+                // 部分 Android 机型 alpha 与罗盘朝向相反，允许通过配置反转
+                if (isAndroid && MapConfig.orientationConfig && MapConfig.orientationConfig.androidNeedsInversion) {
+                    heading = 360 - heading;
+                }
                 if (MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
-                    console.log('使用 absolute alpha (真实罗盘):', heading);
+                    console.log('使用 absolute alpha (真实罗盘):', e.alpha, '→ 修正后 heading:', heading);
                 }
             } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
                 // 降级方案：使用相对 alpha，转换为顺时针
                 heading = 360 - e.alpha;
                 if (MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
-                    console.log('使���相对 alpha:', 'alpha=', e.alpha, '→ heading=', heading);
+                    console.log('使用相对 alpha:', 'alpha=', e.alpha, '→ heading=', heading);
                 }
             }
 
@@ -634,8 +642,14 @@ function tryStartDeviceOrientationIndex() {
                 // 应用朝向角度（图标固定指向真实世界的手机头部方向）
                 // setAngle设置的是相对于地图坐标系的角度，地图旋转时标记会自动跟随
                 try {
-                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
-                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
+                    let finalAngle = heading;
+                    // 统一在此再次应用 angleOffset，确保两条路径（浏览器地理 heading 与设备方向事件）一致
+                    if (MapConfig.orientationConfig && MapConfig.orientationConfig.angleOffset) {
+                        finalAngle = (finalAngle + MapConfig.orientationConfig.angleOffset) % 360;
+                        if (finalAngle < 0) finalAngle += 360;
+                    }
+                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
+                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
                 } catch (err) {
                     console.error('设置标记角度失败:', err);
                 }
@@ -679,6 +693,8 @@ function tryStopDeviceOrientationIndex() {
     try {
         if (deviceOrientationHandlerIndex) {
             window.removeEventListener('deviceorientation', deviceOrientationHandlerIndex, true);
+            // 同时尝试移除 absolute 事件监听，避免重复回调
+            try { window.removeEventListener('deviceorientationabsolute', deviceOrientationHandlerIndex, true); } catch (e) {}
             deviceOrientationHandlerIndex = null;
         }
     } catch (e) {}
