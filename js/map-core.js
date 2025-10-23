@@ -209,6 +209,10 @@ function clearMarkers() {
     markers = [];
 }
 
+// 运行时动态角度偏移与校准状态（用于自动修正稳定的180°反向问题）
+let dynamicAngleOffset = 0; // 0 或 180
+let calibrationState = { count0: 0, count180: 0, locked: false };
+
 // 统一应用朝向到标记：考虑地图旋转与角度偏移
 function applyHeadingToMarker(rawHeading) {
     if (!selfMarker || rawHeading === null || rawHeading === undefined || isNaN(rawHeading)) return;
@@ -227,7 +231,10 @@ function applyHeadingToMarker(rawHeading) {
             angleOffset = MapConfig.orientationConfig.angleOffset;
         }
 
-        // 最终角度：设备朝向 + 固定偏移 - 地图旋转
+        // 动态校准偏移（根据运动方向自动判断是否需要180°翻转）
+        angleOffset += (dynamicAngleOffset || 0);
+
+        // 最终角度：设备朝向 + 固定偏移(含动态) - 地图旋转
         let finalAngle = (heading + angleOffset - mapRotation) % 360;
         if (finalAngle < 0) finalAngle += 360;
 
@@ -526,6 +533,8 @@ function startRealtimeLocationTracking() {
 
             // 统一通过 helper 应用朝向（会考虑地图旋转与角度偏移）
             if (heading !== null) {
+                // 先尝试基于运动方向的自动校准，再应用到标记
+                attemptAutoCalibration(curr, heading);
                 applyHeadingToMarker(heading);
             }
 
@@ -663,6 +672,10 @@ function tryStartDeviceOrientationIndex() {
             lastDeviceHeadingIndex = heading;
             if (selfMarker) {
                 // 统一通过 helper 应用朝向（会考虑地图旋转与角度偏移）
+                if (currentPosition) {
+                    // 尝试使用当前位置做一次校准（需要有上一点才会生效）
+                    attemptAutoCalibration(currentPosition, heading);
+                }
                 applyHeadingToMarker(heading);
             }
         };
@@ -747,5 +760,76 @@ function createHeadingArrowDataUrl(color) {
         return 'data:image/svg+xml;base64,' + btoa(svg);
     } catch (e) {
         return MapConfig.markerStyles.currentLocation.icon;
+    }
+}
+
+// 计算经纬度间距离（米）
+function distanceMeters(a, b) {
+    if (!a || !b) return NaN;
+    const toRad = d => d * Math.PI / 180;
+    const R = 6371000;
+    const lat1 = toRad(a[1]);
+    const lat2 = toRad(b[1]);
+    const dlat = toRad(b[1] - a[1]);
+    const dlng = toRad(b[0] - a[0]);
+    const sinDlat = Math.sin(dlat/2);
+    const sinDlng = Math.sin(dlng/2);
+    const h = sinDlat*sinDlat + Math.cos(lat1)*Math.cos(lat2)*sinDlng*sinDlng;
+    const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
+    return R * c;
+}
+
+// 角度绝对差（0..180）
+function angleAbsDiff(a, b) {
+    let d = ((a - b + 540) % 360) - 180; // -180..180
+    return Math.abs(d);
+}
+
+// 自动校准：对比设备heading与基于移动的bearing，稳定在180°附近则加180°偏移
+function attemptAutoCalibration(curr, heading) {
+    if (calibrationState.locked) return;
+    if (heading === null || heading === undefined || isNaN(heading)) return;
+    if (!lastGpsPosIndex) return;
+
+    const dist = distanceMeters(lastGpsPosIndex, curr);
+    if (!isFinite(dist) || dist < 5) return; // 移动距离过小不参与校准
+
+    const bearing = calcBearingSimple(lastGpsPosIndex, curr);
+    if (isNaN(bearing)) return;
+
+    const diff = angleAbsDiff(heading, bearing);
+    if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+        console.log('[calibration]', { heading, bearing, diff, dist });
+    }
+
+    const near0 = diff <= 25;
+    const near180 = diff >= 155; // 180±25
+
+    if (near180) {
+        calibrationState.count180 += 1;
+        calibrationState.count0 = 0;
+    } else if (near0) {
+        calibrationState.count0 += 1;
+        calibrationState.count180 = 0;
+    } else {
+        // 噪声区，缓慢衰减计数
+        calibrationState.count0 = Math.max(0, calibrationState.count0 - 1);
+        calibrationState.count180 = Math.max(0, calibrationState.count180 - 1);
+        return;
+    }
+
+    // 连续多次一致再锁定，避免抖动
+    if (calibrationState.count180 >= 4) {
+        dynamicAngleOffset = 180;
+        calibrationState.locked = true;
+        if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+            console.log('[calibration] 锁定为 180° 偏移');
+        }
+    } else if (calibrationState.count0 >= 4) {
+        dynamicAngleOffset = 0;
+        calibrationState.locked = true;
+        if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+            console.log('[calibration] 锁定为 0° 偏移');
+        }
     }
 }
