@@ -442,11 +442,21 @@ function stopNavigation() {
 
 
 function calculateBearing(start, end) {
-    // 计算两点之间的方位角
-    var dLng = end[0] - start[0];
-    var dLat = end[1] - start[1];
-    var bearing = Math.atan2(dLng, dLat) * 180 / Math.PI;
-    return bearing;
+    // 计算两点之间的方位角（以正北为0°，顺时针0..360）
+    // 使用与导航页一致的算法，避免左右判断不一致
+    const lng1 = start[0], lat1 = start[1];
+    const lng2 = end[0],   lat2 = end[1];
+
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+
+    const y = Math.sin(dLng) * Math.cos(lat2Rad);
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+              Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
+
+    const bearing = Math.atan2(y, x) * 180 / Math.PI;
+    return (bearing + 360) % 360;
 }
 
 // 生成朝向箭头的SVG图标（base64）
