@@ -502,11 +502,16 @@ function startRealtimeLocationTracking() {
 
             // 应用朝向角度（图标固定指向真实世界的手机头部方向）
             // 使用绝对角度，让图标始终指向真北参考系下的手机朝向
-            // 当地图旋转时，图标会自动随地图一起旋转，保持指向真实方向
+            // 当地图旋转时，需要减去地图旋转角度，保持图标指向真实方向
             if (heading !== null) {
                 try {
-                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
-                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
+                    // 获取地图当前旋转角度（默认为0）
+                    const mapRotation = map.getRotation() || 0;
+                    // 计算图标应该显示的角度（相对于地图坐标系）
+                    const finalAngle = heading - mapRotation;
+
+                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
+                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
                 } catch (e) {
                     console.error('设置标记角度失败:', e);
                 }
