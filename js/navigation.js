@@ -37,10 +37,16 @@ let passedRoutePolyline = null;    // 已走过的规划路径（灰色）
 let maxPassedSegIndex = -1;        // 记录用户走过的最远路径点索引
 // 接近起点自动“以我为起点”阈值（米）
 let startRebaseThresholdMeters = 25; // 可按需微调，建议20~30米
+// 终点到达判定的沿路网剩余距离阈值（米）
+let endArrivalThresholdMeters = 12; // 建议10~15米，避免误判
 try {
     if (typeof MapConfig !== 'undefined' && MapConfig && MapConfig.navigationConfig &&
         typeof MapConfig.navigationConfig.startRebaseDistanceMeters === 'number') {
         startRebaseThresholdMeters = MapConfig.navigationConfig.startRebaseDistanceMeters;
+    }
+    if (typeof MapConfig !== 'undefined' && MapConfig && MapConfig.navigationConfig &&
+        typeof MapConfig.navigationConfig.endArrivalDistanceMeters === 'number') {
+        endArrivalThresholdMeters = MapConfig.navigationConfig.endArrivalDistanceMeters;
     }
 } catch (e) { /* 忽略配置读取错误，使用默认值 */ }
 
@@ -2544,10 +2550,15 @@ function startRealNavigationTracking() {
             findNextTurnPoint();
             updateNavigationTip();
 
-            // 到终点判定（与路径末点距离很近）
+            // 到终点判定（使用沿路网的剩余距离，避免未到就结束）
             const end = fullPath[fullPath.length - 1];
             const distToEnd = calculateDistanceBetweenPoints(curr, end);
-            if (distToEnd < 5) { // 小于5米认为到达
+            const proj = projectPointOntoPathMeters(curr, fullPath);
+            const remainRouteDist = proj ? computeRemainingRouteDistanceMeters(fullPath, proj) : distToEnd;
+
+            const nearByRoute = remainRouteDist <= endArrivalThresholdMeters;
+            const nearByAir = distToEnd <= Math.max(endArrivalThresholdMeters * 1.5, 10); // 双重保险：物理距离也接近
+            if (onRoute && nearByRoute && nearByAir) {
                 finishNavigation();
                 // 到达后停止持续定位
                 stopRealNavigationTracking();
@@ -2842,6 +2853,22 @@ function projectPointOntoPathMeters(point, path) {
         }
     }
     return best;
+}
+
+// 计算沿路网从投影点到终点的剩余距离（米）
+function computeRemainingRouteDistanceMeters(path, projection) {
+    if (!path || path.length < 2 || !projection) return 0;
+    const idx = Math.max(0, Math.min(path.length - 2, projection.index));
+    let dist = 0;
+    const projPoint = normalizeLngLat(projection.projected);
+    const segEnd = normalizeLngLat(path[idx + 1]);
+    dist += calculateDistanceBetweenPoints(projPoint, segEnd);
+    for (let j = idx + 1; j < path.length - 1; j++) {
+        const a = normalizeLngLat(path[j]);
+        const b = normalizeLngLat(path[j + 1]);
+        dist += calculateDistanceBetweenPoints(a, b);
+    }
+    return dist;
 }
 
 // 规范化点为 [lng, lat]
