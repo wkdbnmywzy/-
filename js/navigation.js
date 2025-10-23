@@ -2669,6 +2669,21 @@ function startRealNavigationTracking() {
                 // 防抖：仅前进不后退
                 currentNavigationIndex = Math.max(0, Math.max(currentNavigationIndex || 0, progressIndex));
 
+                // 若接近当前转向点（沿路网距离小于阈值），立即视为通过
+                try {
+                    let passTurnThreshold = 8; // 默认8米
+                    if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnPassDistanceMeters === 'number') {
+                        passTurnThreshold = MapConfig.navigationConfig.turnPassDistanceMeters;
+                    }
+                    if (!isOffRoute && typeof nextTurnIndex === 'number' && nextTurnIndex > 0 && nextTurnIndex < fullPath.length) {
+                        const distToTurn = computeDistanceToIndexMeters(curr, fullPath, nextTurnIndex) || 0;
+                        if (isFinite(distToTurn) && distToTurn <= passTurnThreshold) {
+                            // 将进度至少推进到该转向点
+                            currentNavigationIndex = Math.max(currentNavigationIndex, nextTurnIndex);
+                        }
+                    }
+                } catch (e) {}
+
                 // 若已通过当前转向点，则立即查找下一个转向点
                 if (typeof nextTurnIndex === 'number' && nextTurnIndex >= 0 && currentNavigationIndex >= nextTurnIndex) {
                     findNextTurnPoint();
