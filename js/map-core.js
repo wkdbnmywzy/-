@@ -3,6 +3,17 @@
 
 function initMap() {
     map = new AMap.Map('map-container', MapConfig.mapConfig);
+    
+    // 监听地图旋转事件，更新图标角度
+    map.on('rotate', function() {
+        // 如果存在设备方向角度，重新应用方向角度
+        if (lastDeviceHeadingIndex !== null && selfMarker) {
+            const mapRotation = map.getRotation() || 0;
+            const finalAngle = lastDeviceHeadingIndex - mapRotation;
+            if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
+            else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
+        }
+    });
 
     // 等待地图完全加载后启动实时定位或恢复状态
     map.on('complete', function() {
@@ -300,12 +311,23 @@ function startRealtimeLocationTracking() {
                 }
             }
 
-            // 应用朝向角度（图标跟随地图旋转）
+            // 应用朝向角度（图标固定指向真实世界的手机头部方向）
+            // 使用绝对角度，让图标始终指向真北参考系下的手机朝向
+            // 当地图旋转时，图标会自动随地图一起旋转，保持指向真实方向
             if (heading !== null) {
                 try {
-                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
-                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
-                } catch (e) {}
+                    // 获取地图当前旋转角度
+                    const mapRotation = map.getRotation() || 0;
+                    
+                    // 如果地图没有旋转，图标随设备方向旋转
+                    // 如果地图旋转了，图标要减去地图旋转的角度，这样图标就会和地图一起旋转
+                    const finalAngle = heading - mapRotation;
+                    
+                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
+                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
+                } catch (err) {
+                    console.error('设置标记角度失败:', err);
+                }
             }
 
             lastGpsPosIndex = curr;
@@ -478,12 +500,16 @@ function startRealtimeLocationTracking() {
                 }
             }
 
-            // 应用朝向角度（图标跟随地图旋转）
+            // 应用朝向角度（图标固定指向真实世界的手机头部方向）
+            // 使用绝对角度，让图标始终指向真北参考系下的手机朝向
+            // 当地图旋转时，图标会自动随地图一起旋转，保持指向真实方向
             if (heading !== null) {
                 try {
                     if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
                     else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
-                } catch (e) {}
+                } catch (e) {
+                    console.error('设置标记角度失败:', e);
+                }
             }
 
             lastGpsPosIndex = curr;
@@ -609,10 +635,14 @@ function tryStartDeviceOrientationIndex() {
 
             lastDeviceHeadingIndex = heading;
             if (selfMarker) {
-                // 直接应用朝向角度（图标跟随地图旋转）
+                // 应用朝向角度（图标固定指向真实世界的手机头部方向）
+                // 需要减去地图旋转角度，以保持图标在真实世界中的方向不变
                 try {
-                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(heading);
-                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(heading);
+                    const mapRotation = map.getRotation() || 0;
+                    const finalAngle = heading - mapRotation;
+
+                    if (typeof selfMarker.setAngle === 'function') selfMarker.setAngle(finalAngle);
+                    else if (typeof selfMarker.setRotation === 'function') selfMarker.setRotation(finalAngle);
                 } catch (err) {
                     console.error('设置标记角度失败:', err);
                 }

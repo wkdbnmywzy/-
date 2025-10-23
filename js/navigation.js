@@ -2394,12 +2394,17 @@ function startRealNavigationTracking() {
                 }
             }
 
-            // 应用朝向角度（图标跟随地图旋转）
+            // 应用朝向角度（图标固定指向真实世界的手机头部方向）
+            // 使用绝对角度，让图标始终指向真北参考系下的手机朝向
             if (heading !== null) {
-                if (typeof userMarker.setAngle === 'function') {
-                    userMarker.setAngle(heading);
-                } else if (typeof userMarker.setRotation === 'function') {
-                    userMarker.setRotation(heading);
+                try {
+                    if (typeof userMarker.setAngle === 'function') {
+                        userMarker.setAngle(heading);
+                    } else if (typeof userMarker.setRotation === 'function') {
+                        userMarker.setRotation(heading);
+                    }
+                } catch (e) {
+                    console.error('设置标记角度失败:', e);
                 }
             }
             lastGpsPos = curr;
@@ -2589,7 +2594,9 @@ function startNavigationTimer(path, segIndex, currPos, intervalMs, metersPerTick
                     userMarker.setRotation(bearing);
                 }
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('设置标记角度失败:', e);
+        }
         userMarker.setPosition(currPos);
 
         // 将规划路径分为已走部分（灰色）和剩余部分（绿色）
@@ -2781,14 +2788,22 @@ function tryStartDeviceOrientationNav() {
 
             // 如果"我的位置"标记已存在，则尝试设置其旋转角度
             if (userMarker) {
-                // 直接应用朝向角度（图标跟随地图旋转）
+                // 计算图标相对于地图的角度 = 设备朝向 - 地图旋转角度
                 try {
+                    // 获取地图当前旋转角度（默认为0）
+                    let mapRotation = 0;
+                    if (navigationMap && typeof navigationMap.getRotation === 'function') {
+                        mapRotation = navigationMap.getRotation() || 0;
+                    }
+                    // 计算图标应该显示的角度（相对于地图坐标系）
+                    const markerAngle = corrected - mapRotation;
+
                     if (typeof userMarker.setAngle === 'function') {
                         // 高德标记常用方法：setAngle
-                        userMarker.setAngle(corrected);
+                        userMarker.setAngle(markerAngle);
                     } else if (typeof userMarker.setRotation === 'function') {
                         // 某些版本可能使用 setRotation
-                        userMarker.setRotation(corrected);
+                        userMarker.setRotation(markerAngle);
                     }
                 } catch (err) {
                     // 忽略设置角度时的异常（兼容不同版本或未实现的方法）
@@ -2964,14 +2979,23 @@ function startRealtimePositionTracking() {
                 }
             }
 
-            // 应用朝向角度（图标跟随地图旋转）
+            // 应用朝向角度（图标相对于地图保持正确方向）
+            // 计算图标相对于地图的角度 = 设备朝向 - 地图旋转角度
             if (heading !== null) {
-                console.log('地图旋转角度:', navigationMap.getRotation(), '应用标记角度:', heading);
                 try {
+                    // 获取地图当前旋转角度（默认为0）
+                    let mapRotation = 0;
+                    if (navigationMap && typeof navigationMap.getRotation === 'function') {
+                        mapRotation = navigationMap.getRotation() || 0;
+                    }
+                    // 计算图标应该显示的角度（相对于地图坐标系）
+                    const markerAngle = heading - mapRotation;
+                    console.log('地图旋转角度:', mapRotation, '设备朝向:', heading, '应用标记角度:', markerAngle);
+
                     if (typeof userMarker.setAngle === 'function') {
-                        userMarker.setAngle(heading);
+                        userMarker.setAngle(markerAngle);
                     } else if (typeof userMarker.setRotation === 'function') {
-                        userMarker.setRotation(heading);
+                        userMarker.setRotation(markerAngle);
                     }
                 } catch (e) {
                     console.error('设置标记角度失败:', e);
