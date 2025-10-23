@@ -2034,13 +2034,13 @@ function getNavigationDirection() {
 
     console.log(`用户朝向导航: 用户朝向=${userHeading.toFixed(1)}°, 路径方向=${pathBearing.toFixed(1)}°, 夹角=${angleDiff.toFixed(1)}°`);
 
-    // 根据夹角判断应该如何行进
+    // 根据夹角判断如何行进（修正方向：正=右转，负=左转）
     if (Math.abs(angleDiff) <= 30) {
         return 'forward'; // 前进（-30° 到 30°）
     } else if (angleDiff > 30 && angleDiff <= 150) {
-        return 'left'; // 左转（30° 到 150°）
+        return 'right'; // 右转（30° 到 150°）
     } else if (angleDiff < -30 && angleDiff >= -150) {
-        return 'right'; // 右转（-30° 到 -150°）
+        return 'left'; // 左转（-30° 到 -150°）
     } else {
         return 'backward'; // 后退/掉头（150° 到 180° 或 -150° 到 -180°）
     }
@@ -2061,13 +2061,13 @@ function getTraditionalNavigationDirection() {
 
     console.log(`转向角度: ${angle.toFixed(2)}°`);
 
-    // 根据角度判断转向类型
+    // 根据角度判断转向类型（修正方向：正=右转，负=左转）
     if (angle > 135 || angle < -135) {
         return 'uturn'; // 掉头（大于135度）
     } else if (angle > 15 && angle <= 135) {
-        return 'left'; // 左转（15-135度）
+        return 'right'; // 右转（15-135度）
     } else if (angle < -15 && angle >= -135) {
-        return 'right'; // 右转（-15到-135度）
+        return 'left'; // 左转（-15到-135度）
     } else {
         return 'straight'; // 直行（-15到15度）
     }
@@ -2660,8 +2660,23 @@ function startRealNavigationTracking() {
 
             // 更新提示
             if (hasReachedStart) {
-                currentNavigationIndex = Math.max(0, segIndex);
-                findNextTurnPoint();
+                // 使用“投影到路网”的结果推进导航进度，避免仅靠最近顶点导致转弯后提示滞后
+                const projForProgress = projectPointOntoPathMeters(curr, fullPath);
+                let progressIndex = (projForProgress && typeof projForProgress.index === 'number')
+                    ? projForProgress.index
+                    : segIndex;
+
+                // 防抖：仅前进不后退
+                currentNavigationIndex = Math.max(0, Math.max(currentNavigationIndex || 0, progressIndex));
+
+                // 若已通过当前转向点，则立即查找下一个转向点
+                if (typeof nextTurnIndex === 'number' && nextTurnIndex >= 0 && currentNavigationIndex >= nextTurnIndex) {
+                    findNextTurnPoint();
+                } else {
+                    // 即便未越过拐点，也周期性刷新，防止遗漏
+                    findNextTurnPoint();
+                }
+
                 updateNavigationTip();
             } else {
                 // 未到起点时，仅刷新“请前往起点”的提示卡片
@@ -3067,6 +3082,11 @@ function tryStartDeviceOrientationNav() {
             if (userMarker) {
                 // 统一封装：角度偏移与地图旋转在内部处理
                 try { navApplyHeadingToMarker(heading); } catch (err) {}
+            }
+
+            // 若正在导航，设备朝向变化也应触发提示刷新（支持“基于朝向”的提示在原地转向时即时更新）
+            if (isNavigating && hasReachedStart) {
+                try { updateNavigationTip(); } catch (e) {}
             }
         };
 
