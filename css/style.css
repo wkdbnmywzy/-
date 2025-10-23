@@ -274,10 +274,10 @@ body {
 /* 底部卡片 */
 .bottom-card {
     position: absolute;
-    bottom: 50px;
+    bottom: 60px;
     left: 0;
     right: 0;
-    z-index: 90;
+    z-index: 110;
     background: #FFFFFF;
     border-radius: 20px 20px 0 0;
     padding: 20px 70px 20px 20px;
@@ -1610,7 +1610,7 @@ body {
     }
 
     .bottom-card {
-        bottom: 0;
+        bottom: 40px;
         left: 0;
         right: 0;
         border-radius: 0;
@@ -1651,7 +1651,7 @@ body {
     }
 
     .bottom-card {
-        bottom: max(20px, env(safe-area-inset-bottom));
+        bottom: calc(60px + env(safe-area-inset-bottom));
     }
 
     .map-controls {
