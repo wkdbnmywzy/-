@@ -34,6 +34,8 @@ let calibrationStateNav = { count0: 0, count180: 0, locked: false };
 let isOffRoute = false;            // 是否偏离路径
 let offRouteThreshold = 15;        // 偏离路径阈值（米），考虑GPS精度设为15米
 let passedRoutePolyline = null;    // 已走过的规划路径（灰色）
+let deviatedRoutePolyline = null;  // 偏离的实际路径（黄色）
+let deviatedPath = [];             // 偏离路径的点集合
 let maxPassedSegIndex = -1;        // 记录用户走过的最远路径点索引
 // 接近起点自动“以我为起点”阈值（米）
 let startRebaseThresholdMeters = 25; // 可按需微调，建议20~30米
@@ -1498,6 +1500,7 @@ function startNavigationUI() {
     hasReachedStart = false; // 重置：要求先到达起点附近再开始沿路网导航
     isOffRoute = false;  // 重置偏离路径状态
     maxPassedSegIndex = -1; // 重置已走过的最远点索引
+    deviatedPath = []; // 清空偏离路径点集合
 
     // 停止导航前的实时位置追踪
     stopRealtimePositionTracking();
@@ -2139,7 +2142,7 @@ function updateDirectionIcon(directionType, distanceToNext) {
 
     // 检查是否偏离路径
     if (isOffRoute) {
-        console.log('updateDirectionIcon: 检测到偏离路径，显示"请前往起点"');
+        console.log('updateDirectionIcon: 检测到偏离路径，显示提示信息');
 
         // 隐藏图标
         if (directionIconContainer) {
@@ -2156,22 +2159,42 @@ function updateDirectionIcon(directionType, distanceToNext) {
             tipDividerElem.style.display = 'none';
         }
 
-        // 显示"请前往起点"
+        // 根据是否到达起点显示不同的提示
+        let tipPrefix = '请';
+        let tipText = '';
+        if (!hasReachedStart) {
+            tipText = '前往起点';
+        } else {
+            tipText = '回到规划路线';
+        }
+
+        // 显示偏离提示
         if (distanceAheadElem) {
-            distanceAheadElem.textContent = '请';
+            distanceAheadElem.textContent = tipPrefix;
         }
         if (actionText) {
-            actionText.textContent = '前往起点';
+            actionText.textContent = tipText;
         }
         if (distanceUnitElem) {
             distanceUnitElem.style.display = 'none';
         }
 
-        console.log('已更新UI显示"请前往起点"');
+        // 添加偏离路线的视觉提示（改变背景色）
+        const navTipCard = document.getElementById('navigation-tip-card');
+        if (navTipCard) {
+            navTipCard.style.backgroundColor = '#fff3cd'; // 淡黄色背景提示偏离
+        }
+
+        console.log('已更新UI显示偏离提示:', tipPrefix + tipText);
         return;  // 偏离路径时直接返回，不执行后续正常导航的逻辑
     }
 
     // 正常导航逻辑（未偏离路径时）
+    // 恢复正常背景色
+    const navTipCard = document.getElementById('navigation-tip-card');
+    if (navTipCard) {
+        navTipCard.style.backgroundColor = ''; // 恢复默认背景色
+    }
     // 显示图标
     if (directionIconContainer) {
         directionIconContainer.style.display = 'flex';
@@ -2425,7 +2448,7 @@ function updateAccuracyCircle(position, accuracy) {
     }
 
     currentAccuracy = accuracy || 10; // 默认10米精度
-    const displayRadius = currentAccuracy / 4; // 显示半径为实际精度的1/4
+    const displayRadius = currentAccuracy / 8; // 显示半径缩小为原来的一半（从1/4改为1/8）
 
     if (!accuracyCircle) {
         // 创建精度圈 - 使用非常明显的样式便于调试
@@ -2471,7 +2494,7 @@ function updateAccuracyCircle(position, accuracy) {
         }
     } else {
         // 更新精度圈位置和半径
-        const displayRadius = currentAccuracy / 4; // 显示半径为实际精度的1/4
+        const displayRadius = currentAccuracy / 8; // 显示半径缩小为原来的一半（从1/4改为1/8）
         console.log('更新GPS精度圈，中心:', position, '实际精度:', currentAccuracy, '米, 显示半径:', displayRadius, '米');
         try {
             accuracyCircle.setCenter(position);
@@ -2482,14 +2505,14 @@ function updateAccuracyCircle(position, accuracy) {
     }
 }
 
-// ====== 检查用户是否在规划路线上（考虑精度圈） ======
+// ====== 检查用户是否在规划路线上（改进的精度圈检测） ======
 function checkIfOnRouteWithAccuracy(userPos, routePath, accuracy) {
     if (!routePath || routePath.length === 0) return true;
 
-    // 使用精度圈半径作为判断依据
-    const threshold = Math.max(accuracy || 10, offRouteThreshold);
+    // 首先检测位置图标本身（小范围）
+    const iconThreshold = 5; // 位置图标本身的检测半径（5米）
 
-    // 检查精度圈是否与路线相交
+    // 检查位置图标是否在路线上
     for (let i = 0; i < routePath.length - 1; i++) {
         const p1 = routePath[i];
         const p2 = routePath[i + 1];
@@ -2497,13 +2520,83 @@ function checkIfOnRouteWithAccuracy(userPos, routePath, accuracy) {
         // 计算点到线段的距离
         const distance = pointToSegmentDistance(userPos, p1, p2);
 
-        // 如果距离小于精度圈半径，则认为在路线上
-        if (distance <= threshold) {
+        // 如果位置图标本身在路线上，直接返回true
+        if (distance <= iconThreshold) {
+            console.log('位置图标在路线上，距离:', distance.toFixed(2), '米');
             return true;
         }
     }
 
+    // 如果位置图标不在路线上，检查精度圈范围内的投影点
+    // 使用实际GPS精度作为检测范围
+    const circleRadius = (accuracy || 10) / 8; // 使用显示的精度圈半径（已缩小为1/8）
+
+    // 从内至外逐步检测精度圈范围
+    const checkSteps = [0.3, 0.6, 1.0]; // 检测精度圈的30%、60%、100%范围
+
+    for (let step of checkSteps) {
+        const currentRadius = circleRadius * step;
+
+        for (let i = 0; i < routePath.length - 1; i++) {
+            const p1 = routePath[i];
+            const p2 = routePath[i + 1];
+
+            // 计算用户位置到线段的垂线投影点
+            const projection = projectPointToSegment(userPos, p1, p2);
+
+            if (projection) {
+                // 计算投影点到用户位置的距离
+                const distToProjection = calculateDistanceBetweenPoints(userPos, projection.point);
+
+                // 如果投影点在当前检测半径内，认为在路线上
+                if (distToProjection <= currentRadius) {
+                    console.log('精度圈内找到投影点，距离:', distToProjection.toFixed(2), '米，检测半径:', currentRadius.toFixed(2), '米');
+                    return true;
+                }
+            }
+        }
+    }
+
+    console.log('不在路线上，精度圈半径:', circleRadius.toFixed(2), '米');
     return false;
+}
+
+// ====== 计算点到线段的投影 ======
+function projectPointToSegment(point, segStart, segEnd) {
+    const [px, py] = point;
+    const [x1, y1] = segStart;
+    const [x2, y2] = segEnd;
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    if (dx === 0 && dy === 0) {
+        // 线段退化为点
+        return {
+            point: [x1, y1],
+            t: 0,
+            onSegment: true
+        };
+    }
+
+    // 计算投影参数t
+    const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+
+    // 判断投影点是否在线段上
+    const onSegment = (t >= 0 && t <= 1);
+
+    // 限制t在[0,1]范围内以得到线段上的最近点
+    const clampedT = Math.max(0, Math.min(1, t));
+
+    // 计算投影点坐标
+    const projX = x1 + clampedT * dx;
+    const projY = y1 + clampedT * dy;
+
+    return {
+        point: [projX, projY],
+        t: clampedT,
+        onSegment: onSegment
+    };
 }
 
 // ====== 计算点到线段的距离 ======
@@ -2693,19 +2786,19 @@ function startRealNavigationTracking() {
 
             // 根据是否偏离路径决定如何显示路线
             if (isOffRoute) {
-                // 偏离路径时：恢复完整的绿色规划路径，隐藏灰色已走路径
+                // 偏离路径时：恢复完整的绿色规划路径
                 if (routePolyline && fullPath.length > 0) {
                     routePolyline.setPath(fullPath);
                 }
-                if (passedRoutePolyline && navigationMap) {
-                    navigationMap.remove(passedRoutePolyline);
-                    passedRoutePolyline = null;
-                }
+                // 不移除灰色已走路径，保留显示
+                // 黄色偏离路径会在updatePathSegments中处理
                 if (!hasReachedStart) {
                     console.log('未到起点附近，提示用户前往起点，显示完整规划路径');
                 } else {
-                    console.log('已偏离路径，显示完整规划路径');
+                    console.log('已偏离路径，显示完整规划路径和黄色偏离轨迹');
                 }
+                // 仍然调用updatePathSegments以更新黄色偏离路径
+                updatePathSegments(curr, fullPath, segIndex);
             } else {
                 // 在路径上时：将规划路径分为已走部分（灰色）和剩余部分（绿色），并将分割点对齐到路网
                 updatePathSegments(curr, fullPath, segIndex);
@@ -2789,6 +2882,8 @@ function stopRealNavigationTracking() {
     if (userMarker && navigationMap) { navigationMap.remove(userMarker); userMarker = null; }
     if (accuracyCircle && navigationMap) { navigationMap.remove(accuracyCircle); accuracyCircle = null; }
     if (passedRoutePolyline && navigationMap) { navigationMap.remove(passedRoutePolyline); passedRoutePolyline = null; }
+    if (deviatedRoutePolyline && navigationMap) { navigationMap.remove(deviatedRoutePolyline); deviatedRoutePolyline = null; }
+    deviatedPath = []; // 清空偏离路径点集合
     // 停止设备方向监听
     tryStopDeviceOrientationNav();
 }
@@ -2939,7 +3034,7 @@ function stopSimulatedNavigation() {
     }
 }
 
-// 更新路径显示：将规划路径分为已走部分（灰色）和剩余部分（绿色）
+// 更新路径显示：将规划路径分为已走部分（灰色）、偏离部分（黄色）和剩余部分（绿色）
 function updatePathSegments(currentPos, fullPath, segIndex) {
     if (!routePolyline || !fullPath || fullPath.length < 2) return;
 
@@ -2957,11 +3052,49 @@ function updatePathSegments(currentPos, fullPath, segIndex) {
     // 判断用户是否在路径上
     const onRoute = !isOffRoute;
 
+    // 处理偏离路径的情况
+    if (!onRoute) {
+        // 添加当前位置到偏离路径
+        if (deviatedPath.length === 0 ||
+            calculateDistanceBetweenPoints(currentPos, deviatedPath[deviatedPath.length - 1]) > 2) {
+            // 只有当移动超过2米才添加新点，避免过于密集
+            deviatedPath.push(currentPos);
+        }
+
+        // 创建或更新黄色偏离路径
+        if (deviatedPath.length >= 2) {
+            if (!deviatedRoutePolyline) {
+                deviatedRoutePolyline = new AMap.Polyline({
+                    path: deviatedPath,
+                    strokeColor: '#FFC107', // 黄色
+                    strokeWeight: 6,
+                    strokeOpacity: 0.8,
+                    strokeStyle: 'dashed', // 虚线样式
+                    lineJoin: 'round',
+                    lineCap: 'round',
+                    zIndex: 115, // 在灰色路径之上，绿色路径之下
+                    map: navigationMap
+                });
+                console.log('创建黄色偏离路径，长度:', deviatedPath.length, '点');
+            } else {
+                deviatedRoutePolyline.setPath(deviatedPath);
+                console.log('更新黄色偏离路径，长度:', deviatedPath.length, '点');
+            }
+        }
+    } else {
+        // 回到路线上时，清除偏离路径
+        if (deviatedRoutePolyline) {
+            navigationMap.remove(deviatedRoutePolyline);
+            deviatedRoutePolyline = null;
+        }
+        deviatedPath = [];
+    }
+
     // 已走过的路径部分：使用历史最远点索引
     let passedPath = [];
     if (maxPassedSegIndex >= 0) {
         passedPath = fullPath.slice(0, maxPassedSegIndex + 1);
-        // 若当前在路上，并且分割点位于当前最远路段末端，则追加投影点，保证灰线沿路网到达“离我最近的路点”
+        // 若当前在路上，并且分割点位于当前最远路段末端，则追加投影点，保证灰线沿路网到达"离我最近的路点"
         if (onRoute && routeSegIndex === maxPassedSegIndex) {
             passedPath.push(routePoint);
         }
@@ -2986,6 +3119,7 @@ function updatePathSegments(currentPos, fullPath, segIndex) {
         当前索引: segIndex,
         最远索引: maxPassedSegIndex,
         灰色路径点数: passedPath.length,
+        黄色偏离点数: deviatedPath.length,
         绿色路径点数: remaining.length
     });
 
