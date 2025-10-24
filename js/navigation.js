@@ -398,6 +398,7 @@ function displayKMLFeaturesForNavigation(features, fileName) {
     });
 
     // 2. 再显示线（zIndex: 20）
+    // 导航界面的KML线要素默认不显示，与开始导航后保持一致
     lines.forEach(feature => {
         if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 2) {
             const lineStyle = feature.geometry.style || {
@@ -411,8 +412,8 @@ function displayKMLFeaturesForNavigation(features, fileName) {
                 strokeColor: lineStyle.color,
                 strokeWeight: lineStyle.width,
                 strokeOpacity: lineStyle.opacity || 0.5,
-                zIndex: 20,
-                map: navigationMap
+                zIndex: 20
+                // 不添加 map 参数，默认不显示
             });
 
             marker.setExtData({
