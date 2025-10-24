@@ -326,6 +326,26 @@ function kmlColorToRgbaForNavigation(kmlColor) {
     };
 }
 
+// 计算多边形面积（使用Shoelace公式）- 导航页专用
+function calculatePolygonAreaForNav(coordinates) {
+    if (!coordinates || coordinates.length < 3) {
+        return 0;
+    }
+
+    let area = 0;
+    const n = coordinates.length;
+
+    // Shoelace公式计算多边形面积
+    for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        area += coordinates[i][0] * coordinates[j][1];
+        area -= coordinates[j][0] * coordinates[i][1];
+    }
+
+    // 返回绝对值的一半（面积）
+    return Math.abs(area) / 2;
+}
+
 // 在导航地图上显示KML要素（不显示点，只显示线和面）
 function displayKMLFeaturesForNavigation(features, fileName) {
     const layerId = 'kml-' + Date.now();
@@ -336,8 +356,17 @@ function displayKMLFeaturesForNavigation(features, fileName) {
     const lines = features.filter(f => f.geometry.type === 'line');
     const polygons = features.filter(f => f.geometry.type === 'polygon');
 
-    // 1. 先显示面（zIndex: 10）
-    polygons.forEach(feature => {
+    // 计算多边形面积并排序（面积大的在前，先渲染，这样会在底层）
+    const polygonsWithArea = polygons.map(polygon => {
+        const area = calculatePolygonAreaForNav(polygon.geometry.coordinates);
+        return { ...polygon, area };
+    });
+
+    // 按面积从大到小排序
+    polygonsWithArea.sort((a, b) => b.area - a.area);
+
+    // 1. 先显示面（大面积的先渲染，zIndex递增）
+    polygonsWithArea.forEach((feature, index) => {
         if (feature.geometry?.coordinates && feature.geometry.coordinates.length >= 3) {
             const polyStyle = feature.geometry.style || {
                 fillColor: '#CCCCCC',
@@ -349,12 +378,12 @@ function displayKMLFeaturesForNavigation(features, fileName) {
 
             const marker = new AMap.Polygon({
                 path: feature.geometry.coordinates,
-                strokeColor: polyStyle.strokeColor,
-                strokeWeight: polyStyle.strokeWidth,
-                strokeOpacity: polyStyle.strokeOpacity || 0.6,
+                strokeColor: 'transparent',
+                strokeWeight: 0,  // 不显示描边
+                strokeOpacity: 0,  // 完全透明
                 fillColor: polyStyle.fillColor,
                 fillOpacity: polyStyle.fillOpacity || 0.3,
-                zIndex: 10,
+                zIndex: 10 + index,  // 大面积的zIndex较小，显示在底层
                 map: navigationMap
             });
 

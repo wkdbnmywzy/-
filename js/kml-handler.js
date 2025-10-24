@@ -585,10 +585,19 @@ function displayKMLFeatures(features, fileName) {
     const lines = features.filter(f => f.geometry.type === 'line');
     const polygons = features.filter(f => f.geometry.type === 'polygon');
 
+    // 计算多边形面积并排序（面积大的在前，先渲染，这样会在底层）
+    const polygonsWithArea = polygons.map(polygon => {
+        const area = calculatePolygonArea(polygon.geometry.coordinates);
+        return { ...polygon, area };
+    });
+
+    // 按面积从大到小排序
+    polygonsWithArea.sort((a, b) => b.area - a.area);
+
     // 按顺序渲染：面（最下层）→ 线（中间层）→ 点（最上层）
 
-    // 1. 先显示面（zIndex: 10）
-    polygons.forEach(feature => {
+    // 1. 先显示面（大面积的先渲染，zIndex递增）
+    polygonsWithArea.forEach((feature, index) => {
         const featureCoordinates = feature.geometry.coordinates;
         allCoordinates.push(...featureCoordinates);
 
@@ -600,12 +609,12 @@ function displayKMLFeatures(features, fileName) {
 
         const marker = new AMap.Polygon({
             path: feature.geometry.coordinates,
-            strokeColor: polyStyle.strokeColor,
-            strokeWeight: polyStyle.strokeWidth,
-            strokeOpacity: polyStyle.strokeOpacity || 1,
+            strokeColor: polyStyle.strokeColor || 'transparent',
+            strokeWeight: 0,  // 不显示描边
+            strokeOpacity: 0,  // 完全透明
             fillColor: polyStyle.fillColor,
             fillOpacity: polyStyle.fillOpacity || 0.7,
-            zIndex: 10,
+            zIndex: 10 + index,  // 大面积的zIndex较小，显示在底层
             map: map
         });
 
@@ -620,6 +629,40 @@ function displayKMLFeatures(features, fileName) {
         });
 
         layerMarkers.push(marker);
+
+        // 添加面的名称文本标记
+        // 只有当名称有意义时才显示
+        if (isValidFeatureName(feature.name)) {
+            // 计算面的中心点
+            const center = calculatePolygonCenter(feature.geometry.coordinates);
+            
+            // 创建文本标记
+            const textMarker = new AMap.Text({
+                text: feature.name,
+                position: center,
+                anchor: 'center',
+                style: {
+                    'background-color': 'transparent',
+                    'border': 'none',
+                    'color': '#c8c8c8',
+                    'font-size': '10px',
+                    'font-weight': 'normal',
+                    'text-align': 'center',
+                    'padding': '0',
+                    'text-shadow': '-1px -1px 0 #FFFFFF, 1px -1px 0 #FFFFFF, -1px 1px 0 #FFFFFF, 1px 1px 0 #FFFFFF'
+                },
+                zIndex: 11,
+                map: map
+            });
+
+            textMarker.setExtData({
+                name: feature.name,
+                type: '面标签',
+                parentType: feature.type
+            });
+
+            layerMarkers.push(textMarker);
+        }
     });
 
     // 2. 再显示线（zIndex: 50）
@@ -1216,4 +1259,77 @@ function handlePendingSelectedLocation() {
             showSuccessMessage(`已定位到: ${selectedLocation.name}`);
         }
     }
+}
+
+// 计算多边形的中心点（几何中心）
+function calculatePolygonCenter(coordinates) {
+    if (!coordinates || coordinates.length === 0) {
+        return [0, 0];
+    }
+
+    let sumLng = 0;
+    let sumLat = 0;
+    let count = coordinates.length;
+
+    coordinates.forEach(coord => {
+        sumLng += coord[0];
+        sumLat += coord[1];
+    });
+
+    return [sumLng / count, sumLat / count];
+}
+
+// 计算多边形面积（使用Shoelace公式）
+function calculatePolygonArea(coordinates) {
+    if (!coordinates || coordinates.length < 3) {
+        return 0;
+    }
+
+    let area = 0;
+    const n = coordinates.length;
+
+    // Shoelace公式计算多边形面积
+    for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        area += coordinates[i][0] * coordinates[j][1];
+        area -= coordinates[j][0] * coordinates[i][1];
+    }
+
+    // 返回绝对值的一半（面积）
+    return Math.abs(area) / 2;
+}
+
+// 判断要素名称是否有意义（用于决定是否显示标签）
+function isValidFeatureName(name) {
+    if (!name || typeof name !== 'string') {
+        return false;
+    }
+
+    const trimmedName = name.trim();
+
+    // 空字符串
+    if (trimmedName === '') {
+        return false;
+    }
+
+    // 常见的无意义默认名称
+    const invalidPatterns = [
+        /^未命名/i,
+        /^unnamed/i,
+        /^untitled/i,
+        /^新建/i,
+        /^无名称/i,
+        /^面\d+$/i,
+        /^polygon\d*$/i,
+        /^区域\d+$/i,
+        /^path\d+$/i
+    ];
+
+    for (const pattern of invalidPatterns) {
+        if (pattern.test(trimmedName)) {
+            return false;
+        }
+    }
+
+    return true;
 }
