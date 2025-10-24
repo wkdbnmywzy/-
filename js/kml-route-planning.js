@@ -69,7 +69,7 @@ function buildKMLGraph() {
                     }
 
                     // 每个线段直接使用起点和终点作为节点
-                    // 由于线段已经在导入时被分割,所以不需要再检测交点
+                    // 由于线段已经在导入时被分割,端点就是交点或连接点
                     const startNode = findOrCreateNode(validPath[0]);
                     const endNode = findOrCreateNode(validPath[validPath.length - 1]);
 
@@ -82,14 +82,16 @@ function buildKMLGraph() {
 
                         // 创建边，保存完整路径坐标（用于渲染）
                         addEdge(startNode.id, endNode.id, segmentDistance, validPath);
+
+                        // 调试输出
+                        console.log(`添加边: ${extData.name}, 节点${startNode.id}->${endNode.id}, 距离${segmentDistance.toFixed(2)}米`);
                     }
                 }
             }
         });
     });
 
-    // 由于线段已经在导入时处理,不再需要检测交点和分割
-    // 直接构建图结构
+    // 构建图结构
     kmlGraph = buildAdjacencyList();
 
     console.log(`路径图构建完成: ${kmlNodes.length}个节点, ${kmlEdges.length}条边`);
