@@ -623,6 +623,7 @@ function displayKMLFeatures(features, fileName) {
     });
 
     // 2. 再显示线（zIndex: 50）
+    // 首页加载时不显示线要素，只在导航页显示
     lines.forEach(feature => {
         const featureCoordinates = feature.geometry.coordinates;
 
@@ -645,13 +646,14 @@ function displayKMLFeatures(features, fileName) {
             width: MapConfig.routeStyles.polyline.strokeWeight
         };
 
+        // 创建线要素但不添加到地图上（map参数不设置）
         const marker = new AMap.Polyline({
             path: validCoords,
             strokeColor: lineStyle.color,
             strokeWeight: lineStyle.width,
             strokeOpacity: lineStyle.opacity || 1,
-            zIndex: 50,
-            map: map
+            zIndex: 50
+            // 不添加 map: map，这样线要素不会显示在首页地图上
         });
 
         marker.setExtData({
