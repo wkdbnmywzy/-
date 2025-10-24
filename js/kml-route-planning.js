@@ -114,9 +114,9 @@ function buildKMLGraph() {
 
 // 查找或创建节点
 function findOrCreateNode(coordinate) {
-    // 使用较大的容差专门用于合并分割后的交点
-    // 因为同一个交点在不同线段中可能作为终点和起点存储两次
-    const tolerance = 5.0; // 5米容差，足够合并交点但不会误合并不同的点
+    // 使用较小的容差来合并节点，避免误合并短线段的端点
+    // 只合并非常接近的点（交点重复的情况）
+    const tolerance = 0.5; // 0.5米容差，只合并真正重复的交点
 
     // 提取经纬度
     let lng, lat;
