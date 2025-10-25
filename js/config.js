@@ -98,13 +98,13 @@ const MapConfig = {
     navigationConfig: {
         // 强制基于路网（未经过的路线）计算提示与图标
         usePathBasedPrompts: true,
-        // 接近起点时，允许“以我为起点”自动对齐到路网的距离（米）
+        // 接近起点时，允许"以我为起点"自动对齐到路网的距离（米）
          startRebaseDistanceMeters: 15,
         // 判定到达终点的沿路网剩余距离（米）。建议10~15米，过大会提前结束
         endArrivalDistanceMeters: 12,
-        // 是否要求到达起点附近再开始沿路网导航
-        requireStartAtOrigin: true,
-        // 与下一个转向的距离大于该阈值时，顶部图标优先显示“直行”，避免误解为仍需立即转向（单位：米）
+        // 是否要求到达起点附近再开始沿路网导航（改为false：投影点在路线上即可开始）
+        requireStartAtOrigin: false,
+        // 与下一个转向的距离大于该阈值时，顶部图标优先显示"直行"，避免误解为仍需立即转向（单位：米）
         turnPromptDistanceMeters: 40,
         // 提示模式：'path'（基于路网，默认）或 'heading'（基于用户朝向）
         promptMode: 'path'

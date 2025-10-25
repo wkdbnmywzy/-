@@ -333,9 +333,8 @@ function kmlColorToRgba(kmlColor) {
     };
 }
 
-// 处理线段的交点,分割相交的线段
+// 处理线段的交点,分割相交的线段（重构版）
 function processLineIntersections(features) {
-    // 提取所有线要素
     const lines = features.filter(f => f.geometry.type === 'line');
     const points = features.filter(f => f.geometry.type === 'point');
     const polygons = features.filter(f => f.geometry.type === 'polygon');
@@ -345,66 +344,71 @@ function processLineIntersections(features) {
         return features;
     }
 
-    console.log(`开始处理${lines.length}条线段的交点...`);
+    console.log(`开始处理${lines.length}条线段的交点（重构版）...`);
 
-    // 存储所有交点信息（包括端点在线上和普通交点）
-    const allIntersections = [];
+    // 为每条线建立分割点列表
+    const lineSplitPoints = lines.map(line => ({
+        line: line,
+        coords: line.geometry.coordinates,
+        splits: [] // {segmentIndex, point, t}
+    }));
 
-    // 遍历所有线段对,检测交点和端点在线上的情况
+    // 检测所有真实的几何交点
     for (let i = 0; i < lines.length; i++) {
-        const line1 = lines[i];
-        const coords1 = line1.geometry.coordinates;
+        const tree1 = lineSplitPoints[i];
+        const coords1 = tree1.coords;
 
         for (let j = i + 1; j < lines.length; j++) {
-            const line2 = lines[j];
-            const coords2 = line2.geometry.coordinates;
+            const tree2 = lineSplitPoints[j];
+            const coords2 = tree2.coords;
 
-            // 检查line1和line2的每一对线段是否相交
+            // 检查两条完整折线的所有小段对
             for (let seg1 = 0; seg1 < coords1.length - 1; seg1++) {
-                const p1Start = coords1[seg1];
-                const p1End = coords1[seg1 + 1];
+                const p1a = coords1[seg1];
+                const p1b = coords1[seg1 + 1];
 
                 for (let seg2 = 0; seg2 < coords2.length - 1; seg2++) {
-                    const p2Start = coords2[seg2];
-                    const p2End = coords2[seg2 + 1];
+                    const p2a = coords2[seg2];
+                    const p2b = coords2[seg2 + 1];
 
-                    // 检查端点在线上的情况
-                    const endpointOnLine = checkEndpointOnLine(
-                        p1Start, p1End, p2Start, p2End
-                    );
+                    const EPSILON = 1e-8;
 
-                    if (endpointOnLine) {
-                        // 端点在线上，记录为特殊交点
-                        allIntersections.push({
-                            type: 'endpoint_on_line',
-                            lineIndex1: i,
-                            segmentIndex1: seg1,
-                            lineIndex2: j,
-                            segmentIndex2: seg2,
-                            point: endpointOnLine.point,
-                            whichEndpoint: endpointOnLine.whichEndpoint,
-                            t1: endpointOnLine.t1,
-                            t2: endpointOnLine.t2
-                        });
-                    } else {
-                        // 检查普通交点
-                        const intersection = getSegmentIntersection(
-                            p1Start[0], p1Start[1], p1End[0], p1End[1],
-                            p2Start[0], p2Start[1], p2End[0], p2End[1]
+                    // 1. 检查端点重合（已经是连接点，无需分割）
+                    if (pointsEqual(p1a, p2a, EPSILON) || pointsEqual(p1a, p2b, EPSILON) ||
+                        pointsEqual(p1b, p2a, EPSILON) || pointsEqual(p1b, p2b, EPSILON)) {
+                        continue;
+                    }
+
+                    // 2. 检查T型交叉：某条线的端点在另一条线的中间
+                    const p1aT = isPointOnSegmentStrictParam(p1a, p2a, p2b, EPSILON);
+                    const p1bT = isPointOnSegmentStrictParam(p1b, p2a, p2b, EPSILON);
+                    const p2aT = isPointOnSegmentStrictParam(p2a, p1a, p1b, EPSILON);
+                    const p2bT = isPointOnSegmentStrictParam(p2b, p1a, p1b, EPSILON);
+
+                    if (p1aT !== null) {
+                        tree2.splits.push({segmentIndex: seg2, point: [p1a[0], p1a[1]], t: p1aT});
+                    }
+                    if (p1bT !== null) {
+                        tree2.splits.push({segmentIndex: seg2, point: [p1b[0], p1b[1]], t: p1bT});
+                    }
+                    if (p2aT !== null) {
+                        tree1.splits.push({segmentIndex: seg1, point: [p2a[0], p2a[1]], t: p2aT});
+                    }
+                    if (p2bT !== null) {
+                        tree1.splits.push({segmentIndex: seg1, point: [p2b[0], p2b[1]], t: p2bT});
+                    }
+
+                    // 3. 检查十字交叉：两个小段在中间相交
+                    if (p1aT === null && p1bT === null && p2aT === null && p2bT === null) {
+                        const cross = getSegmentIntersection(
+                            p1a[0], p1a[1], p1b[0], p1b[1],
+                            p2a[0], p2a[1], p2b[0], p2b[1]
                         );
 
-                        if (intersection && intersection.isInterior) {
-                            // 普通交点（不在端点）
-                            allIntersections.push({
-                                type: 'normal_intersection',
-                                lineIndex1: i,
-                                segmentIndex1: seg1,
-                                lineIndex2: j,
-                                segmentIndex2: seg2,
-                                point: [intersection.lng, intersection.lat],
-                                t1: intersection.t,
-                                t2: intersection.u
-                            });
+                        if (cross && cross.isInterior) {
+                            const crossPoint = [cross.lng, cross.lat];
+                            tree1.splits.push({segmentIndex: seg1, point: crossPoint, t: cross.t});
+                            tree2.splits.push({segmentIndex: seg2, point: crossPoint, t: cross.u});
                         }
                     }
                 }
@@ -412,110 +416,124 @@ function processLineIntersections(features) {
         }
     }
 
-    console.log(`找到${allIntersections.length}个交点（包括端点在线上的情况）`);
-    const endpointCount = allIntersections.filter(i => i.type === 'endpoint_on_line').length;
-    const normalCount = allIntersections.filter(i => i.type === 'normal_intersection').length;
-    console.log(`- 端点在线上: ${endpointCount}个`);
-    console.log(`- 普通交点: ${normalCount}个`);
+    // 统计交点
+    const totalSplits = lineSplitPoints.reduce((sum, tree) => sum + tree.splits.length, 0);
+    console.log(`检测到${totalSplits}个真实交点需要分割`);
 
-    if (allIntersections.length === 0) {
-        return features;
-    }
+    // 对每条线进行分割
+    const newLines = [];
+    let segmentCounter = 1;
 
-    // 根据交点类型进行分割
-    const newLines = processAndSplitLines(lines, allIntersections);
+    lineSplitPoints.forEach(tree => {
+        const {line, coords, splits} = tree;
+
+        if (splits.length === 0) {
+            newLines.push(line);
+            return;
+        }
+
+        // 排序并去重分割点
+        splits.sort((a, b) => {
+            if (a.segmentIndex !== b.segmentIndex) return a.segmentIndex - b.segmentIndex;
+            return a.t - b.t;
+        });
+
+        const uniqueSplits = [];
+        for (let i = 0; i < splits.length; i++) {
+            if (i === 0 || !pointsEqual(splits[i].point, splits[i-1].point, 1e-8)) {
+                uniqueSplits.push(splits[i]);
+            }
+        }
+
+        // 执行分割
+        const segments = splitLineByPoints2(coords, uniqueSplits);
+
+        segments.forEach(segCoords => {
+            if (segCoords.length >= 2) {
+                newLines.push({
+                    name: segments.length > 1 ? `${line.name}-段${segmentCounter++}` : line.name,
+                    type: '线',
+                    geometry: {
+                        type: 'line',
+                        coordinates: segCoords,
+                        style: line.geometry.style
+                    },
+                    description: line.description + (segments.length > 1 ? ' (已分割)' : '')
+                });
+            }
+        });
+    });
 
     console.log(`线段处理完成: 原始${lines.length}条 -> 分割后${newLines.length}条`);
-
-    // 返回处理后的要素集合
     return [...points, ...newLines, ...polygons];
 }
 
-// 检查是否有端点在另一条线段上
-function checkEndpointOnLine(p1Start, p1End, p2Start, p2End) {
-    const epsilon = 1e-9; // 更小的容差，确保精确判断
-
-    // 检查线段1的起点是否在线段2上
-    const p1StartOn2 = isPointOnSegment(p1Start, p2Start, p2End, epsilon);
-    if (p1StartOn2 !== null) {
-        return {
-            point: p1Start,
-            whichEndpoint: 'line1_start',
-            t1: 0,
-            t2: p1StartOn2
-        };
-    }
-
-    // 检查线段1的终点是否在线段2上
-    const p1EndOn2 = isPointOnSegment(p1End, p2Start, p2End, epsilon);
-    if (p1EndOn2 !== null) {
-        return {
-            point: p1End,
-            whichEndpoint: 'line1_end',
-            t1: 1,
-            t2: p1EndOn2
-        };
-    }
-
-    // 检查线段2的起点是否在线段1上
-    const p2StartOn1 = isPointOnSegment(p2Start, p1Start, p1End, epsilon);
-    if (p2StartOn1 !== null) {
-        return {
-            point: p2Start,
-            whichEndpoint: 'line2_start',
-            t1: p2StartOn1,
-            t2: 0
-        };
-    }
-
-    // 检查线段2的终点是否在线段1上
-    const p2EndOn1 = isPointOnSegment(p2End, p1Start, p1End, epsilon);
-    if (p2EndOn1 !== null) {
-        return {
-            point: p2End,
-            whichEndpoint: 'line2_end',
-            t1: p2EndOn1,
-            t2: 1
-        };
-    }
-
-    return null;
+// 判断两点是否相等
+function pointsEqual(p1, p2, epsilon) {
+    return Math.abs(p1[0] - p2[0]) < epsilon && Math.abs(p1[1] - p2[1]) < epsilon;
 }
 
-// 判断点是否在线段上（不包括端点）
-function isPointOnSegment(point, segStart, segEnd, epsilon = 1e-9) {
+// 严格检查点是否在线段内部（返回参数t或null）
+function isPointOnSegmentStrictParam(point, segStart, segEnd, epsilon) {
     const dx = segEnd[0] - segStart[0];
     const dy = segEnd[1] - segStart[1];
+    const len2 = dx * dx + dy * dy;
 
-    // 如果线段退化为点
-    if (Math.abs(dx) < epsilon && Math.abs(dy) < epsilon) {
-        return null;
-    }
+    if (len2 < epsilon * epsilon) return null;
 
-    // 计算参数t
-    let t;
-    if (Math.abs(dx) > Math.abs(dy)) {
-        t = (point[0] - segStart[0]) / dx;
-    } else {
-        t = (point[1] - segStart[1]) / dy;
-    }
+    const t = ((point[0] - segStart[0]) * dx + (point[1] - segStart[1]) * dy) / len2;
 
-    // 检查t是否在(0,1)范围内（不包括端点）
-    if (t <= epsilon || t >= 1 - epsilon) {
-        return null;
-    }
+    // 必须在(0, 1)内部
+    if (t <= epsilon || t >= 1 - epsilon) return null;
 
-    // 计算点到线段的距离
+    // 检查点是否真的在线段上
     const projX = segStart[0] + t * dx;
     const projY = segStart[1] + t * dy;
-    const dist = Math.sqrt(Math.pow(point[0] - projX, 2) + Math.pow(point[1] - projY, 2));
+    const dist2 = (point[0] - projX) * (point[0] - projX) + (point[1] - projY) * (point[1] - projY);
 
-    // 如果距离足够小，认为点在线段上
-    if (dist < epsilon * 100) { // 稍微放宽距离容差
-        return t;
+    return dist2 < epsilon * epsilon ? t : null;
+}
+
+// 根据分割点列表切分坐标数组
+function splitLineByPoints2(coords, splitPoints) {
+    if (splitPoints.length === 0) return [coords];
+
+    const segments = [];
+    let current = [coords[0]];
+    let coordIdx = 0;
+
+    for (const split of splitPoints) {
+        const {segmentIndex, point} = split;
+
+        // 添加到分割点所在小段之前的所有坐标
+        while (coordIdx < segmentIndex) {
+            coordIdx++;
+            current.push(coords[coordIdx]);
+        }
+
+        // 添加分割点
+        if (!pointsEqual(point, current[current.length - 1], 1e-8)) {
+            current.push(point);
+        }
+
+        if (current.length >= 2) {
+            segments.push(current);
+        }
+
+        current = [point];
     }
 
-    return null;
+    // 添加剩余坐标
+    while (coordIdx < coords.length - 1) {
+        coordIdx++;
+        current.push(coords[coordIdx]);
+    }
+
+    if (current.length >= 2) {
+        segments.push(current);
+    }
+
+    return segments;
 }
 
 // 计算两条线段的交点
@@ -552,265 +570,6 @@ function getSegmentIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
     }
 
     return null;
-}
-
-// 根据交点类型处理和分割线段
-function processAndSplitLines(lines, allIntersections) {
-    // 创建线段的副本，用于分割处理
-    const processedLines = [];
-    const lineSegments = new Map(); // 存储每条线的分���段
-
-    // 初始化：每条线作为一个完整段
-    lines.forEach((line, index) => {
-        lineSegments.set(index, [{
-            coordinates: [...line.geometry.coordinates],
-            style: line.geometry.style,
-            name: line.name,
-            description: line.description,
-            originalIndex: index
-        }]);
-    });
-
-    // 按交点类型分组处理
-    const endpointIntersections = allIntersections.filter(i => i.type === 'endpoint_on_line');
-    const normalIntersections = allIntersections.filter(i => i.type === 'normal_intersection');
-
-    // 先处理端点在线上的情况（分3段）
-    endpointIntersections.forEach(intersection => {
-        const { lineIndex1, lineIndex2, point, whichEndpoint, t1, t2 } = intersection;
-
-        if (whichEndpoint === 'line1_start' || whichEndpoint === 'line1_end') {
-            // 线段1的端点在线段2上，分割线段2为2段（端点处分割）
-            splitLineAtPoint(lineSegments, lineIndex2, point, t2);
-        } else {
-            // 线段2的端点在线段1上，分割线段1为2段（端点处分割）
-            splitLineAtPoint(lineSegments, lineIndex1, point, t1);
-        }
-    });
-
-    // 再处理普通交点（分4段）
-    normalIntersections.forEach(intersection => {
-        const { lineIndex1, lineIndex2, point, t1, t2 } = intersection;
-
-        // 两条线都在交点处分割
-        splitLineAtPoint(lineSegments, lineIndex1, point, t1);
-        splitLineAtPoint(lineSegments, lineIndex2, point, t2);
-    });
-
-    // 收集所有分割后的线段
-    let segmentCounter = 1;
-    lineSegments.forEach((segments, lineIndex) => {
-        segments.forEach((segment, segIndex) => {
-            if (segment.coordinates.length >= 2) {
-                processedLines.push({
-                    name: segments.length > 1 ?
-                        `${segment.name}-段${segmentCounter++}` :
-                        segment.name,
-                    type: '线',
-                    geometry: {
-                        type: 'line',
-                        coordinates: segment.coordinates,
-                        style: segment.style
-                    },
-                    description: segment.description +
-                        (segments.length > 1 ? ' (已分割)' : '')
-                });
-            }
-        });
-    });
-
-    return processedLines;
-}
-
-// 在指定位置分割线段
-function splitLineAtPoint(lineSegments, lineIndex, splitPoint, t) {
-    const segments = lineSegments.get(lineIndex);
-    if (!segments) return;
-
-    const newSegments = [];
-
-    segments.forEach(segment => {
-        const coords = segment.coordinates;
-        let wasSplit = false;
-
-        // 查找分割点应该插入的位置
-        for (let i = 0; i < coords.length - 1; i++) {
-            const segStart = coords[i];
-            const segEnd = coords[i + 1];
-
-            // 检查分割点是否在这个子段上
-            const segT = getParameterOnSegment(splitPoint, segStart, segEnd);
-
-            if (segT !== null && segT > 0.01 && segT < 0.99) {
-                // 分割点在这个子段上，进行分割
-                const part1Coords = coords.slice(0, i + 1);
-                part1Coords.push(splitPoint);
-
-                const part2Coords = [splitPoint];
-                part2Coords.push(...coords.slice(i + 1));
-
-                // 创建两个新段
-                if (part1Coords.length >= 2) {
-                    newSegments.push({
-                        ...segment,
-                        coordinates: part1Coords
-                    });
-                }
-                if (part2Coords.length >= 2) {
-                    newSegments.push({
-                        ...segment,
-                        coordinates: part2Coords
-                    });
-                }
-
-                wasSplit = true;
-                break;
-            }
-        }
-
-        // 如果没有分割，保持原段
-        if (!wasSplit) {
-            newSegments.push(segment);
-        }
-    });
-
-    lineSegments.set(lineIndex, newSegments);
-}
-
-// 获取点在线段上的参数t
-function getParameterOnSegment(point, segStart, segEnd) {
-    const dx = segEnd[0] - segStart[0];
-    const dy = segEnd[1] - segStart[1];
-    const epsilon = 1e-9;
-
-    // 线段退化为点
-    if (Math.abs(dx) < epsilon && Math.abs(dy) < epsilon) {
-        const dist = Math.sqrt(
-            Math.pow(point[0] - segStart[0], 2) +
-            Math.pow(point[1] - segStart[1], 2)
-        );
-        return dist < epsilon ? 0 : null;
-    }
-
-    // 计算参数t
-    let t;
-    if (Math.abs(dx) > Math.abs(dy)) {
-        t = (point[0] - segStart[0]) / dx;
-    } else {
-        t = (point[1] - segStart[1]) / dy;
-    }
-
-    // 验证点确实在线段上
-    const projX = segStart[0] + t * dx;
-    const projY = segStart[1] + t * dy;
-    const dist = Math.sqrt(Math.pow(point[0] - projX, 2) + Math.pow(point[1] - projY, 2));
-
-    if (dist < 0.001 && t >= -epsilon && t <= 1 + epsilon) {
-        return Math.max(0, Math.min(1, t)); // 限制在[0,1]范围内
-    }
-
-    return null;
-}
-
-// 在交点处分割线段（旧函数，保留兼容性）
-function splitLineAtIntersections(line, intersections) {
-    const coords = line.geometry.coordinates;
-
-    // 按线段索引和t值排序交点
-    intersections.sort((a, b) => {
-        if (a.segmentIndex !== b.segmentIndex) {
-            return a.segmentIndex - b.segmentIndex;
-        }
-        return a.t - b.t;
-    });
-
-    // 构建新的坐标序列,插入交点
-    const newCoords = [];
-    let currentSegment = 0;
-
-    for (let i = 0; i < coords.length; i++) {
-        newCoords.push(coords[i]);
-
-        // 检查当前线段上是否有交点
-        if (i < coords.length - 1) {
-            const segmentIntersections = intersections.filter(
-                inter => inter.segmentIndex === i
-            );
-
-            // 按t值排序,确保交点顺序正确
-            segmentIntersections.sort((a, b) => a.t - b.t);
-
-            // 插入所有交点
-            segmentIntersections.forEach(inter => {
-                newCoords.push(inter.point);
-            });
-        }
-    }
-
-    // 现在将包含交点的坐标序列分割成多条线段
-    // 每个交点都是分割点
-    const splitLines = [];
-    let startIdx = 0;
-
-    // 找到所有交点在新坐标序列中的位置
-    const intersectionIndices = [];
-    intersections.forEach(inter => {
-        // 在newCoords中找到对应的交点
-        for (let i = 0; i < newCoords.length; i++) {
-            const coord = newCoords[i];
-            if (Math.abs(coord[0] - inter.point[0]) < 1e-8 &&
-                Math.abs(coord[1] - inter.point[1]) < 1e-8) {
-                intersectionIndices.push(i);
-                break;
-            }
-        }
-    });
-
-    // 去重并排序
-    const uniqueIndices = [...new Set(intersectionIndices)].sort((a, b) => a - b);
-
-    // 在每个交点处分割
-    uniqueIndices.forEach(idx => {
-        if (idx > startIdx) {
-            const segmentCoords = newCoords.slice(startIdx, idx + 1);
-            if (segmentCoords.length >= 2) {
-                splitLines.push({
-                    name: `${line.name}-分段${splitLines.length + 1}`,
-                    type: line.type,
-                    geometry: {
-                        type: 'line',
-                        coordinates: segmentCoords,
-                        style: line.geometry.style
-                    },
-                    description: line.description + ' (已分割)'
-                });
-            }
-            startIdx = idx;
-        }
-    });
-
-    // 添加最后一段
-    if (startIdx < newCoords.length - 1) {
-        const segmentCoords = newCoords.slice(startIdx);
-        if (segmentCoords.length >= 2) {
-            splitLines.push({
-                name: `${line.name}-分段${splitLines.length + 1}`,
-                type: line.type,
-                geometry: {
-                    type: 'line',
-                    coordinates: segmentCoords,
-                    style: line.geometry.style
-                },
-                description: line.description + ' (已分割)'
-            });
-        }
-    }
-
-    if (splitLines.length === 0) {
-        return [line];
-    }
-
-    return splitLines;
 }
 
 function displayKMLFeatures(features, fileName) {

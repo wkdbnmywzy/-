@@ -81,6 +81,7 @@ function buildKMLGraph() {
                         }
 
                         // 创建边，保存完整路径坐标（用于渲染）
+                        console.log(`准备添加边 ${extData.name}: validPath.length=${validPath.length}, 起点到终点距离=${segmentDistance.toFixed(2)}米`);
                         addEdge(startNode.id, endNode.id, segmentDistance, validPath);
 
                         // 调试输出
@@ -116,9 +117,9 @@ function buildKMLGraph() {
 
 // 查找或创建节点
 function findOrCreateNode(coordinate) {
-    // 使用较小的容差来合并节点，避免误合并短线段的端点
-    // 只合并非常接近的点（交点重复的情况）
-    const tolerance = 0.5; // 0.5米容差，只合并真正重复的交点
+    // 使用极小的容差来合并节点，避免误合并短线段的端点
+    // 只合并交点计算产生的数值误差（亚毫米级别）
+    const tolerance = 0.001; // 1毫米容差，只合并因浮点运算产生的重复交点
 
     // 提取经纬度
     let lng, lat;
@@ -162,8 +163,16 @@ function findOrCreateNode(coordinate) {
 
 // 添加边
 function addEdge(startId, endId, distance, coordinates) {
+    console.log(`addEdge 被调用: startId=${startId}, endId=${endId}, distance=${distance.toFixed(2)}, coordinates.length=${coordinates ? coordinates.length : 0}`);
+
     if (startId === endId) {
-        console.warn('检测到自环边，已跳过 (节点' + startId + ')');
+        console.warn(`检测到自环边，已跳过 (节点${startId}, 距离${distance.toFixed(2)}米) - 这可能是节点合并容差设置过大导致的`);
+        return;
+    }
+
+    // 检查是否为极短的无效边（小于2厘米）
+    if (distance < 0.02) {
+        console.warn(`检测到极短边，已跳过 (节点${startId}->${endId}, 距离${distance.toFixed(4)}米) - 可能是交点计算误差`);
         return;
     }
 
@@ -174,12 +183,16 @@ function addEdge(startId, endId, distance, coordinates) {
     );
 
     if (!existingEdge) {
-        kmlEdges.push({
+        const edgeData = {
             start: startId,
             end: endId,
             distance: distance,
             coordinates: coordinates || [] // 保存边上的完整坐标点
-        });
+        };
+        kmlEdges.push(edgeData);
+        console.log(`边已添加到 kmlEdges: 节点${startId}->${endId}, 坐标数=${edgeData.coordinates.length}`);
+    } else {
+        console.log(`边已存在，跳过: 节点${startId}->${endId}`);
     }
 }
 
@@ -194,6 +207,8 @@ function buildAdjacencyList() {
 
     // 添加边（包含坐标信息）
     kmlEdges.forEach(edge => {
+        console.log(`buildAdjacencyList 处理边: ${edge.start}->${edge.end}, coordinates.length=${edge.coordinates ? edge.coordinates.length : 0}`);
+
         graph[edge.start].push({
             node: edge.end,
             distance: edge.distance,
@@ -205,6 +220,12 @@ function buildAdjacencyList() {
             coordinates: edge.coordinates ? edge.coordinates.slice().reverse() : []
         });
     });
+
+    // 验证构建后的图
+    console.log('邻接表构建完成，验证第一个节点的邻居:');
+    if (graph[0] && graph[0].length > 0) {
+        console.log(`节点0的第一个邻居: node=${graph[0][0].node}, coordinates.length=${graph[0][0].coordinates.length}`);
+    }
 
     return graph;
 }
@@ -288,6 +309,10 @@ function dijkstra(startNodeId, endNodeId) {
                     distances[neighbor.node] = newDistance;
                     previous[neighbor.node] = currentNode;
                     previousEdge[neighbor.node] = neighbor; // 保存边信息（包含坐标）
+                    // 调试：检查边的坐标数量
+                    if (neighbor.coordinates) {
+                        console.log(`更新节点${neighbor.node}: 坐标数=${neighbor.coordinates.length}`);
+                    }
                 }
             }
         });
@@ -323,6 +348,8 @@ function dijkstra(startNodeId, endNodeId) {
                 return null;
             }).filter(c => c !== null);
 
+            console.log(`添加边坐标: 从节点${previous[currentNode]}到${currentNode}, 坐标数:${edgeCoords.length}`);
+
             // 添加边上的所有坐标（倒序，因为是从终点往回走）
             for (let i = edgeCoords.length - 1; i >= 0; i--) {
                 path.unshift(edgeCoords[i]);
@@ -331,6 +358,7 @@ function dijkstra(startNodeId, endNodeId) {
             // 如果边没有保存坐标，回退到使用节点坐标
             const node = kmlNodes.find(n => n.id === currentNode);
             if (node) {
+                console.log(`添加节点坐标: 节点${currentNode}`);
                 path.unshift([node.lng, node.lat]);
             }
         }
@@ -388,7 +416,111 @@ function dijkstra(startNodeId, endNodeId) {
     };
 }
 
-// 查找距离某点最近的KML线段及其投影点
+// 查找距离某点最近的KML线段及其投影点（智能版：考虑方向）
+function findNearestKMLSegmentSmart(coordinate, targetCoordinate, pointType) {
+    // 先使用基础方法找到最近的线段
+    const basicResult = findNearestKMLSegment(coordinate);
+
+    if (!basicResult) return null;
+
+    // 计算直线距离和预期路径距离的比例
+    const directDist = calculateDistance(coordinate, targetCoordinate);
+
+    // 如果找到的线段距离很近（<5米），直接使用
+    if (basicResult.distance < 5) {
+        console.log(`${pointType}投影距离很近(${basicResult.distance.toFixed(2)}米)，直接使用`);
+        return basicResult;
+    }
+
+    // 如果直线距离很短（<50米），检查是否应该在同一条边上
+    if (directDist < 50) {
+        console.log(`${pointType}直线距离很短(${directDist.toFixed(2)}米)，尝试寻找更优投影...`);
+
+        // 查找目标点附近的所有候选线段
+        const candidates = [];
+        const coordLng = Array.isArray(coordinate) ? coordinate[0] : coordinate.lng;
+        const coordLat = Array.isArray(coordinate) ? coordinate[1] : coordinate.lat;
+
+        kmlEdges.forEach((edge, edgeIdx) => {
+            if (!edge.coordinates || edge.coordinates.length < 2) return;
+
+            for (let i = 0; i < edge.coordinates.length - 1; i++) {
+                const p1 = edge.coordinates[i];
+                const p2 = edge.coordinates[i + 1];
+
+                const p1Lng = p1.lng !== undefined ? p1.lng : p1[0];
+                const p1Lat = p1.lat !== undefined ? p1.lat : p1[1];
+                const p2Lng = p2.lng !== undefined ? p2.lng : p2[0];
+                const p2Lat = p2.lat !== undefined ? p2.lat : p2[1];
+
+                const projection = projectPointToSegment(
+                    {lng: coordLng, lat: coordLat},
+                    {lng: p1Lng, lat: p1Lat},
+                    {lng: p2Lng, lat: p2Lat}
+                );
+
+                // 只考���距离<20米的候选
+                if (projection.distance < 20) {
+                    candidates.push({
+                        edge: edge,
+                        projection: projection,
+                        distance: projection.distance,
+                        segmentIndex: i,
+                        edgeIdx: edgeIdx
+                    });
+                }
+            }
+        });
+
+        console.log(`找到${candidates.length}个候选线段（距离<20米）`);
+
+        // 如果有多个候选，选择最接近直线路径的
+        if (candidates.length > 1) {
+            // 计算从当前点到目标点的方向向量
+            const targetLng = Array.isArray(targetCoordinate) ? targetCoordinate[0] : targetCoordinate.lng;
+            const targetLat = Array.isArray(targetCoordinate) ? targetCoordinate[1] : targetCoordinate.lat;
+            const directionToTarget = Math.atan2(targetLat - coordLat, targetLng - coordLng);
+
+            // 为每个候选计算得分（距离权重60% + 方向匹配40%）
+            candidates.forEach(cand => {
+                const projLng = cand.projection.point.lng;
+                const projLat = cand.projection.point.lat;
+
+                // 计算从投影点到目标的方向
+                const directionFromProj = Math.atan2(targetLat - projLat, targetLng - projLng);
+                const angleDiff = Math.abs(directionToTarget - directionFromProj);
+                const angleScore = Math.min(angleDiff, 2 * Math.PI - angleDiff) / Math.PI; // 0-1, 越小越好
+
+                // 综合得分
+                cand.score = cand.distance * 0.6 + angleScore * directDist * 0.4;
+            });
+
+            // 选择得分最低的
+            candidates.sort((a, b) => a.score - b.score);
+            const best = candidates[0];
+
+            console.log(`选择得分最优的候选: 距离${best.distance.toFixed(2)}米, 得分${best.score.toFixed(2)}`);
+
+            return {
+                edge: best.edge,
+                projectionPoint: best.projection.point,
+                distance: best.distance,
+                info: {
+                    segmentIndex: best.segmentIndex,
+                    t: best.projection.t,
+                    isAtStart: best.projection.t <= 0.01,
+                    isAtEnd: best.projection.t >= 0.99,
+                    edgeIndex: best.edgeIdx
+                }
+            };
+        }
+    }
+
+    // 默认返回基础结果
+    return basicResult;
+}
+
+// 查找距离某点最近的KML线段及其投影点（基础版）
 function findNearestKMLSegment(coordinate) {
     let minDistance = Infinity;
     let nearestSegment = null;
@@ -496,7 +628,7 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         终点: endCoordinate
     });
 
-    // 构建或更新KML图
+    //构建或更新KML图
     if (!kmlGraph) {
         const success = buildKMLGraph();
         if (!success) {
@@ -505,9 +637,13 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         }
     }
 
-    // 找到起点和终点最近的KML线段
-    const startSegment = findNearestKMLSegment(startCoordinate);
-    const endSegment = findNearestKMLSegment(endCoordinate);
+    // 计算起点到终点的直线距离（用于智能投影判断）
+    const directDistance = calculateDistance(startCoordinate, endCoordinate);
+    console.log(`起终点直线距离: ${directDistance.toFixed(2)}米`);
+
+    // 找到起点和终点最近的KML线段（使用智能投影）
+    const startSegment = findNearestKMLSegmentSmart(startCoordinate, endCoordinate, '起点');
+    const endSegment = findNearestKMLSegmentSmart(endCoordinate, startCoordinate, '终点');
 
     if (!startSegment || !endSegment) {
         console.error('无法找到合适的KML线段');
@@ -516,7 +652,10 @@ function planKMLRoute(startCoordinate, endCoordinate) {
 
     console.log('找到最近的线段:', {
         起点最近线段距离: `${startSegment.distance.toFixed(2)}米`,
-        终点最近线段距离: `${endSegment.distance.toFixed(2)}米`
+        终点最近线段距离: `${endSegment.distance.toFixed(2)}米`,
+        起点所在边: `节点${startSegment.edge.start}->节点${startSegment.edge.end}`,
+        终点所在边: `节点${endSegment.edge.start}->节点${endSegment.edge.end}`,
+        是否同一条边: startSegment.edge === endSegment.edge
     });
 
     // 特殊情况：检查起点和终点是否在同一条边上
@@ -541,14 +680,32 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         // 构建起点到终点的路径（沿着线段的实际形状）
         let segmentPath = [];
 
+        // 统一处理投影点格式（可能是数组或对象）
+        const getCoordArray = (proj) => {
+            if (Array.isArray(proj)) {
+                return proj;
+            } else if (proj && typeof proj === 'object') {
+                return [proj.lng || proj[0], proj.lat || proj[1]];
+            }
+            return null;
+        };
+
+        const startProjArr = getCoordArray(startProj);
+        const endProjArr = getCoordArray(endProj);
+
+        if (!startProjArr || !endProjArr) {
+            console.error('投影点格式无效');
+            return null;
+        }
+
         if (startSegIdx === endSegIdx) {
             // 起点和终点投影在同一小段上，直接连接两个投影点
-            segmentPath.push([startProj.lng, startProj.lat]);
-            segmentPath.push([endProj.lng, endProj.lat]);
+            segmentPath.push(startProjArr);
+            segmentPath.push(endProjArr);
         } else {
             // 起点和终点在不同的小段上
             // 添加起点投影点
-            segmentPath.push([startProj.lng, startProj.lat]);
+            segmentPath.push(startProjArr);
 
             // 确定遍历方向
             if (startSegIdx < endSegIdx) {
@@ -570,7 +727,7 @@ function planKMLRoute(startCoordinate, endCoordinate) {
             }
 
             // 添加终点投影点
-            segmentPath.push([endProj.lng, endProj.lat]);
+            segmentPath.push(endProjArr);
         }
 
         // 计算路径距离
@@ -658,7 +815,9 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         起点节点ID: actualStartNodeId,
         终点节点ID: actualEndNodeId,
         起点坐标: kmlNodes.find(n => n.id === actualStartNodeId),
-        终点坐标: kmlNodes.find(n => n.id === actualEndNodeId)
+        终点坐标: kmlNodes.find(n => n.id === actualEndNodeId),
+        起点邻居数: kmlGraph[actualStartNodeId] ? kmlGraph[actualStartNodeId].length : 0,
+        终点邻居数: kmlGraph[actualEndNodeId] ? kmlGraph[actualEndNodeId].length : 0
     });
 
     // 使用Dijkstra算法计算路径
@@ -669,7 +828,7 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         return null;
     }
 
-    console.log(`Dijkstra算法返回路径，共${result.path.length}个点`);
+    console.log(`Dijkstra算法返回路径，共${result.path.length}个点，总距离${result.distance.toFixed(2)}米`);
 
     // 验证路径中的所有坐标
     const validPath = [];
