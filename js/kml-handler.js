@@ -333,6 +333,9 @@ function kmlColorToRgba(kmlColor) {
     };
 }
 
+// 几何计算的统一精度阈值
+const GEOMETRY_EPSILON = 1e-8;
+
 // 处理线段的交点,分割相交的线段（重构版）
 function processLineIntersections(features) {
     const lines = features.filter(f => f.geometry.type === 'line');
@@ -344,7 +347,87 @@ function processLineIntersections(features) {
         return features;
     }
 
-    console.log(`开始处理${lines.length}条线段的交点（重构版）...`);
+    console.log(`开始处理${lines.length}条线段的交点（使用新分割器）...`);
+    
+    // 将features中的线段提取为分割器所需的格式
+    const segments = [];
+    let segmentId = 0;
+    
+    lines.forEach((line, lineIndex) => {
+        const coords = line.geometry.coordinates;
+        // 将每条LineString拆分为基础线段
+        for (let i = 0; i < coords.length - 1; i++) {
+            segments.push({
+                id: `seg_${segmentId++}`,
+                start: { lng: coords[i][0], lat: coords[i][1] },
+                end: { lng: coords[i + 1][0], lat: coords[i + 1][1] },
+                originalLine: line,
+                originalLineIndex: lineIndex,
+                segmentIndexInLine: i
+            });
+        }
+    });
+
+    console.log(`提取了 ${segments.length} 个基础线段`);
+
+    // 使用新的分割器模块
+    if (!window.SegmentSplitter) {
+        console.error('SegmentSplitter模块未加载，使用原有逻辑');
+        return processLineIntersectionsOld(features);
+    }
+
+    // 检测交点
+    const intersections = window.SegmentSplitter.detectAllIntersections(segments);
+    
+    // 按交点分割线段
+    const newSegments = window.SegmentSplitter.splitSegmentsByIntersections(segments, intersections);
+    
+    console.log(`分割后生成 ${newSegments.length} 个新线段，检测到 ${intersections.length} 个交点`);
+
+    // 保存交点信息到全局变量（供图构建时使用"交点优先"策略）
+    window.kmlIntersectionPoints = intersections.map(inter => ({
+        lng: inter.point.lng,
+        lat: inter.point.lat
+    }));
+    console.log(`保存了 ${window.kmlIntersectionPoints.length} 个交点坐标用于图构建`);
+
+    // 将新线段转换回features格式
+    // 每个新线段作为独立的线要素
+    const newLines = newSegments.map((seg, index) => {
+        // 查找原始线的样式
+        const originalLine = seg.originalLine || lines[0]; // 默认使用第一条线的样式
+        
+        return {
+            name: `路段-${index + 1}`,
+            type: '线',
+            geometry: {
+                type: 'line',
+                coordinates: [
+                    [seg.start.lng, seg.start.lat],
+                    [seg.end.lng, seg.end.lat]
+                ],
+                style: originalLine.geometry.style
+            },
+            description: '已分割的路段'
+        };
+    });
+
+    console.log(`线段处理完成: 原始${lines.length}条 -> 分割后${newLines.length}条`);
+    return [...points, ...newLines, ...polygons];
+}
+
+// 旧的分割逻辑（作为后备）
+function processLineIntersectionsOld(features) {
+    const lines = features.filter(f => f.geometry.type === 'line');
+    const points = features.filter(f => f.geometry.type === 'point');
+    const polygons = features.filter(f => f.geometry.type === 'polygon');
+
+    if (lines.length < 2) {
+        console.log('线段数量不足,无需处理交点');
+        return features;
+    }
+
+    console.log(`开始处理${lines.length}条线段的交点（旧版后备）...`);
 
     // 为每条线建立分割点列表
     const lineSplitPoints = lines.map(line => ({
@@ -371,19 +454,17 @@ function processLineIntersections(features) {
                     const p2a = coords2[seg2];
                     const p2b = coords2[seg2 + 1];
 
-                    const EPSILON = 1e-8;
-
                     // 1. 检查端点重合（已经是连接点，无需分割）
-                    if (pointsEqual(p1a, p2a, EPSILON) || pointsEqual(p1a, p2b, EPSILON) ||
-                        pointsEqual(p1b, p2a, EPSILON) || pointsEqual(p1b, p2b, EPSILON)) {
+                    if (pointsEqual(p1a, p2a, GEOMETRY_EPSILON) || pointsEqual(p1a, p2b, GEOMETRY_EPSILON) ||
+                        pointsEqual(p1b, p2a, GEOMETRY_EPSILON) || pointsEqual(p1b, p2b, GEOMETRY_EPSILON)) {
                         continue;
                     }
 
                     // 2. 检查T型交叉：某条线的端点在另一条线的中间
-                    const p1aT = isPointOnSegmentStrictParam(p1a, p2a, p2b, EPSILON);
-                    const p1bT = isPointOnSegmentStrictParam(p1b, p2a, p2b, EPSILON);
-                    const p2aT = isPointOnSegmentStrictParam(p2a, p1a, p1b, EPSILON);
-                    const p2bT = isPointOnSegmentStrictParam(p2b, p1a, p1b, EPSILON);
+                    const p1aT = isPointOnSegmentStrictParam(p1a, p2a, p2b, GEOMETRY_EPSILON);
+                    const p1bT = isPointOnSegmentStrictParam(p1b, p2a, p2b, GEOMETRY_EPSILON);
+                    const p2aT = isPointOnSegmentStrictParam(p2a, p1a, p1b, GEOMETRY_EPSILON);
+                    const p2bT = isPointOnSegmentStrictParam(p2b, p1a, p1b, GEOMETRY_EPSILON);
 
                     if (p1aT !== null) {
                         tree2.splits.push({segmentIndex: seg2, point: [p1a[0], p1a[1]], t: p1aT});
@@ -409,6 +490,41 @@ function processLineIntersections(features) {
                             const crossPoint = [cross.lng, cross.lat];
                             tree1.splits.push({segmentIndex: seg1, point: crossPoint, t: cross.t});
                             tree2.splits.push({segmentIndex: seg2, point: crossPoint, t: cross.u});
+                        } else if (cross && !cross.isInterior) {
+                            // 边界情况：交点存在但接近端点
+                            // 检查交点是否"几乎"在端点上(距离在GEOMETRY_EPSILON和更大阈值之间)
+                            const crossPoint = [cross.lng, cross.lat];
+                            const NEAR_ENDPOINT_THRESHOLD = 1e-6; // 更宽松的阈值用于检测"接近端点"
+
+                            // 检查交点是否接近任一端点
+                            const nearP1a = pointsEqual(crossPoint, p1a, NEAR_ENDPOINT_THRESHOLD);
+                            const nearP1b = pointsEqual(crossPoint, p1b, NEAR_ENDPOINT_THRESHOLD);
+                            const nearP2a = pointsEqual(crossPoint, p2a, NEAR_ENDPOINT_THRESHOLD);
+                            const nearP2b = pointsEqual(crossPoint, p2b, NEAR_ENDPOINT_THRESHOLD);
+
+                            // 如果交点接近某个端点,创建连接点以保持联通性
+                            if (nearP1a || nearP1b || nearP2a || nearP2b) {
+                                // 确定使用哪个点作为连接点
+                                let connectionPoint;
+                                if (nearP1a) {
+                                    connectionPoint = [p1a[0], p1a[1]];
+                                } else if (nearP1b) {
+                                    connectionPoint = [p1b[0], p1b[1]];
+                                } else if (nearP2a) {
+                                    connectionPoint = [p2a[0], p2a[1]];
+                                } else {
+                                    connectionPoint = [p2b[0], p2b[1]];
+                                }
+
+                                // 在两条线上都添加分割点,使用计算出的参数t和u
+                                // 只有当参数在有效范围内时才添加
+                                if (cross.t > GEOMETRY_EPSILON && cross.t < 1 - GEOMETRY_EPSILON) {
+                                    tree1.splits.push({segmentIndex: seg1, point: connectionPoint, t: cross.t});
+                                }
+                                if (cross.u > GEOMETRY_EPSILON && cross.u < 1 - GEOMETRY_EPSILON) {
+                                    tree2.splits.push({segmentIndex: seg2, point: connectionPoint, t: cross.u});
+                                }
+                            }
                         }
                     }
                 }
@@ -548,7 +664,8 @@ function getSegmentIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
     const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
     const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
 
-    const epsilon = 0.0001;
+    // 使用统一的几何精度阈值
+    const epsilon = GEOMETRY_EPSILON;
 
     // 检查交点是否在两条线段的内部(不在端点)
     const t_interior = t > epsilon && t < (1 - epsilon);

@@ -38,6 +38,9 @@ let deviatedRoutePolyline = null;  // 偏离的实际路径（黄色）
 let deviatedPath = [];             // 偏离路径的点���合
 let maxPassedSegIndex = -1;        // 记录用户走过的最远路径点索引
 let passedSegments = new Set();    // 记录已走过的路段（格式："startIndex-endIndex"）
+let projectionStartDistance = 0;   // 导航开始时投影点在路径上的距离（从路径起点算，米）
+let projectionMaxDistance = 0;     // 投影点在路径上到达过的最远距离（从路径起点算，米）
+let lastProjectionInfo = null;     // 上次投影点信息（用于比较）
 let visitedWaypoints = new Set();  // 记录已到达的途径点名称
 let currentBranchInfo = null;      // 当前检测到的分支信息
 let userChosenBranch = -1;         // 用户选择的分支索引（-1表示未选择或推荐分支）
@@ -1509,6 +1512,11 @@ function startNavigationUI() {
     visitedWaypoints.clear(); // 清空已访问的途径点
     deviatedPath = []; // 清空偏离路径点集合
     currentBranchInfo = null; // 清空分支信息
+    
+    // 重置投影点距离追踪变量
+    projectionStartDistance = 0;
+    projectionMaxDistance = 0;
+    lastProjectionInfo = null;
     userChosenBranch = -1; // 重置用户分支选择
     lastBranchNotificationTime = 0; // 重置分支提示时间
 
@@ -3290,28 +3298,45 @@ function stopSimulatedNavigation() {
 function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
     if (!routePolyline || !fullPath || fullPath.length < 2) return;
 
-    // 优先使用传入的投影点，如果没有则计算投影点
-    let routePoint, routeSegIndex;
+    // 计算投影点信息
+    let projection;
     if (projectionPoint && Array.isArray(projectionPoint) && projectionPoint.length >= 2) {
-        routePoint = projectionPoint;
-        routeSegIndex = segIndex >= 0 ? segIndex : findClosestPathIndex(projectionPoint, fullPath);
+        // 如果已提供投影点，需要找到它在路径上的位置信息
+        projection = projectPointOntoPathMeters(projectionPoint, fullPath);
+        if (!projection) {
+            projection = {
+                projected: projectionPoint,
+                index: segIndex >= 0 ? segIndex : 0,
+                t: 0,
+                distance: 0
+            };
+        }
     } else {
-        // 将当前位置投影到路网（找到最近线段与投影点），确保分段点在路网上
-        const projection = projectPointOntoPathMeters(currentPos, fullPath);
-        routePoint = projection ? projection.projected : currentPos;
-        routeSegIndex = projection ? projection.index : segIndex;
+        // 将当前位置投影到路网
+        projection = projectPointOntoPathMeters(currentPos, fullPath);
+        if (!projection) return;
     }
 
-    // 判断用户是否在路径上
+    const routePoint = projection.projected;
+    const routeSegIndex = projection.index;
+
+    // 判断用户是否在路径上（基于GPS到投影点的距离）
     const onRoute = !isOffRoute;
 
-    // 标记当前所在路段为已走过（使用路段标记而非单一索引）
-    if (onRoute && routeSegIndex >= 0 && routeSegIndex < fullPath.length - 1) {
-        const segmentKey = `${routeSegIndex}-${routeSegIndex + 1}`;
-        if (!passedSegments.has(segmentKey)) {
-            passedSegments.add(segmentKey);
-            console.log('标记已走过路段:', segmentKey);
-        }
+    // 计算当前投影点在路径上的绝对距离（从路径起点算起）
+    const currentProjectionDistance = calculateProjectionDistanceAlongPath(projection, fullPath);
+
+    // 初始化起始距离（首次到达路线上时）
+    if (onRoute && projectionStartDistance === 0 && projectionMaxDistance === 0) {
+        projectionStartDistance = currentProjectionDistance;
+        projectionMaxDistance = currentProjectionDistance;
+        console.log(`导航标灰起点初始化: ${projectionStartDistance.toFixed(2)}米`);
+    }
+
+    // 更新最远到达距离（只增不减）
+    if (onRoute && currentProjectionDistance > projectionMaxDistance) {
+        projectionMaxDistance = currentProjectionDistance;
+        console.log(`投影点前进至: ${projectionMaxDistance.toFixed(2)}米，累积前进: ${(projectionMaxDistance - projectionStartDistance).toFixed(2)}米`);
     }
 
     // 更新最远索引（用于兼容性）
@@ -3357,81 +3382,133 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
         deviatedPath = [];
     }
 
-    // 构建已走过的路径（灰色）：基于路段标记
+    // 【新逻辑】构建已走过的路径（灰色）：基于投影点累积移动距离
     let passedPath = [];
-    let passedPathSegments = []; // 用于构建完整的已走路径
-
-    for (let i = 0; i < fullPath.length - 1; i++) {
-        const segmentKey = `${i}-${i + 1}`;
-        if (passedSegments.has(segmentKey)) {
-            // 这个路段已经走过
-            if (passedPathSegments.length === 0 || passedPathSegments[passedPathSegments.length - 1] !== i) {
-                passedPathSegments.push(i);
+    
+    if (projectionMaxDistance > projectionStartDistance) {
+        // 沿路径从起点开始累积距离，构建灰色路径
+        let accumulatedDistance = 0;
+        passedPath.push(fullPath[0]); // 添加路径起点
+        
+        for (let i = 0; i < fullPath.length - 1; i++) {
+            const segStart = fullPath[i];
+            const segEnd = fullPath[i + 1];
+            const segLength = calculateDistanceBetweenPoints(segStart, segEnd);
+            const segStartDist = accumulatedDistance;
+            const segEndDist = accumulatedDistance + segLength;
+            
+            // 检查这个线段是否在标灰范围内
+            if (segStartDist < projectionStartDistance && segEndDist <= projectionStartDistance) {
+                // 整个线段在起点之前，跳过
+                accumulatedDistance += segLength;
+                continue;
+            } else if (segStartDist < projectionStartDistance && segEndDist > projectionStartDistance) {
+                // 起点在这个线段内，从起点位置开始标灰
+                const t = (projectionStartDistance - segStartDist) / segLength;
+                const startPoint = interpolateLngLat(segStart, segEnd, t);
+                if (passedPath.length === 1 && passedPath[0] === fullPath[0]) {
+                    passedPath[0] = startPoint; // 替换起点
+                } else {
+                    passedPath.push(startPoint);
+                }
             }
-            passedPathSegments.push(i + 1);
+            
+            if (segEndDist <= projectionMaxDistance) {
+                // 整个线段都已走过
+                passedPath.push(segEnd);
+            } else if (segStartDist < projectionMaxDistance && segEndDist > projectionMaxDistance) {
+                // 最远点在这个线段内，标灰到最远点
+                const t = (projectionMaxDistance - segStartDist) / segLength;
+                const endPoint = interpolateLngLat(segStart, segEnd, t);
+                passedPath.push(endPoint);
+                break; // 已到达最远点，停止
+            } else if (segStartDist >= projectionMaxDistance) {
+                // 已超过最远点，停止
+                break;
+            }
+            
+            accumulatedDistance += segLength;
         }
     }
 
-    // 将索引转换为坐标点
-    passedPath = passedPathSegments.map(idx => fullPath[idx]);
-
-    // 如果当前在路上，添加投影点到已走路径的末尾
-    if (onRoute && routePoint && passedPath.length > 0) {
-        // 检查投影点是否应该添加到已走路径
-        const lastPassedPoint = passedPath[passedPath.length - 1];
-        const lastPassedIdx = passedPathSegments[passedPathSegments.length - 1];
-
-        if (routeSegIndex === lastPassedIdx) {
-            passedPath.push(routePoint);
-        }
-    }
-
-    // 构建剩余路径（绿色）：未走过的路段
+    // 【新逻辑】构建剩余路径（绿色）：从投影点最远位置到终点
     let remainingPath = [];
 
-    if (onRoute) {
-        // 从投影点开始，收集所有未走过的路段
-        remainingPath.push(routePoint);
-
-        let currentSegIdx = routeSegIndex;
-        let visited = new Set();
-        visited.add(currentSegIdx);
-
-        // 从当前位置向后查找未走过的连续路段
-        for (let i = routeSegIndex + 1; i < fullPath.length; i++) {
-            const segmentKey = `${i - 1}-${i}`;
-            if (!passedSegments.has(segmentKey) || i === fullPath.length - 1) {
+    if (onRoute && projectionMaxDistance > 0) {
+        // 从最远投影点位置开始，构建剩余路径
+        let accumulatedDistance = 0;
+        let started = false;
+        
+        for (let i = 0; i < fullPath.length - 1; i++) {
+            const segStart = fullPath[i];
+            const segEnd = fullPath[i + 1];
+            const segLength = calculateDistanceBetweenPoints(segStart, segEnd);
+            const segStartDist = accumulatedDistance;
+            const segEndDist = accumulatedDistance + segLength;
+            
+            if (!started) {
+                if (segStartDist < projectionMaxDistance && segEndDist > projectionMaxDistance) {
+                    // 最远点在这个线段内，从最远点开始
+                    const t = (projectionMaxDistance - segStartDist) / segLength;
+                    const startPoint = interpolateLngLat(segStart, segEnd, t);
+                    remainingPath.push(startPoint);
+                    remainingPath.push(segEnd);
+                    started = true;
+                } else if (segEndDist <= projectionMaxDistance) {
+                    // 还没到最远点，继续
+                    accumulatedDistance += segLength;
+                    continue;
+                } else if (segStartDist >= projectionMaxDistance) {
+                    // 已超过最远点，从这个线段开始
+                    remainingPath.push(segStart);
+                    remainingPath.push(segEnd);
+                    started = true;
+                }
+            } else {
+                // 已经开始，继续添加后续点
+                remainingPath.push(segEnd);
+            }
+            
+            accumulatedDistance += segLength;
+        }
+        
+        // 如果没有构建出剩余路径，说明已经到终点了
+        if (remainingPath.length === 0) {
+            remainingPath = [fullPath[fullPath.length - 1]];
+        }
+    } else if (!onRoute && projectionMaxDistance > 0) {
+        // 偏离路径时：从最远点到终点的完整路径
+        let accumulatedDistance = 0;
+        let started = false;
+        
+        for (let i = 0; i < fullPath.length; i++) {
+            if (i < fullPath.length - 1) {
+                const segLength = calculateDistanceBetweenPoints(fullPath[i], fullPath[i + 1]);
+                if (accumulatedDistance + segLength > projectionMaxDistance && !started) {
+                    started = true;
+                }
+                accumulatedDistance += segLength;
+            }
+            
+            if (started || accumulatedDistance >= projectionMaxDistance) {
                 remainingPath.push(fullPath[i]);
             }
         }
-
-        // 如果剩余路径只有投影点，说明已经完成，保持当前状态
-        if (remainingPath.length < 2) {
-            remainingPath = [routePoint, fullPath[fullPath.length - 1]];
-        }
-    } else {
-        // 偏离路径时：显示完整的未走路段
-        let hasUnpassed = false;
-        for (let i = 0; i < fullPath.length - 1; i++) {
-            const segmentKey = `${i}-${i + 1}`;
-            if (!passedSegments.has(segmentKey)) {
-                if (!hasUnpassed) {
-                    remainingPath.push(fullPath[i]);
-                    hasUnpassed = true;
-                }
-                remainingPath.push(fullPath[i + 1]);
-            }
-        }
-
+        
         if (remainingPath.length === 0) {
             remainingPath = fullPath.slice();
         }
+    } else {
+        // 还未初始化或特殊情况，显示完整路径
+        remainingPath = fullPath.slice();
     }
 
     console.log('路径状态:', {
         在路径上: onRoute,
-        当前索引: routeSegIndex,
-        已走路段数: passedSegments.size,
+        当前投影距离: currentProjectionDistance.toFixed(2) + '米',
+        标灰起点: projectionStartDistance.toFixed(2) + '米',
+        最远到达: projectionMaxDistance.toFixed(2) + '米',
+        累积前进: (projectionMaxDistance - projectionStartDistance).toFixed(2) + '米',
         灰色路径点数: passedPath.length,
         黄色偏离点数: deviatedPath.length,
         绿色路径点数: remainingPath.length
@@ -3506,6 +3583,26 @@ function projectPointOntoPathMeters(point, path) {
         }
     }
     return best;
+}
+
+// 计算投影点在路径上的绝对距离（从路径起点到投影点沿路径的距离，米）
+function calculateProjectionDistanceAlongPath(projection, path) {
+    if (!projection || !path || path.length < 2) return 0;
+    
+    let distance = 0;
+    
+    // 累加从起点到投影点所在线段起点的距离
+    for (let i = 0; i < projection.index; i++) {
+        distance += calculateDistanceBetweenPoints(path[i], path[i + 1]);
+    }
+    
+    // 加上投影点在当前线段上的距离
+    const segStart = path[projection.index];
+    const segEnd = path[projection.index + 1];
+    const segLength = calculateDistanceBetweenPoints(segStart, segEnd);
+    distance += segLength * projection.t;
+    
+    return distance;
 }
 
 // 计算沿路网从投影点到终点的剩余距离（米）

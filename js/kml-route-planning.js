@@ -140,6 +140,22 @@ function findOrCreateNode(coordinate) {
         return null;
     }
 
+    // 【交点优先策略】检查当前坐标是否接近任何已知交点
+    // 如果是，使用交点坐标代替原始坐标
+    if (window.kmlIntersectionPoints && window.kmlIntersectionPoints.length > 0) {
+        const nearestIntersection = window.kmlIntersectionPoints.find(inter => {
+            const dist = calculateDistance({lng, lat}, {lng: inter.lng, lat: inter.lat});
+            return dist < tolerance;
+        });
+        
+        if (nearestIntersection) {
+            // 使用交点坐标
+            lng = nearestIntersection.lng;
+            lat = nearestIntersection.lat;
+            console.log(`节点合并：使用交点坐标 (${lng.toFixed(8)}, ${lat.toFixed(8)})`);
+        }
+    }
+
     // 查找是否已存在相近的节点
     const existingNode = kmlNodes.find(node => {
         const dist = calculateDistance({lng, lat}, {lng: node.lng, lat: node.lat});
