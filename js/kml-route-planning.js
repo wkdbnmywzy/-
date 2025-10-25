@@ -112,14 +112,27 @@ function buildKMLGraph() {
         console.warn(`发现${isolatedNodes.length}个孤立节点（无连接）:`, isolatedNodes);
     }
 
+    // 检查图的连通性
+    console.log('=== 图连通性检查 ===');
+    console.log(`总节点数: ${kmlNodes.length}, 总边数: ${kmlEdges.length}`);
+    console.log(`孤立节点: ${isolatedNodes.length}个`);
+    console.log(`交点数: ${window.kmlIntersectionPoints ? window.kmlIntersectionPoints.length : 0}`);
+    
+    // 显示前10个节点的连接情况
+    for (let i = 0; i < Math.min(10, kmlNodes.length); i++) {
+        const neighbors = kmlGraph[i] || [];
+        console.log(`节点${i}: 有${neighbors.length}个邻居, 坐标=(${kmlNodes[i].lng.toFixed(6)}, ${kmlNodes[i].lat.toFixed(6)})`);
+    }
+
     return kmlNodes.length > 0 && kmlEdges.length > 0;
 }
 
 // 查找或创建节点
 function findOrCreateNode(coordinate) {
-    // 使用极小的容差来合并节点，避免误合并短线段的端点
-    // 只合并交点计算产生的数值误差（亚毫米级别）
-    const tolerance = 0.001; // 1毫米容差，只合并因浮点运算产生的重复交点
+    // 使用容差来合并节点
+    // 对于分割后的线段，需要合理的容差来确保端点正确合并
+    // 注意：分割时使用的容差是0.00001度（约1米），这里要匹配
+    const tolerance = 1.5; // 1.5米容差，确保分割后的端点和交点能够合并
 
     // 提取经纬度
     let lng, lat;
@@ -150,9 +163,10 @@ function findOrCreateNode(coordinate) {
         
         if (nearestIntersection) {
             // 使用交点坐标
+            const oldLng = lng, oldLat = lat;
             lng = nearestIntersection.lng;
             lat = nearestIntersection.lat;
-            console.log(`节点合并：使用交点坐标 (${lng.toFixed(8)}, ${lat.toFixed(8)})`);
+            console.log(`节点合并：使用交点坐标 (${oldLng.toFixed(8)}, ${oldLat.toFixed(8)}) -> (${lng.toFixed(8)}, ${lat.toFixed(8)})`);
         }
     }
 
@@ -163,6 +177,7 @@ function findOrCreateNode(coordinate) {
     });
 
     if (existingNode) {
+        console.log(`节点复用: ID=${existingNode.id}, 坐标=(${existingNode.lng.toFixed(8)}, ${existingNode.lat.toFixed(8)})`);
         return existingNode;
     }
 
@@ -174,6 +189,7 @@ function findOrCreateNode(coordinate) {
     };
 
     kmlNodes.push(newNode);
+    console.log(`节点创建: ID=${newNode.id}, 坐标=(${newNode.lng.toFixed(8)}, ${newNode.lat.toFixed(8)})`);
     return newNode;
 }
 
