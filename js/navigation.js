@@ -42,6 +42,7 @@ let projectionStartDistance = 0;   // 导航开始时投影点在路径上的距
 let projectionMaxDistance = 0;     // 投影点在路径上到达过的最远距离（从路径起点算，米）
 let lastProjectionInfo = null;     // 上次投影点信息（用于比较）
 let visitedWaypoints = new Set();  // 记录已到达的途径点名称
+let waypointsOnPath = [];          // 【新增】途径点在路径上的详细信息 [{name, position, distanceOnPath, indexOnPath, visited}]
 let currentBranchInfo = null;      // 当前检测到的分支信息
 let userChosenBranch = -1;         // 用户选择的分支索引（-1表示未选择或推荐分支）
 let lastBranchNotificationTime = 0; // 上次分支提示的时间戳，避免频繁提示
@@ -1519,6 +1520,9 @@ function startNavigationUI() {
     lastProjectionInfo = null;
     userChosenBranch = -1; // 重置用户分支选择
     lastBranchNotificationTime = 0; // 重置分支提示时间
+    
+    // 【新增】初始化途径点在路径上的位置信息
+    initializeWaypointsOnPath();
 
     // 停止导航前的实时位置追踪
     stopRealtimePositionTracking();
@@ -2428,26 +2432,38 @@ function updateDirectionIcon(directionType, distanceToNext) {
         }
     }
 
+    // 【新增】检查是否有未访问的途径点
+    const nearestWaypoint = getNearestUnvisitedWaypoint();
+    let waypointText = '';
+    if (nearestWaypoint) {
+        // 计算到途径点的距离
+        const distanceToWaypoint = nearestWaypoint.distanceOnPath - projectionMaxDistance;
+        if (distanceToWaypoint > 0 && distanceToWaypoint < 1000) {
+            // 途径点在前方1000米内，添加提示
+            waypointText = `，前往${nearestWaypoint.name}`;
+        }
+    }
+    
     // 更新提示文本
     if (effectiveDirection === 'straight' || effectiveDirection === 'forward') {
-        // 直行/前进时显示："XXX 米"
+        // 直行/前进时显示："XXX 米" 或 "XXX米，前往途径点A"
         if (distanceAheadElem) {
             distanceAheadElem.textContent = distance;
         }
         if (actionText) {
-            actionText.textContent = '米';
+            actionText.textContent = '米' + waypointText;
         }
         // 隐藏"米后"文本
         if (distanceUnitElem) {
             distanceUnitElem.style.display = 'none';
         }
     } else {
-        // 其他转向显示："XXX 米后 左转/右转/掉头/后退"
+        // 其他转向显示："XXX 米后 左转/右转/掉头/后退，前往途径点A"（转向优先）
         if (distanceAheadElem) {
             distanceAheadElem.textContent = distance;
         }
         if (actionText) {
-            actionText.textContent = actionName;
+            actionText.textContent = actionName + waypointText;
         }
         // 显示"米后"文本
         if (distanceUnitElem) {
@@ -3007,26 +3023,29 @@ function startRealNavigationTracking() {
             isOffRoute = !onRoute;
             console.log('精度:', accuracy, 'm, 偏离路径状态:', isOffRoute);
 
-            // 根据是否偏离路径决定如何显示路线
-            if (isOffRoute) {
-                // 偏离路径时：恢复完整的绿色规划路径
-                if (routePolyline && fullPath.length > 0) {
-                    routePolyline.setPath(fullPath);
-                }
-                // 不移除灰色已走路径，保留显示
-                // 黄色偏离路径会在updatePathSegments中处理
-                if (!hasReachedStart) {
-                    console.log('未到起点附近，提示用户前往起点，显示完整规划路径');
+                // 根据是否偏离路径决定如何显示路线
+                if (isOffRoute) {
+                    // 偏离路径时：恢复完整的绿色规划路径
+                    if (routePolyline && fullPath.length > 0) {
+                        routePolyline.setPath(fullPath);
+                    }
+                    // 不移除灰色已走路径，保留显示
+                    // 黄色偏离路径会在updatePathSegments中处理
+                    if (!hasReachedStart) {
+                        console.log('未到起点附近，提示用户前往起点，显示完整规划路径');
+                    } else {
+                        console.log('已偏离路径，显示完整规划路径和黄色偏离轨迹');
+                    }
+                    // 仍然调用updatePathSegments以更新黄色偏离路径，传入投影点
+                    updatePathSegments(curr, fullPath, segIndex, projectionPoint);
                 } else {
-                    console.log('已偏离路径，显示完整规划路径和黄色偏离轨迹');
+                    // 在路径上时：将规划路径分为已走部分（灰色）和剩余部分（绿色），并将分割点对齐到路网
+                    updatePathSegments(curr, fullPath, segIndex, projectionPoint);
+                    console.log('在路径上，显示分段路径');
                 }
-                // 仍然调用updatePathSegments以更新黄色偏离路径，传入投影点
-                updatePathSegments(curr, fullPath, segIndex, projectionPoint);
-            } else {
-                // 在路径上时：将规划路径分为已走部分（灰色）和剩余部分（绿色），并将分割点对齐到路网
-                updatePathSegments(curr, fullPath, segIndex, projectionPoint);
-                console.log('在路径上，显示分段路径');
-            }
+                
+                // 【新增】检查途径点到达状态
+                checkWaypointArrival();
 
             // 视图跟随
             try { navigationMap.setCenter(curr); } catch (e) {}
@@ -3931,4 +3950,164 @@ function stopRealtimePositionTracking() {
         navigationMap.remove(accuracyCircle);
         accuracyCircle = null;
     }
+}
+
+// ====== 【新增】途径点检测与提示功能 ======
+
+/**
+ * 初始化途径点在路径上的位置信息
+ * 在导航开始时调用，计算每个途径点在路径上的距离
+ */
+function initializeWaypointsOnPath() {
+    waypointsOnPath = [];
+    
+    if (!routeData || !routeData.waypoints || !navigationPath || navigationPath.length === 0) {
+        console.log('没有途径点或路径数据');
+        return;
+    }
+    
+    console.log('=== 初始化途径点位置信息 ===');
+    
+    routeData.waypoints.forEach((waypoint, wpIndex) => {
+        const wpPos = waypoint.position || waypoint;
+        const wpLng = Array.isArray(wpPos) ? wpPos[0] : wpPos.lng;
+        const wpLat = Array.isArray(wpPos) ? wpPos[1] : wpPos.lat;
+        
+        // 在路径中查找与途径点坐标匹配的点
+        let foundIndex = -1;
+        let accumulatedDistance = 0;
+        
+        for (let i = 0; i < navigationPath.length; i++) {
+            const pathPoint = navigationPath[i];
+            const pathLng = Array.isArray(pathPoint) ? pathPoint[0] : pathPoint.lng;
+            const pathLat = Array.isArray(pathPoint) ? pathPoint[1] : pathPoint.lat;
+            
+            // 检查坐标是否匹配（允许极小误差）
+            const lngDiff = Math.abs(pathLng - wpLng);
+            const latDiff = Math.abs(pathLat - wpLat);
+            
+            if (lngDiff < 0.00001 && latDiff < 0.00001) {
+                // 找到匹配点
+                foundIndex = i;
+                break;
+            }
+            
+            // 累加距离
+            if (i > 0) {
+                accumulatedDistance += calculateDistanceBetweenPoints(
+                    navigationPath[i - 1],
+                    navigationPath[i]
+                );
+            }
+        }
+        
+        if (foundIndex >= 0) {
+            // 计算从起点到途径点的精确距离
+            let distanceOnPath = 0;
+            for (let i = 0; i < foundIndex; i++) {
+                distanceOnPath += calculateDistanceBetweenPoints(
+                    navigationPath[i],
+                    navigationPath[i + 1]
+                );
+            }
+            
+            const waypointInfo = {
+                name: waypoint.name || `途径点${wpIndex + 1}`,
+                position: [wpLng, wpLat],
+                distanceOnPath: distanceOnPath,
+                indexOnPath: foundIndex,
+                visited: false
+            };
+            
+            waypointsOnPath.push(waypointInfo);
+            
+            console.log(`途径点 "${waypointInfo.name}": 在路径${distanceOnPath.toFixed(2)}米处, 索引${foundIndex}`);
+        } else {
+            console.warn(`途径点 "${waypoint.name}" 未在路径上找到匹配点`);
+        }
+    });
+    
+    console.log(`成功初始化 ${waypointsOnPath.length} 个途径点`);
+}
+
+/**
+ * 检查并更新途径点到达状态
+ * 在GPS位置更新时调用
+ */
+function checkWaypointArrival() {
+    if (waypointsOnPath.length === 0 || projectionMaxDistance === 0) {
+        return;
+    }
+    
+    // 检查是否有新到达的途径点
+    waypointsOnPath.forEach(waypoint => {
+        if (!waypoint.visited && projectionMaxDistance >= waypoint.distanceOnPath) {
+            // 投影点已经过途径点位置，标记为到达
+            waypoint.visited = true;
+            visitedWaypoints.add(waypoint.name);
+            
+            console.log(`✓ 到达途径点: ${waypoint.name}`);
+            
+            // 显示到达提示（3秒）
+            showWaypointArrivalNotification(waypoint.name);
+        }
+    });
+}
+
+/**
+ * 显示途径点到达提示
+ * @param {string} waypointName - 途径点名称
+ */
+function showWaypointArrivalNotification(waypointName) {
+    const tipTextElem = document.getElementById('tip-text');
+    const tipIconElem = document.getElementById('tip-icon');
+    
+    if (!tipTextElem) return;
+    
+    // 保存原始内容
+    const originalText = tipTextElem.textContent;
+    const originalIconSrc = tipIconElem ? tipIconElem.src : null;
+    
+    // 显示到达提示
+    tipTextElem.textContent = `✓ 已到达${waypointName}`;
+    if (tipIconElem) {
+        tipIconElem.style.display = 'none'; // 隐藏图标
+    }
+    
+    // 3秒后恢复
+    setTimeout(() => {
+        // 恢复时重新计算导航提示
+        updateNavigationTip();
+    }, 3000);
+}
+
+/**
+ * 获取最近的未访问途径点
+ * @returns {Object|null} 最近的未访问途径点信息
+ */
+function getNearestUnvisitedWaypoint() {
+    if (waypointsOnPath.length === 0 || projectionMaxDistance === 0) {
+        return null;
+    }
+    
+    // 筛选未访问的途径点
+    const unvisited = waypointsOnPath.filter(wp => !wp.visited);
+    
+    if (unvisited.length === 0) {
+        return null;
+    }
+    
+    // 找到距离当前投影点最近的
+    let nearest = null;
+    let minDistance = Infinity;
+    
+    unvisited.forEach(wp => {
+        const distance = Math.abs(wp.distanceOnPath - projectionMaxDistance);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearest = wp;
+        }
+    });
+    
+    return nearest;
 }
