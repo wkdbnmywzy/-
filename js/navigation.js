@@ -1974,19 +1974,72 @@ function calculateDistanceBetweenPoints(point1, point2) {
 
 // 计算转向角度
 function calculateTurnAngle(point1, point2, point3) {
-    // 计算从point1到point2的方位角
-    const bearing1 = calculateBearingBetweenPoints(point1, point2);
-    // 计算从point2到point3的方位角
-    const bearing2 = calculateBearingBetweenPoints(point2, point3);
+    // 使用局部平面向量的有符号夹角，提升稳定性并避免0/360换向边界问题
+    // 约定：返回角度范围为[-180, 180]，正值=右转，负值=左转
+    const a = normalizeLngLat(point1);
+    const b = normalizeLngLat(point2);
+    const c = normalizeLngLat(point3);
 
-    // 计算转向角度
-    let angle = bearing2 - bearing1;
+    // 计算向量（经纬度近似为平面坐标，按纬度修正经度尺度）
+    let v1x = b[0] - a[0];
+    let v1y = b[1] - a[1];
+    let v2x = c[0] - b[0];
+    let v2y = c[1] - b[1];
 
-    // 规范化角度到 -180 到 180 范围
-    while (angle > 180) angle -= 360;
-    while (angle < -180) angle += 360;
+    // 若任一向量过短，回退到方位角法
+    const tiny = 1e-8;
+    if ((Math.abs(v1x) + Math.abs(v1y) < tiny) || (Math.abs(v2x) + Math.abs(v2y) < tiny)) {
+        const bearing1 = calculateBearingBetweenPoints(point1, point2);
+        const bearing2 = calculateBearingBetweenPoints(point2, point3);
+        let angle = bearing2 - bearing1;
+        while (angle > 180) angle -= 360;
+        while (angle < -180) angle += 360;
+        // 保持正=右，负=左（bearing差值的自然语义）
+        // 可选反转（用于现场快速校正左/右颠倒）
+        try {
+            if (MapConfig && MapConfig.navigationConfig && MapConfig.navigationConfig.invertTurnSign === true) {
+                angle = -angle;
+            }
+        } catch (e) {}
+        return angle;
+    }
 
-    return angle;
+    // 按当前纬度修正经度尺度（使x、y量纲更一致）
+    const latRad = (a[1] + b[1] + c[1]) / 3 * Math.PI / 180;
+    const kx = Math.cos(latRad) || 1; // 避免极端纬度为0
+    v1x *= kx; v2x *= kx;
+
+    // 通过叉积与点积计算有符号夹角：atan2(cross, dot)
+    const cross = v1x * v2y - v1y * v2x; // >0 表示v2在v1的“左侧”（数学坐标系逆时针）
+    const dot = v1x * v2x + v1y * v2y;
+    let angleDeg = Math.atan2(cross, dot) * 180 / Math.PI; // CCW为正（左转为正）
+
+    // 将“左转为正”的数学约定转换为“右转为正”的导航约定
+    angleDeg = -angleDeg;
+
+    // 规范化到[-180, 180]
+    if (angleDeg > 180) angleDeg -= 360;
+    if (angleDeg < -180) angleDeg += 360;
+
+    // 可选：现场配置反转（若设备或数据方向稳定颠倒）
+    try {
+        if (MapConfig && MapConfig.navigationConfig && MapConfig.navigationConfig.invertTurnSign === true) {
+            angleDeg = -angleDeg;
+        }
+    } catch (e) {}
+
+    // 调试日志（可通过配置开启）
+    try {
+        if (MapConfig && MapConfig.orientationConfig && MapConfig.orientationConfig.debugMode) {
+            console.log('[turnAngle]', {
+                a, b, c,
+                v1: [v1x, v1y], v2: [v2x, v2y], cross, dot,
+                angle: angleDeg.toFixed(2)
+            });
+        }
+    } catch (e) {}
+
+    return angleDeg;
 }
 
 // ====== 分岔路口检测和分支推荐 ======
