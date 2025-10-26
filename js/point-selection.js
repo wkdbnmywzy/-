@@ -46,7 +46,6 @@ function setupPickerEventListeners() {
     const endLocationInput = document.getElementById('end-location');
     const pickerPanel = document.getElementById('point-picker-panel');
     const pickerCompleteBtn = document.getElementById('picker-complete-btn');
-    const pickerBackBtn = document.getElementById('picker-back-btn');
     const pickerAddWaypointBtn = document.getElementById('picker-add-waypoint-btn');
     const pickerAddWaypointBtnRight = document.getElementById('picker-add-waypoint-btn-right');
     const pickerAddWaypointRightCtrl = document.getElementById('picker-add-waypoint-right');
@@ -178,13 +177,6 @@ function setupPickerEventListeners() {
             // 在完成前，确保同步面板输入值到底部卡片
             syncPickerInputsToMainInputs();
             completeRouteSelection();
-        });
-    }
-
-    // 返回按钮
-    if (pickerBackBtn) {
-        pickerBackBtn.addEventListener('click', function() {
-            hidePickerPanel();
         });
     }
 
