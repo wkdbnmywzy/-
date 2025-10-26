@@ -1383,47 +1383,21 @@ function removeNavigationWaypoint(id) {
         console.log('已移除途径点:', id);
     }
 }
-
-// 清理地图资源
 function cleanupMap() {
-    // 停止所有位置追踪
-    stopRealtimePositionTracking();
-    stopRealNavigationTracking();
+    try { stopRealtimePositionTracking(); } catch (e) {}
+    try { stopRealNavigationTracking(); } catch (e) {}
 
     if (navigationMap) {
-        // 清除标记
-        if (startMarker) {
-            navigationMap.remove(startMarker);
-            startMarker = null;
-        }
-        if (endMarker) {
-            navigationMap.remove(endMarker);
-            endMarker = null;
-        }
-        if (waypointMarkers && waypointMarkers.length) {
-            navigationMap.remove(waypointMarkers);
-            waypointMarkers = [];
-        }
-        // 清理"我的位置"与已走路径
-        if (userMarker) {
-            navigationMap.remove(userMarker);
-            userMarker = null;
-        }
-        if (passedRoutePolyline) {
-            navigationMap.remove(passedRoutePolyline);
-            passedRoutePolyline = null;
-        }
-        if (navigationTimer) {
-            clearInterval(navigationTimer);
-            navigationTimer = null;
-        }
-        // 清除路线
-        if (routePolyline) {
-            navigationMap.remove(routePolyline);
-            routePolyline = null;
-        }
-        // 销毁地图实例
-        navigationMap.destroy();
+        try {
+            if (startMarker) { navigationMap.remove(startMarker); startMarker = null; }
+            if (endMarker) { navigationMap.remove(endMarker); endMarker = null; }
+            if (waypointMarkers && waypointMarkers.length) { navigationMap.remove(waypointMarkers); waypointMarkers = []; }
+            if (userMarker) { navigationMap.remove(userMarker); userMarker = null; }
+            if (passedRoutePolyline) { navigationMap.remove(passedRoutePolyline); passedRoutePolyline = null; }
+            if (deviatedRoutePolyline) { navigationMap.remove(deviatedRoutePolyline); deviatedRoutePolyline = null; }
+            if (routePolyline) { navigationMap.remove(routePolyline); routePolyline = null; }
+        } catch (e) {}
+        try { navigationMap.destroy(); } catch (e) {}
         navigationMap = null;
     }
 }
@@ -1726,36 +1700,44 @@ function updateNavigationTip() {
         destinationTimeElem.textContent = minutes;
     }
 
-    // 获取当前转向并更新图标和文本（默认基于几何拐点）
-    let directionType = getNavigationDirection();
+    // 获取当前位置
+    const currPos = userMarker ?
+        [userMarker.getPosition().lng, userMarker.getPosition().lat] :
+        navigationPath[Math.max(0, currentNavigationIndex)];
 
-    // 计算到下一个转向点或终点的距离（使用投影，避免因索引相等导致的0米问题）
+    // 先找“最近路口”，用于显示“到最近路口还有 X 米”
+    let directionType = 'straight';
     let distanceToNext = 0;
-    let waypointPrompt = null; // { name, index, distance, directionType }
-    if (nextTurnIndex > 0 && nextTurnIndex < navigationPath.length) {
-        // 有转向点，计算从“当前位置在路网的投影点”到“转向点索引”的沿路网距离
-        const currPos = userMarker ?
-            [userMarker.getPosition().lng, userMarker.getPosition().lat] :
-            navigationPath[Math.max(0, currentNavigationIndex)];
-        distanceToNext = computeDistanceToIndexMeters(currPos, navigationPath, nextTurnIndex) || 0;
-        // 如果异常为0，则回退为原有分段累加（兜底）
-        if (!isFinite(distanceToNext) || distanceToNext <= 0) {
-            for (let i = currentNavigationIndex; i < nextTurnIndex; i++) {
-                if (i + 1 < navigationPath.length) {
-                    distanceToNext += calculateDistanceBetweenPoints(
-                        navigationPath[i],
-                        navigationPath[i + 1]
-                    );
+    const junction = findNextJunctionAhead(currPos, navigationPath, currentNavigationIndex || 0);
+    if (junction) {
+        const angle = junction.angle;
+        if (angle > 135 || angle < -135) directionType = 'uturn';
+        else if (angle > 30 && angle <= 135) directionType = 'right';
+        else if (angle < -30 && angle >= -135) directionType = 'left';
+        else directionType = 'straight';
+        distanceToNext = Math.round(junction.distance || 0);
+    } else {
+        // 回退：使用原有“下一个转向点”的逻辑
+        directionType = getNavigationDirection();
+        if (nextTurnIndex > 0 && nextTurnIndex < navigationPath.length) {
+            distanceToNext = computeDistanceToIndexMeters(currPos, navigationPath, nextTurnIndex) || 0;
+            if (!isFinite(distanceToNext) || distanceToNext <= 0) {
+                for (let i = currentNavigationIndex; i < nextTurnIndex; i++) {
+                    if (i + 1 < navigationPath.length) {
+                        distanceToNext += calculateDistanceBetweenPoints(
+                            navigationPath[i],
+                            navigationPath[i + 1]
+                        );
+                    }
                 }
             }
+        } else {
+            distanceToNext = remainingDistance;
         }
-    } else {
-        // 没有转向点，使用剩余总距离
-        distanceToNext = remainingDistance;
     }
 
     
-    // 检查是否有途经点提示
+    // 调试日志
         try {
             console.log('导航提示更新:', {
                 directionType,
@@ -1803,10 +1785,11 @@ function findNextTurnPoint() {
         return;
     }
 
-    // 可配置阈值：转向角度与最小线段长度
+    // 可配置阈值：转向角度、最小线段长度、前视最大距离
     // 说明：KML路径点可能较密集，线段长度往往小于10m，过大阈值会导致一直找不到拐点
     let TURN_ANGLE_THRESHOLD = 28; // 默认转向角度（度）
     let MIN_SEGMENT_LEN_M = 3;     // 默认最小线段长度（米）
+    let LOOKAHEAD_MAX_M = 120;     // 默认前视最大距离（米）
     try {
         if (MapConfig && MapConfig.navigationConfig) {
             if (typeof MapConfig.navigationConfig.turnAngleThresholdDegrees === 'number') {
@@ -1815,8 +1798,16 @@ function findNextTurnPoint() {
             if (typeof MapConfig.navigationConfig.minSegmentLengthMeters === 'number') {
                 MIN_SEGMENT_LEN_M = MapConfig.navigationConfig.minSegmentLengthMeters;
             }
+            if (typeof MapConfig.navigationConfig.turnLookAheadMeters === 'number') {
+                LOOKAHEAD_MAX_M = MapConfig.navigationConfig.turnLookAheadMeters;
+            }
         }
     } catch (e) {}
+
+    // 当前坐标（用于计算“沿路网”距离）
+    const currPos = userMarker ?
+        [userMarker.getPosition().lng, userMarker.getPosition().lat] :
+        navigationPath[Math.max(0, currentNavigationIndex)];
 
     // 从当前位置开始查找
     for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
@@ -1836,9 +1827,13 @@ function findNextTurnPoint() {
 
         // 如果转向角度大于阈值，认为是一个转向点
         if (Math.abs(angle) > TURN_ANGLE_THRESHOLD) {
-            nextTurnIndex = i;
-            console.log(`找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°`);
-            return;
+            // 仅接受“前视距离”内的第一个拐点，避免把很远的拐点当作下一个
+            const distAhead = computeDistanceToIndexMeters(currPos, navigationPath, i) || 0;
+            if (isFinite(distAhead) && distAhead >= 0 && distAhead <= LOOKAHEAD_MAX_M) {
+                nextTurnIndex = i;
+                console.log(`找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°, 前方${Math.round(distAhead)}m`);
+                return;
+            }
         }
     }
 
@@ -1850,9 +1845,12 @@ function findNextTurnPoint() {
         const angle = calculateTurnAngle(p1, p2, p3);
         const looserThreshold = Math.max(15, TURN_ANGLE_THRESHOLD - 10); // 最低15°
         if (Math.abs(angle) > looserThreshold) {
-            nextTurnIndex = i;
-            console.log(`(放宽) 找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°`);
-            return;
+            const distAhead = computeDistanceToIndexMeters(currPos, navigationPath, i) || 0;
+            if (isFinite(distAhead) && distAhead >= 0 && distAhead <= LOOKAHEAD_MAX_M) {
+                nextTurnIndex = i;
+                console.log(`(放宽) 找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°, 前方${Math.round(distAhead)}m`);
+                return;
+            }
         }
     }
 
@@ -1915,6 +1913,57 @@ function calculateTurnAngle(point1, point2, point3) {
     while (angle < -180) angle += 360;
 
     return angle;
+}
+
+// 计算路径某索引处的“平滑角度”（尽量使用 i-2 与 i+2 邻点）
+function getAngleAtIndex(path, idx) {
+    if (!path || path.length < 3) return 0;
+    const mid = idx;
+    const prevIdx = (mid - 2 >= 0) ? mid - 2 : mid - 1;
+    const nextIdx = (mid + 2 < path.length) ? mid + 2 : mid + 1;
+    if (prevIdx < 0 || nextIdx >= path.length) return 0;
+    return calculateTurnAngle(path[prevIdx], path[mid], path[nextIdx]);
+}
+
+// 查找“最近路口”：从当前位置沿规划路径向前，寻找第一个满足“路口角度阈值”的节点
+// 返回 { index, angle, distance } 或 null
+function findNextJunctionAhead(currPos, path, startIndex) {
+    if (!path || path.length < 3) return null;
+
+    // 配置项
+    let LOOKAHEAD_MAX_M = 120;       // 前视最大距离
+    let MIN_SEGMENT_LEN_M = 3;       // 最小线段长度（去抖）
+    let JUNCTION_MIN_ANGLE = 10;     // 将“很直的点”也当作路口候选（用于直行提示）
+    try {
+        if (MapConfig && MapConfig.navigationConfig) {
+            if (typeof MapConfig.navigationConfig.turnLookAheadMeters === 'number') {
+                LOOKAHEAD_MAX_M = MapConfig.navigationConfig.turnLookAheadMeters;
+            }
+            if (typeof MapConfig.navigationConfig.minSegmentLengthMeters === 'number') {
+                MIN_SEGMENT_LEN_M = MapConfig.navigationConfig.minSegmentLengthMeters;
+            }
+            if (typeof MapConfig.navigationConfig.junctionAngleThresholdDegrees === 'number') {
+                JUNCTION_MIN_ANGLE = MapConfig.navigationConfig.junctionAngleThresholdDegrees;
+            }
+        }
+    } catch (e) {}
+
+    // 从 startIndex 之后搜索，限定前视距离
+    for (let i = Math.max(1, startIndex + 1); i < path.length - 1; i++) {
+        const segLenPrev = calculateDistanceBetweenPoints(path[i - 1], path[i]);
+        const segLenNext = calculateDistanceBetweenPoints(path[i], path[i + 1]);
+        if (segLenPrev < MIN_SEGMENT_LEN_M || segLenNext < MIN_SEGMENT_LEN_M) continue;
+
+        const angle = getAngleAtIndex(path, i);
+        if (Math.abs(angle) < JUNCTION_MIN_ANGLE) continue; // 太直，当作非路口
+
+        const distAhead = computeDistanceToIndexMeters(currPos, path, i) || 0;
+        if (!isFinite(distAhead) || distAhead < 0 || distAhead > LOOKAHEAD_MAX_M) continue;
+
+        return { index: i, angle, distance: distAhead };
+    }
+
+    return null;
 }
 
 // ====== 分岔路口检测和分支推荐 ======
