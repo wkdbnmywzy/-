@@ -105,9 +105,20 @@ const MapConfig = {
         // 是否要求到达起点附近再开始沿路网导航（改为false：投影点在路线上即可开始）
         requireStartAtOrigin: false,
         // 与下一个转向的距离大于该阈值时，顶部图标优先显示"直行"，避免误解为仍需立即转向（单位：米）
-        turnPromptDistanceMeters: 40,
+        // 设为0表示禁用该远距离覆盖，尽早展示左/右/掉头提示
+        turnPromptDistanceMeters: 0,
         // 提示模式：'path'（基于路网，默认）或 'heading'（基于用户朝向）
-        promptMode: 'path'
+        promptMode: 'path',
+
+        // 追加：转向检测与提示灵敏度配置
+        // 转向角度阈值（度）。例如：15表示超过15°即判定为有转向
+        turnAngleThresholdDegrees: 15,
+        // 参与判断的相邻线段最小长度（米），过短线段会被忽略以减少“锯齿”抖动
+        minSegmentLengthMeters: 6,
+        // 到达途经点前开始提示的距离（米）。在该范围内优先提示“到途经点X 左/右转/直行”
+        waypointPromptDistanceMeters: 60,
+        // 认为已通过拐点/途经点的距离阈值（米）。在该范围内自动切换到下一个转向
+        turnPassDistanceMeters: 8
     }
 };
 
