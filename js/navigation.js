@@ -1867,7 +1867,7 @@ function findNextTurnPoint() {
     }
 
     // 阈值可配置，降低直线或轻微噪声导致的误判
-    let TURN_ANGLE_THRESHOLD = 20; // 转向角度阈值（度）- 默认更灵敏
+    let TURN_ANGLE_THRESHOLD = 15; // 转向角度阈值（度）- 默认更灵敏
     let MIN_SEGMENT_LEN_M = 6;    // 参与判断的相邻线段最小长度（米）- 默认放宽
     try {
         if (MapConfig && MapConfig.navigationConfig) {
@@ -1880,8 +1880,20 @@ function findNextTurnPoint() {
         }
     } catch (e) {}
 
-    // 从当前位置开始查找
+    // 从当前位置开始查找（动态阈值：近距离更敏感）
+    let distAhead = 0; // 从当前进度累计到候选点的距离
+    let lastPt = navigationPath[Math.max(0, currentNavigationIndex)];
+
+    // 记录一个“次优候选”（在近距离窗口内角度最大者），用于兜底
+    let fallbackIdx = -1;
+    let fallbackAngleAbs = 0;
+    const FALLBACK_LOOKAHEAD_M = 60; // 60米窗口内取最大转角索引作为兜底
+
     for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
+        // 累计前进距离
+        try { distAhead += calculateDistanceBetweenPoints(lastPt, navigationPath[i]); } catch (e) {}
+        lastPt = navigationPath[i];
+
         // 跳过极短线段引起的“锯齿”抖动
         const segLenPrev = calculateDistanceBetweenPoints(navigationPath[i - 1], navigationPath[i]);
         const segLenNext = calculateDistanceBetweenPoints(navigationPath[i], navigationPath[i + 1]);
@@ -1896,16 +1908,33 @@ function findNextTurnPoint() {
 
         const angle = calculateTurnAngle(p1, p2, p3);
 
+        // 动态阈值：距离越近，阈值越小（更敏感）
+        const nearWindow = 50; // 50米内更敏感
+        const effThreshold = distAhead <= nearWindow ? Math.min(TURN_ANGLE_THRESHOLD, 12) : TURN_ANGLE_THRESHOLD;
+
         // 如果转向角度大于阈值，认为是一个转向点
-        if (Math.abs(angle) > TURN_ANGLE_THRESHOLD) {
+        if (Math.abs(angle) > effThreshold) {
             nextTurnIndex = i;
             console.log(`找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°`);
             return;
         }
+
+        // 记录近距离窗口内的最大角度点，作为兜底
+        const aabs = Math.abs(angle);
+        if (distAhead <= FALLBACK_LOOKAHEAD_M && aabs > fallbackAngleAbs) {
+            fallbackAngleAbs = aabs;
+            fallbackIdx = i;
+        }
     }
 
     // 如果没有找到转向点，设置为终点
-    nextTurnIndex = navigationPath.length - 1;
+    if (fallbackIdx >= 0 && fallbackAngleAbs >= 12) {
+        // 兜底：在60米内的最大角度也作为可用转向点
+        nextTurnIndex = fallbackIdx;
+        console.log(`兜底选取转向点 索引:${fallbackIdx}, 角度:${fallbackAngleAbs.toFixed(2)}°`);
+    } else {
+        nextTurnIndex = navigationPath.length - 1;
+    }
 }
 
 // 计算两点之间的距离（米）
