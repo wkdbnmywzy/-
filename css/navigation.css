@@ -1,45 +1,5 @@
 /* 导航界面样式 */
 
-/* 顶部导航栏 */
-.nav-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 15px 20px;
-    background: white;
-    border-bottom: 1px solid #e0e0e0;
-    position: relative;
-    z-index: 100;
-}
-
-.nav-back-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: #333;
-    font-size: 18px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-}
-
-.nav-back-btn:hover {
-    background-color: #f0f0f0;
-    border-radius: 50%;
-}
-
-.nav-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: #333;
-    margin: 0;
-    flex: 1;
-    text-align: center;
-}
-
 /* 地图容器 */
 #navigation-map-container {
     flex: 1;
