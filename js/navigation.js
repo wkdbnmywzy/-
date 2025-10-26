@@ -1756,6 +1756,14 @@ function updateNavigationTip() {
 
     
     // 检查是否有途经点提示
+        try {
+            console.log('导航提示更新:', {
+                directionType,
+                distanceToNext: Math.round(distanceToNext || 0),
+                nextTurnIndex,
+                currentNavigationIndex
+            });
+        } catch (e) {}
         updateDirectionIcon(directionType, distanceToNext);
     
 }
@@ -1795,9 +1803,20 @@ function findNextTurnPoint() {
         return;
     }
 
-    // 提高阈值，降低直线或轻微噪声导致的误判
-    const TURN_ANGLE_THRESHOLD = 30; // 转向角度阈值（度）
-    const MIN_SEGMENT_LEN_M = 10;   // 参与判断的相邻线段最小长度（米）
+    // 可配置阈值：转向角度与最小线段长度
+    // 说明：KML路径点可能较密集，线段长度往往小于10m，过大阈值会导致一直找不到拐点
+    let TURN_ANGLE_THRESHOLD = 28; // 默认转向角度（度）
+    let MIN_SEGMENT_LEN_M = 3;     // 默认最小线段长度（米）
+    try {
+        if (MapConfig && MapConfig.navigationConfig) {
+            if (typeof MapConfig.navigationConfig.turnAngleThresholdDegrees === 'number') {
+                TURN_ANGLE_THRESHOLD = MapConfig.navigationConfig.turnAngleThresholdDegrees;
+            }
+            if (typeof MapConfig.navigationConfig.minSegmentLengthMeters === 'number') {
+                MIN_SEGMENT_LEN_M = MapConfig.navigationConfig.minSegmentLengthMeters;
+            }
+        }
+    } catch (e) {}
 
     // 从当前位置开始查找
     for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
@@ -1819,6 +1838,20 @@ function findNextTurnPoint() {
         if (Math.abs(angle) > TURN_ANGLE_THRESHOLD) {
             nextTurnIndex = i;
             console.log(`找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°`);
+            return;
+        }
+    }
+
+    // 后备方案：若严格条件未找到拐点，放宽条件再次扫描（忽略最小线段长度限制）
+    for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
+        const p1 = (i - 2 >= 0) ? navigationPath[i - 2] : navigationPath[i - 1];
+        const p2 = navigationPath[i];
+        const p3 = (i + 2 < navigationPath.length) ? navigationPath[i + 2] : navigationPath[i + 1];
+        const angle = calculateTurnAngle(p1, p2, p3);
+        const looserThreshold = Math.max(15, TURN_ANGLE_THRESHOLD - 10); // 最低15°
+        if (Math.abs(angle) > looserThreshold) {
+            nextTurnIndex = i;
+            console.log(`(放宽) 找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°`);
             return;
         }
     }
@@ -2258,11 +2291,17 @@ function getTraditionalNavigationDirection() {
         return 'straight'; // 没有转向点，直行
     }
 
-    // 计算转向角度
+    // 计算转向角度（与查找阶段一致的平滑策略，尽量用 i-2 与 i+2）
+    const mid = nextTurnIndex;
+    const prevIdx = (mid - 2 >= 0) ? mid - 2 : mid - 1;
+    const nextIdx = (mid + 2 < navigationPath.length) ? mid + 2 : mid + 1;
+    if (prevIdx < 0 || nextIdx >= navigationPath.length) {
+        return 'straight';
+    }
     const angle = calculateTurnAngle(
-        navigationPath[nextTurnIndex - 1],
-        navigationPath[nextTurnIndex],
-        navigationPath[nextTurnIndex + 1]
+        navigationPath[prevIdx],
+        navigationPath[mid],
+        navigationPath[nextIdx]
     );
 
     console.log(`转向角度: ${angle.toFixed(2)}°`);
