@@ -1866,34 +1866,12 @@ function findNextTurnPoint() {
         return;
     }
 
-    // 阈值可配置，降低直线或轻微噪声导致的误判
-    let TURN_ANGLE_THRESHOLD = 15; // 转向角度阈值（度）- 默认更灵敏
-    let MIN_SEGMENT_LEN_M = 6;    // 参与判断的相邻线段最小长度（米）- 默认放宽
-    try {
-        if (MapConfig && MapConfig.navigationConfig) {
-            if (typeof MapConfig.navigationConfig.turnAngleThresholdDegrees === 'number') {
-                TURN_ANGLE_THRESHOLD = MapConfig.navigationConfig.turnAngleThresholdDegrees;
-            }
-            if (typeof MapConfig.navigationConfig.minSegmentLengthMeters === 'number') {
-                MIN_SEGMENT_LEN_M = MapConfig.navigationConfig.minSegmentLengthMeters;
-            }
-        }
-    } catch (e) {}
+    // 提高阈值，降低直线或轻微噪声导致的误判
+    const TURN_ANGLE_THRESHOLD = 30; // 转向角度阈值（度）
+    const MIN_SEGMENT_LEN_M = 10;   // 参与判断的相邻线段最小长度（米）
 
-    // 从当前位置开始查找（动态阈值：近距离更敏感）
-    let distAhead = 0; // 从当前进度累计到候选点的距离
-    let lastPt = navigationPath[Math.max(0, currentNavigationIndex)];
-
-    // 记录一个“次优候选”（在近距离窗口内角度最大者），用于兜底
-    let fallbackIdx = -1;
-    let fallbackAngleAbs = 0;
-    const FALLBACK_LOOKAHEAD_M = 60; // 60米窗口内取最大转角索引作为兜底
-
+    // 从当前位置开始查找
     for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
-        // 累计前进距离
-        try { distAhead += calculateDistanceBetweenPoints(lastPt, navigationPath[i]); } catch (e) {}
-        lastPt = navigationPath[i];
-
         // 跳过极短线段引起的“锯齿”抖动
         const segLenPrev = calculateDistanceBetweenPoints(navigationPath[i - 1], navigationPath[i]);
         const segLenNext = calculateDistanceBetweenPoints(navigationPath[i], navigationPath[i + 1]);
@@ -1908,33 +1886,16 @@ function findNextTurnPoint() {
 
         const angle = calculateTurnAngle(p1, p2, p3);
 
-        // 动态阈值：距离越近，阈值越小（更敏感）
-        const nearWindow = 50; // 50米内更敏感
-        const effThreshold = distAhead <= nearWindow ? Math.min(TURN_ANGLE_THRESHOLD, 12) : TURN_ANGLE_THRESHOLD;
-
         // 如果转向角度大于阈值，认为是一个转向点
-        if (Math.abs(angle) > effThreshold) {
+        if (Math.abs(angle) > TURN_ANGLE_THRESHOLD) {
             nextTurnIndex = i;
             console.log(`找到转向点 索引:${i}, 角度:${angle.toFixed(2)}°`);
             return;
         }
-
-        // 记录近距离窗口内的最大角度点，作为兜底
-        const aabs = Math.abs(angle);
-        if (distAhead <= FALLBACK_LOOKAHEAD_M && aabs > fallbackAngleAbs) {
-            fallbackAngleAbs = aabs;
-            fallbackIdx = i;
-        }
     }
 
     // 如果没有找到转向点，设置为终点
-    if (fallbackIdx >= 0 && fallbackAngleAbs >= 12) {
-        // 兜底：在60米内的最大角度也作为可用转向点
-        nextTurnIndex = fallbackIdx;
-        console.log(`兜底选取转向点 索引:${fallbackIdx}, 角度:${fallbackAngleAbs.toFixed(2)}°`);
-    } else {
-        nextTurnIndex = navigationPath.length - 1;
-    }
+    nextTurnIndex = navigationPath.length - 1;
 }
 
 // 计算两点之间的距离（米）
@@ -2378,19 +2339,11 @@ function getTraditionalNavigationDirection() {
     console.log(`转向角度: ${angle.toFixed(2)}°`);
 
     // 根据角度判断转向类型（修正方向：正=右转，负=左转）
-    // 左/右提示阈值（度）可配置，默认30度
-    let LR_THRESHOLD = 30;
-    try {
-        if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnAngleThresholdDegrees === 'number') {
-            LR_THRESHOLD = MapConfig.navigationConfig.turnAngleThresholdDegrees;
-        }
-    } catch (e) {}
-
     if (angle > 135 || angle < -135) {
         return 'uturn'; // 掉头（大于135度）
-    } else if (angle > LR_THRESHOLD && angle <= 135) {
+    } else if (angle > 30 && angle <= 135) {
         return 'right'; // 右转（30-135度）
-    } else if (angle < -LR_THRESHOLD && angle >= -135) {
+    } else if (angle < -30 && angle >= -135) {
         return 'left'; // 左转（-30到-135度）
     } else {
         return 'straight'; // 直行（-30到30度）
@@ -2415,7 +2368,7 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
 
     // 当距离下一次转向较远时，优先展示“直行”以避免用户误解为仍需立即右/左转
     // 可通过 MapConfig.navigationConfig.turnPromptDistanceMeters 配置阈值（默认40米）
-    let turnPromptThreshold = 0; // 默认禁用远距离“直行覆盖”，优先展示左/右/掉头
+    let turnPromptThreshold = 40;
     try {
         if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnPromptDistanceMeters === 'number') {
             turnPromptThreshold = MapConfig.navigationConfig.turnPromptDistanceMeters;
@@ -2500,9 +2453,7 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
 
     // 如果距离下一次转向大于阈值，则图标优先展示“直行”，文案显示“距离下一次转向还有 X 米”
     // 注意：偏离路线(offroute)或即将掉头(backward/uturn)时不应用该直行覆盖逻辑
-    // 当阈值<=0时，视为“禁用远距离直行覆盖”，始终展示左/右/掉头
-    const disableFarOverride = !(isFinite(turnPromptThreshold)) || turnPromptThreshold <= 0;
-    const farFromNextTurn = !disableFarOverride && isFinite(distance) && distance > turnPromptThreshold;
+    const farFromNextTurn = isFinite(distance) && distance > turnPromptThreshold;
     let effectiveDirection = directionType;
     if (!isWaypointContext && farFromNextTurn && directionType !== 'offroute' && directionType !== 'backward' && directionType !== 'uturn') {
         effectiveDirection = 'forward';
