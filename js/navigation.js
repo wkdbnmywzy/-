@@ -40,6 +40,9 @@ let maxPassedSegIndex = -1;        // 记录用户走过的最远路径点索引
 let passedSegments = new Set();    // 记录已走过的路段（格式："startIndex-endIndex"）
 let visitedWaypoints = new Set();  // 记录已到达的途径点名称
 let waypointIndexMap = [];         // [{ index, name, pos:[lng,lat], reached:false }]
+let currentLeg = 0;                // 当前进行到的路段（起点->第1途经点->...->终点）
+let legTargets = [];               // 依次要到达的路径索引目标 [{index, name, type:'waypoint'|'end'}]
+let lastArrivalNotificationTime = 0; // 最近一次到达提示时间，避免频繁弹提示
 let currentBranchInfo = null;      // 当前检测到的分支信息
 let userChosenBranch = -1;         // 用户选择的分支索引（-1表示未选择或推荐分支）
 let lastBranchNotificationTime = 0; // 上次分支提示的时间戳，避免频繁提示
@@ -1546,6 +1549,17 @@ function startNavigationUI() {
                 console.warn('构建途经点索引映射失败:', e);
                 waypointIndexMap = [];
             }
+
+            // 初始化分段目标（按顺序：途经点... -> 终点）
+            try {
+                legTargets = buildLegTargets(navigationPath, waypointIndexMap, routeData);
+                currentLeg = 0;
+                console.log('分段目标初始化:', legTargets);
+            } catch (e) {
+                console.warn('初始化分段目标失败:', e);
+                legTargets = [];
+                currentLeg = 0;
+            }
     }
 
     // 更新导航提示信息
@@ -1829,6 +1843,14 @@ function updateNavigationTip() {
     } else {
         updateDirectionIcon(directionType, distanceToNext);
     }
+
+    // 检查是否到达当前分段目标（按顺序：途经点1 -> 途经点2 -> 终点）
+    try {
+        const currPos = userMarker ?
+            [userMarker.getPosition().lng, userMarker.getPosition().lat] :
+            navigationPath[Math.max(0, currentNavigationIndex)];
+        advanceLegIfArrived(currPos);
+    } catch (e) { console.warn('分段到达检查失败:', e); }
 }
 
 // 计算从“当前点在路网的投影点”到指定路径索引（targetIndex）的沿路网距离（米）
@@ -1867,8 +1889,20 @@ function findNextTurnPoint() {
     }
 
     // 提高阈值，降低直线或轻微噪声导致的误判
-    const TURN_ANGLE_THRESHOLD = 30; // 转向角度阈值（度）
-    const MIN_SEGMENT_LEN_M = 10;   // 参与判断的相邻线段最小长度（米）
+    // 可通过 MapConfig.navigationConfig 配置覆盖
+    let TURN_ANGLE_THRESHOLD = 30; // 转向角度阈值（度）
+    let MIN_SEGMENT_LEN_M = 3;     // 参与判断的相邻线段最小长度（米），原10米会导致短边拐角被忽略
+
+    try {
+        if (MapConfig && MapConfig.navigationConfig) {
+            if (typeof MapConfig.navigationConfig.turnAngleThresholdDeg === 'number') {
+                TURN_ANGLE_THRESHOLD = MapConfig.navigationConfig.turnAngleThresholdDeg;
+            }
+            if (typeof MapConfig.navigationConfig.segmentMinLengthMeters === 'number') {
+                MIN_SEGMENT_LEN_M = Math.max(1, MapConfig.navigationConfig.segmentMinLengthMeters);
+            }
+        }
+    } catch (e) {}
 
     // 从当前位置开始查找
     for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
@@ -1879,10 +1913,10 @@ function findNextTurnPoint() {
             continue;
         }
 
-        // 使用前后各两个点（如有）进行角度平滑，减小微小偏折的影响
-        const p1 = (i - 2 >= 0) ? navigationPath[i - 2] : navigationPath[i - 1];
-        const p2 = navigationPath[i];
-        const p3 = (i + 2 < navigationPath.length) ? navigationPath[i + 2] : navigationPath[i + 1];
+    // 使用前后各两个点（如有）进行角度平滑，减小噪声
+    const p1 = (i - 2 >= 0) ? navigationPath[i - 2] : navigationPath[i - 1];
+    const p2 = navigationPath[i];
+    const p3 = (i + 2 < navigationPath.length) ? navigationPath[i + 2] : navigationPath[i + 1];
 
         const angle = calculateTurnAngle(p1, p2, p3);
 
@@ -2455,7 +2489,14 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
     // 注意：偏离路线(offroute)或即将掉头(backward/uturn)时不应用该直行覆盖逻辑
     const farFromNextTurn = isFinite(distance) && distance > turnPromptThreshold;
     let effectiveDirection = directionType;
-    if (!isWaypointContext && farFromNextTurn && directionType !== 'offroute' && directionType !== 'backward' && directionType !== 'uturn') {
+    // 是否在距离较远时强制显示“直行”图标（默认关闭，以便始终显示“XXX米后 左/右转”）
+    let forceForwardWhenFar = false;
+    try {
+        if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.forceForwardWhenFar === 'boolean') {
+            forceForwardWhenFar = MapConfig.navigationConfig.forceForwardWhenFar;
+        }
+    } catch (e) {}
+    if (!isWaypointContext && forceForwardWhenFar && farFromNextTurn && directionType !== 'offroute' && directionType !== 'backward' && directionType !== 'uturn') {
         effectiveDirection = 'forward';
     }
 
@@ -2576,6 +2617,74 @@ function buildWaypointIndexMap(path, waypoints) {
     // 按索引升序
     map.sort((a, b) => a.index - b.index);
     return map;
+}
+
+// 构建“分段目标”：依次为每一个途经点（按路径上的顺序）以及最终的终点
+function buildLegTargets(path, wpIndexMap, routeData) {
+    const targets = [];
+    if (Array.isArray(wpIndexMap) && wpIndexMap.length > 0) {
+        wpIndexMap.forEach(w => targets.push({ index: w.index, name: w.name || '途经点', type: 'waypoint' }));
+    }
+    // 追加终点
+    const endName = (routeData && routeData.end && routeData.end.name) ? routeData.end.name : '终点';
+    targets.push({ index: Math.max(0, path.length - 1), name: endName, type: 'end' });
+    // 保证按索引从小到大（与路径一致）
+    targets.sort((a, b) => a.index - b.index);
+    return targets;
+}
+
+// 若接近当前分段目标（沿路网距离<=阈值且未偏离），则推进到下一段
+function advanceLegIfArrived(currPos) {
+    if (!hasReachedStart) return;        // 尚未正式沿路网行进
+    if (isOffRoute) return;             // 偏离时不推进分段
+    if (!Array.isArray(legTargets) || legTargets.length === 0) return;
+    if (currentLeg >= legTargets.length) return;
+
+    const target = legTargets[currentLeg];
+    if (typeof target.index !== 'number' || target.index < 0 || target.index >= navigationPath.length) return;
+
+    let passTurnThreshold = 8; // 与拐点通过阈值一致
+    try {
+        if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnPassDistanceMeters === 'number') {
+            passTurnThreshold = MapConfig.navigationConfig.turnPassDistanceMeters;
+        }
+    } catch (e) {}
+
+    const distToTarget = computeDistanceToIndexMeters(currPos, navigationPath, target.index) || 0;
+    if (isFinite(distToTarget) && distToTarget <= passTurnThreshold) {
+        // 标记对应途经点为已达（如果是途经点）
+        if (target.type === 'waypoint') {
+            const wp = waypointIndexMap.find(w => w.index === target.index && !w.reached);
+            if (wp) {
+                wp.reached = true;
+                if (wp.name) visitedWaypoints.add(wp.name);
+            }
+            // 轻量提示
+            notifyArrival(`已到达途经点 ${target.name}`);
+        } else if (target.type === 'end') {
+            // 到达终点：finishNavigation 会处理弹窗
+            // 这里不重复提示
+        }
+        currentLeg = Math.min(currentLeg + 1, legTargets.length);
+        console.log('推进到下一段，currentLeg=', currentLeg);
+    }
+}
+
+// 在提示卡上显示一次轻量“到达”提示（1.2秒），随后恢复正常提示
+function notifyArrival(text) {
+    const now = Date.now();
+    if (now - lastArrivalNotificationTime < 1000) return; // 1秒内不重复
+    lastArrivalNotificationTime = now;
+
+    try {
+        const actionText = document.getElementById('tip-action-text');
+        const distanceAheadElem = document.getElementById('tip-distance-ahead');
+        const distanceUnitElem = document.querySelector('.tip-distance-unit');
+        if (distanceAheadElem) distanceAheadElem.textContent = '';
+        if (distanceUnitElem) distanceUnitElem.style.display = 'none';
+        if (actionText) actionText.textContent = text || '已到达';
+        setTimeout(() => { try { updateNavigationTip(); } catch (e) {} }, 1200);
+    } catch (e) {}
 }
 
 // 显示退出导航确认弹窗
@@ -3540,21 +3649,16 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
             remainingPath = [routePoint, fullPath[fullPath.length - 1]];
         }
     } else {
-        // 偏离路径时：显示完整的未走路段
-        let hasUnpassed = false;
-        for (let i = 0; i < fullPath.length - 1; i++) {
-            const segmentKey = `${i}-${i + 1}`;
-            if (!passedSegments.has(segmentKey)) {
-                if (!hasUnpassed) {
-                    remainingPath.push(fullPath[i]);
-                    hasUnpassed = true;
-                }
-                remainingPath.push(fullPath[i + 1]);
+        // 偏离路径时：剩余绿色路线从“已走最远索引+1”开始，避免绿色覆盖灰色已走段
+        const startIdx = Math.max(0, Math.min(fullPath.length - 1, (maxPassedSegIndex || 0) + 1));
+        if (startIdx < fullPath.length - 1) {
+            // 不强行连接到当前离线位置，留给黄色偏离线显示“回到规划路网”的引导
+            for (let i = startIdx; i < fullPath.length; i++) {
+                remainingPath.push(fullPath[i]);
             }
-        }
-
-        if (remainingPath.length === 0) {
-            remainingPath = fullPath.slice();
+        } else {
+            // 已接近末尾
+            remainingPath = [fullPath[fullPath.length - 1]];
         }
     }
 
