@@ -3439,8 +3439,8 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
         }
     }
 
-    // 更新最远索引（用于兼容性）
-    if (routeSegIndex > maxPassedSegIndex) {
+    // 更新最远索引（用于兼容性）：仅在在路上时更新，避免偏离时投影跳跃导致历史被“提前”
+    if (onRoute && routeSegIndex > maxPassedSegIndex) {
         maxPassedSegIndex = routeSegIndex;
     }
 
@@ -3474,8 +3474,11 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
             }
         }
 
-        // 偏离时，不显示灰色已走路径，避免“整条绿 + 灰段”叠加感
-        if (passedRoutePolyline) {
+        // 偏离时：是否隐藏灰线取决于模式（trail 隐藏，history 保留大段历史可见）
+        const passedMode = (() => {
+            try { return MapConfig?.navigationConfig?.passedMode || 'history'; } catch (e) { return 'history'; }
+        })();
+        if (passedMode === 'trail' && passedRoutePolyline) {
             navigationMap.remove(passedRoutePolyline);
             passedRoutePolyline = null;
         }
@@ -3488,51 +3491,56 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
         deviatedPath = [];
     }
 
-    // 构建已走过的路径（灰色）：仅保留投影点身后的一小段“轨迹尾巴”，增强连续观感
+    // 构建已走过的路径（灰色）：根据模式绘制“短尾巴”或“历史大段”
     let passedPath = [];
-    if (onRoute && routePoint && routeSegIndex >= 0) {
-        // 可配置的尾巴长度（米）
-        const trailBackMeters = (() => {
-            try {
-                const v = MapConfig?.navigationConfig?.passedTrailMeters;
-                if (typeof v === 'number' && isFinite(v)) return Math.max(10, Math.min(200, v));
-            } catch (e) {}
-            return 60; // 默认 60 米
+    {
+        const passedMode = (() => {
+            try { return MapConfig?.navigationConfig?.passedMode || 'history'; } catch (e) { return 'history'; }
         })();
 
-        // 从投影点沿路径向后回溯，累计 trailBackMeters
-        const backPoints = [routePoint];
-        let remain = trailBackMeters;
-        let curr = routePoint;
-        let i = routeSegIndex;
+        const backMeters = (() => {
+            try {
+                if (passedMode === 'trail') {
+                    const v = MapConfig?.navigationConfig?.passedTrailMeters;
+                    if (typeof v === 'number' && isFinite(v)) return Math.max(10, Math.min(200, v));
+                    return 60;
+                } else { // history
+                    const v = MapConfig?.navigationConfig?.passedHistoryMeters;
+                    if (typeof v === 'number' && isFinite(v)) return Math.max(100, Math.min(2000, v));
+                    return 400; // 默认 400 米覆盖大段历史
+                }
+            } catch (e) { return passedMode === 'trail' ? 60 : 400; }
+        })();
 
-        while (remain > 0 && i >= 0) {
-            const start = fullPath[i]; // 段起点
-            const distToStart = calculateDistanceBetweenPoints(curr, start);
-            if (distToStart <= 0.01) {
-                // 已在段起点，继续上一段
-                curr = start;
-                i -= 1;
-                continue;
+        if (routePoint && routeSegIndex >= 0) {
+            const backPoints = [routePoint];
+            let remain = backMeters;
+            let curr = routePoint;
+            let i = routeSegIndex;
+
+            while (remain > 0 && i >= 0) {
+                const start = fullPath[i];
+                const distToStart = calculateDistanceBetweenPoints(curr, start);
+                if (distToStart <= 0.01) {
+                    curr = start;
+                    i -= 1;
+                    continue;
+                }
+                if (remain < distToStart) {
+                    const t = remain / distToStart; // 从 curr 朝 start 方向插值
+                    const interp = interpolateLngLat(curr, start, t);
+                    backPoints.push(interp);
+                    remain = 0;
+                    break;
+                } else {
+                    backPoints.push(start);
+                    remain -= distToStart;
+                    curr = start;
+                    i -= 1;
+                }
             }
-            if (remain < distToStart) {
-                // 在本段内插值一个点，作为尾巴的起点
-                const t = remain / distToStart; // 从 curr 朝 start 方向
-                const interp = interpolateLngLat(curr, start, t);
-                backPoints.push(interp);
-                remain = 0;
-                break;
-            } else {
-                // 整段都纳入尾巴，推进到上一段
-                backPoints.push(start);
-                remain -= distToStart;
-                curr = start;
-                i -= 1;
-            }
+            passedPath = backPoints.reverse();
         }
-
-        // 反转为从“更早点 -> 投影点”的顺序
-        passedPath = backPoints.reverse();
     }
 
     // 构建剩余路径（绿色）
