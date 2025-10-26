@@ -39,7 +39,7 @@ let deviatedPath = [];             // 偏离路径的点���合
 let maxPassedSegIndex = -1;        // 记录用户走过的最远路径点索引
 let passedSegments = new Set();    // 记录已走过的路段（格式："startIndex-endIndex"）
 let visitedWaypoints = new Set();  // 记录已到达的途径点名称
-let waypointIndexMap = [];         // [{ index, name, pos:[lng,lat], reached:false }]
+
 let currentBranchInfo = null;      // 当前检测到的分支信息
 let userChosenBranch = -1;         // 用户选择的分支索引（-1表示未选择或推荐分支）
 let lastBranchNotificationTime = 0; // 上次分支提示的时间戳，避免频繁提示
@@ -1754,81 +1754,10 @@ function updateNavigationTip() {
         distanceToNext = remainingDistance;
     }
 
-    // ====== 途经点到达/转向提示（优先覆盖几何拐点提示）======
-    try {
-        if (Array.isArray(waypointIndexMap) && waypointIndexMap.length > 0) {
-            const currPos = userMarker ?
-                [userMarker.getPosition().lng, userMarker.getPosition().lat] :
-                navigationPath[Math.max(0, currentNavigationIndex)];
-            // 取得当前沿路网索引（采用投影更稳定）
-            const proj = projectPointOntoPathMeters(currPos, navigationPath);
-            const currIdx = proj ? proj.index : (currentNavigationIndex || 0);
-
-            // 找到第一个未到达且在前方的途经点
-            const upcoming = waypointIndexMap
-                .filter(w => !w.reached && typeof w.index === 'number' && w.index > currIdx)
-                .sort((a, b) => a.index - b.index)[0];
-
-            if (upcoming) {
-                const distToWp = computeDistanceToIndexMeters(currPos, navigationPath, upcoming.index) || 0;
-
-                // 提示阈值（米）：到达途经点前 N 米开始给出“到途经点X左/右转”的提示
-                let waypointPromptThreshold = 60; // 默认60米
-                try {
-                    if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.waypointPromptDistanceMeters === 'number') {
-                        waypointPromptThreshold = MapConfig.navigationConfig.waypointPromptDistanceMeters;
-                    }
-                } catch (e) {}
-
-                if (isFinite(distToWp) && distToWp <= waypointPromptThreshold) {
-                    // 计算该途经点处的转向类型（使用邻近点求夹角）
-                    const i = upcoming.index;
-                    let wpDirection = 'straight';
-                    if (i > 0 && i < navigationPath.length - 1) {
-                        try {
-                            const angleAtWp = calculateTurnAngle(
-                                navigationPath[Math.max(0, i - 1)],
-                                navigationPath[i],
-                                navigationPath[Math.min(navigationPath.length - 1, i + 1)]
-                            );
-                            if (angleAtWp > 135 || angleAtWp < -135) wpDirection = 'uturn';
-                            else if (angleAtWp > 30) wpDirection = 'right';
-                            else if (angleAtWp < -30) wpDirection = 'left';
-                            else wpDirection = 'forward';
-                        } catch (e) { wpDirection = 'forward'; }
-                    }
-
-                    waypointPrompt = {
-                        name: upcoming.name || '途经点',
-                        index: i,
-                        distance: distToWp,
-                        directionType: wpDirection
-                    };
-
-                    // 若已非常接近途经点，标记为到达，避免重复提示
-                    let passTurnThreshold = 8; // 与拐点通过阈值一致
-                    try {
-                        if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnPassDistanceMeters === 'number') {
-                            passTurnThreshold = MapConfig.navigationConfig.turnPassDistanceMeters;
-                        }
-                    } catch (e) {}
-                    if (distToWp <= passTurnThreshold) {
-                        upcoming.reached = true;
-                        if (upcoming.name) visitedWaypoints.add(upcoming.name);
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        console.warn('计算途经点提示失败:', e);
-    }
-
-    // 若存在有效的途经点提示，则覆盖默认提示
-    if (waypointPrompt) {
-        updateDirectionIcon(waypointPrompt.directionType, waypointPrompt.distance, { waypointName: waypointPrompt.name });
-    } else {
+    
+    // 检查是否有途经点提示
         updateDirectionIcon(directionType, distanceToNext);
-    }
+    
 }
 
 // 计算从“当前点在路网的投影点”到指定路径索引（targetIndex）的沿路网距离（米）
@@ -2359,7 +2288,7 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
     const directionIconContainer = document.querySelector('.tip-direction-icon');
     const tipDetailsElem = document.querySelector('.tip-details');
     const tipDividerElem = document.querySelector('.tip-divider');
-    const isWaypointContext = options && options.waypointName;
+
 
     const basePath = 'images/工地数字导航小程序切图/司机/2X/导航/';
 
@@ -2455,7 +2384,7 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
     // 注意：偏离路线(offroute)或即将掉头(backward/uturn)时不应用该直行覆盖逻辑
     const farFromNextTurn = isFinite(distance) && distance > turnPromptThreshold;
     let effectiveDirection = directionType;
-    if (!isWaypointContext && farFromNextTurn && directionType !== 'offroute' && directionType !== 'backward' && directionType !== 'uturn') {
+    if (farFromNextTurn && directionType !== 'offroute' && directionType !== 'backward' && directionType !== 'uturn') {
         effectiveDirection = 'forward';
     }
 
@@ -2505,8 +2434,6 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
         }
     }
 
-    // 构造途经点前缀文本
-    const waypointPrefix = isWaypointContext ? (`到途经点${options.waypointName ? options.waypointName : ''} `) : '';
 
     // 更新提示文本
     if (effectiveDirection === 'straight' || effectiveDirection === 'forward') {
@@ -2515,8 +2442,7 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
             distanceAheadElem.textContent = distance;
         }
         if (actionText) {
-            // 若为途经点上下文，提示“米后 到途经点 直行/前进”更合理
-            actionText.textContent = isWaypointContext ? (waypointPrefix + '直行') : '米';
+            actionText.textContent = '米';
         }
         // 隐藏"米后"文本
         if (distanceUnitElem) {
@@ -2528,7 +2454,7 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
             distanceAheadElem.textContent = distance;
         }
         if (actionText) {
-            actionText.textContent = waypointPrefix + actionName;
+            actionText.textContent = actionName;
         }
         // 显示"米后"文本
         if (distanceUnitElem) {
@@ -2537,46 +2463,7 @@ function updateDirectionIcon(directionType, distanceToNext, options) {
     }
 }
 
-// 构建“途经点在路径上的索引映射”
-// 返回：[{ index, name, pos:[lng,lat], reached:false }]
-function buildWaypointIndexMap(path, waypoints) {
-    const map = [];
-    if (!path || path.length === 0 || !Array.isArray(waypoints) || waypoints.length === 0) return map;
 
-    // 统一路径点格式为 [lng,lat]
-    const normPath = path.map(p => normalizeLngLat(p));
-
-    // 去重工具：避免重复索引
-    const usedIdx = new Set();
-
-    waypoints.forEach(wp => {
-        try {
-            const pos = resolvePointPosition(wp) || (Array.isArray(wp?.position) ? wp.position : null);
-            if (!pos || !isFinite(pos[0]) || !isFinite(pos[1])) return;
-
-            // 找到路径上最近的点索引
-            let bestIdx = 0;
-            let bestDist = Infinity;
-            for (let i = 0; i < normPath.length; i++) {
-                const d = calculateDistanceBetweenPoints(pos, normPath[i]);
-                if (d < bestDist) { bestDist = d; bestIdx = i; }
-            }
-
-            // 避免重复索引（若重复则向后微调+1）
-            let idx = bestIdx;
-            while (usedIdx.has(idx) && idx < normPath.length - 1) idx++;
-            usedIdx.add(idx);
-
-            map.push({ index: idx, name: wp?.name || '途经点', pos: pos, reached: false });
-        } catch (e) {
-            console.warn('映射途经点索引失败:', e);
-        }
-    });
-
-    // 按索引升序
-    map.sort((a, b) => a.index - b.index);
-    return map;
-}
 
 // 显示退出导航确认弹窗
 function showExitNavigationModal() {
