@@ -53,15 +53,7 @@
     --timeline-dash-color: #143662;
 }
 
-/* 任务页面头部 */
-.task-header {
-    background-color: #FFFFFF;
-    padding: 12px 16px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-bottom: 1px solid #E0E0E0;
-}
+
 
 .task-title {
     font-size: 18px;
@@ -70,10 +62,7 @@
     margin: 0;
 }
 
-.task-header-actions {
-    display: flex;
-    gap: 12px;
-}
+
 
 .task-menu-btn,
 .task-locate-btn {
@@ -629,10 +618,6 @@
         padding-bottom: 50px;
     }
 
-    .task-header {
-        padding: 8px 12px;
-    }
-
     .task-title {
         font-size: 16px;
     }
@@ -676,11 +661,6 @@
 @media (max-height: 500px) {
     .task-page {
         padding-bottom: 40px;
-    }
-
-    .task-header {
-        padding: 6px 10px;
-        height: 40px;
     }
 
     .task-title {
@@ -749,10 +729,6 @@
         max-width: 100%;
     }
 
-    .task-header {
-        padding: 8px 10px;
-    }
-
     .task-title {
         font-size: 16px;
     }
@@ -796,10 +772,6 @@
 @media (min-width: 414px) and (min-height: 800px) {
     .container {
         max-width: 100%;
-    }
-
-    .task-header {
-        padding: 16px 20px;
     }
 
     .task-title {
@@ -872,11 +844,6 @@
         padding-bottom: 40px;
     }
 
-    .task-header {
-        padding: 6px 15px;
-        height: 40px;
-    }
-
     .task-title {
         font-size: 16px;
     }
@@ -917,10 +884,6 @@
 
 /* 针对带刘海或打孔屏的手机 */
 @supports (padding: max(0px)) {
-    .task-header {
-        padding-top: max(12px, env(safe-area-inset-top));
-        height: max(56px, 56px + env(safe-area-inset-top));
-    }
 
     .task-page {
         padding-bottom: max(60px, 60px + env(safe-area-inset-bottom));
