@@ -2378,11 +2378,19 @@ function getTraditionalNavigationDirection() {
     console.log(`转向角度: ${angle.toFixed(2)}°`);
 
     // 根据角度判断转向类型（修正方向：正=右转，负=左转）
+    // 左/右提示阈值（度）可配置，默认30度
+    let LR_THRESHOLD = 30;
+    try {
+        if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnAngleThresholdDegrees === 'number') {
+            LR_THRESHOLD = MapConfig.navigationConfig.turnAngleThresholdDegrees;
+        }
+    } catch (e) {}
+
     if (angle > 135 || angle < -135) {
         return 'uturn'; // 掉头（大于135度）
-    } else if (angle > 30 && angle <= 135) {
+    } else if (angle > LR_THRESHOLD && angle <= 135) {
         return 'right'; // 右转（30-135度）
-    } else if (angle < -30 && angle >= -135) {
+    } else if (angle < -LR_THRESHOLD && angle >= -135) {
         return 'left'; // 左转（-30到-135度）
     } else {
         return 'straight'; // 直行（-30到30度）
