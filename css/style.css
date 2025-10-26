@@ -686,45 +686,6 @@ body {
     display: flex;
 }
 
-/* 面板头部 */
-.picker-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 15px 20px;
-    border-bottom: 1px solid #e0e0e0;
-    background: white;
-    position: relative;
-}
-
-.picker-back-btn {
-    position: absolute;
-    left: 20px;
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: #333;
-    font-size: 18px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-}
-
-.picker-back-btn:hover {
-    background-color: #f0f0f0;
-    border-radius: 50%;
-}
-
-.picker-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: #333;
-    margin: 0;
-}
-
 /* 面板内容区 */
 .picker-content {
     flex: 1;
