@@ -1119,22 +1119,6 @@ function saveNavigationMapState() {
 
 // 设置事件监听
 function setupNavigationEvents() {
-    // 返回按钮
-    const backBtn = document.getElementById('nav-back-btn');
-    if (backBtn) {
-        backBtn.addEventListener('click', function() {
-            // 如果正在导航，显示退出确认弹窗
-            if (isNavigating) {
-                showExitNavigationModal();
-            } else {
-                // 不在导航状态，保存地图状态后返回主页
-                saveNavigationMapState();
-                cleanupMap();
-                window.location.href = 'index.html';
-            }
-        });
-    }
-
     // 开始导航按钮
     const startNavBtn = document.getElementById('start-navigation-btn');
     if (startNavBtn) {
