@@ -3106,18 +3106,13 @@ function startRealNavigationTracking() {
 
             // 根据是否偏离路径决定如何显示路线
             if (isOffRoute) {
-                // 偏离路径时：恢复完整的绿色规划路径
-                if (routePolyline && fullPath.length > 0) {
-                    routePolyline.setPath(fullPath);
-                }
-                // 不移除灰色已走路径，保留显示
-                // 黄色偏离路径会在updatePathSegments中处理
+                // 偏离路径时：不再把绿色路线恢复为整条，改为在 updatePathSegments 内按“回到路线的接入点”裁剪
                 if (!hasReachedStart) {
-                    console.log('未到起点附近，提示用户前往起点，显示完整规划路径');
+                    console.log('未到起点附近，提示用户前往起点，仅绘制从接入点开始的剩余路径');
                 } else {
-                    console.log('已偏离路径，显示完整规划路径和黄色偏离轨迹');
+                    console.log('已偏离路径，仅绘制从接入点开始的剩余路径，并显示黄色偏离轨迹');
                 }
-                // 仍然调用updatePathSegments以更新黄色偏离路径，传入投影点
+                // 仍然调用 updatePathSegments 以更新黄色偏离路径与绿色剩余路径（从接入点起）
                 updatePathSegments(curr, fullPath, segIndex, projectionPoint);
             } else {
                 // 在路径上时：将规划路径分为已走部分（灰色）和剩余部分（绿色），并将分割点对齐到路网
@@ -3396,13 +3391,15 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
     if (!routePolyline || !fullPath || fullPath.length < 2) return;
 
     // 优先使用传入的投影点，如果没有则计算投影点
-    let routePoint, routeSegIndex;
+    let routePoint, routeSegIndex, projection;
     if (projectionPoint && Array.isArray(projectionPoint) && projectionPoint.length >= 2) {
-        routePoint = projectionPoint;
-        routeSegIndex = segIndex >= 0 ? segIndex : findClosestPathIndex(projectionPoint, fullPath);
+        // 若传入了投影点，也计算一次投影以获得 t（用于“是否完全通过该段”判断）
+        projection = projectPointOntoPathMeters(projectionPoint, fullPath) || projectPointOntoPathMeters(currentPos, fullPath);
+        routePoint = projection ? projection.projected : projectionPoint;
+        routeSegIndex = typeof projection?.index === 'number' ? projection.index : (segIndex >= 0 ? segIndex : findClosestPathIndex(projectionPoint, fullPath));
     } else {
         // 将当前位置投影到路网（找到最近线段与投影点），确保分段点在路网上
-        const projection = projectPointOntoPathMeters(currentPos, fullPath);
+        projection = projectPointOntoPathMeters(currentPos, fullPath);
         routePoint = projection ? projection.projected : currentPos;
         routeSegIndex = projection ? projection.index : segIndex;
     }
@@ -3410,12 +3407,35 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
     // 判断用户是否在路径上
     const onRoute = !isOffRoute;
 
-    // 标记当前所在路段为已走过（使用路段标记而非单一索引）
+    // 仅将“已经完全通过”的路段标记为已走过：
+    // - 完全通过的定义：索引小于当前投影所在段；
+    // - 当前投影所在段，仅当 t >= passThreshold 时才视为通过
     if (onRoute && routeSegIndex >= 0 && routeSegIndex < fullPath.length - 1) {
-        const segmentKey = `${routeSegIndex}-${routeSegIndex + 1}`;
-        if (!passedSegments.has(segmentKey)) {
-            passedSegments.add(segmentKey);
-            console.log('标记已走过路段:', segmentKey);
+        const passThreshold = (() => {
+            try {
+                if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.segmentPassT === 'number') {
+                    return Math.max(0.5, Math.min(0.99, MapConfig.navigationConfig.segmentPassT));
+                }
+            } catch (e) {}
+            return 0.95; // 默认 95% 认为通过该段
+        })();
+
+        // 1) 将当前段之前的所有段都标记为已通过
+        const upToIndex = Math.max(0, routeSegIndex - 1);
+        for (let i = 0; i <= upToIndex; i++) {
+            const key = `${i}-${i + 1}`;
+            if (i < fullPath.length - 1 && !passedSegments.has(key)) {
+                passedSegments.add(key);
+            }
+        }
+
+        // 2) 若当前段投影比例 t 足够靠近终点，也将当前段标记为已通过
+        const t = (projection && typeof projection.t === 'number') ? projection.t : 0;
+        if (t >= passThreshold) {
+            const currKey = `${routeSegIndex}-${routeSegIndex + 1}`;
+            if (!passedSegments.has(currKey)) {
+                passedSegments.add(currKey);
+            }
         }
     }
 
@@ -3453,6 +3473,12 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
                 console.log('更新黄色偏离路径，长度:', deviatedPath.length, '点');
             }
         }
+
+        // 偏离时，不显示灰色已走路径，避免“整条绿 + 灰段”叠加感
+        if (passedRoutePolyline) {
+            navigationMap.remove(passedRoutePolyline);
+            passedRoutePolyline = null;
+        }
     } else {
         // 回到路线上时，清除偏离路径
         if (deviatedRoutePolyline) {
@@ -3462,74 +3488,73 @@ function updatePathSegments(currentPos, fullPath, segIndex, projectionPoint) {
         deviatedPath = [];
     }
 
-    // 构建已走过的路径（灰色）：基于路段标记
+    // 构建已走过的路径（灰色）：仅保留投影点身后的一小段“轨迹尾巴”，增强连续观感
     let passedPath = [];
-    let passedPathSegments = []; // 用于构建完整的已走路径
+    if (onRoute && routePoint && routeSegIndex >= 0) {
+        // 可配置的尾巴长度（米）
+        const trailBackMeters = (() => {
+            try {
+                const v = MapConfig?.navigationConfig?.passedTrailMeters;
+                if (typeof v === 'number' && isFinite(v)) return Math.max(10, Math.min(200, v));
+            } catch (e) {}
+            return 60; // 默认 60 米
+        })();
 
-    for (let i = 0; i < fullPath.length - 1; i++) {
-        const segmentKey = `${i}-${i + 1}`;
-        if (passedSegments.has(segmentKey)) {
-            // 这个路段已经走过
-            if (passedPathSegments.length === 0 || passedPathSegments[passedPathSegments.length - 1] !== i) {
-                passedPathSegments.push(i);
+        // 从投影点沿路径向后回溯，累计 trailBackMeters
+        const backPoints = [routePoint];
+        let remain = trailBackMeters;
+        let curr = routePoint;
+        let i = routeSegIndex;
+
+        while (remain > 0 && i >= 0) {
+            const start = fullPath[i]; // 段起点
+            const distToStart = calculateDistanceBetweenPoints(curr, start);
+            if (distToStart <= 0.01) {
+                // 已在段起点，继续上一段
+                curr = start;
+                i -= 1;
+                continue;
             }
-            passedPathSegments.push(i + 1);
+            if (remain < distToStart) {
+                // 在本段内插值一个点，作为尾巴的起点
+                const t = remain / distToStart; // 从 curr 朝 start 方向
+                const interp = interpolateLngLat(curr, start, t);
+                backPoints.push(interp);
+                remain = 0;
+                break;
+            } else {
+                // 整段都纳入尾巴，推进到上一段
+                backPoints.push(start);
+                remain -= distToStart;
+                curr = start;
+                i -= 1;
+            }
         }
+
+        // 反转为从“更早点 -> 投影点”的顺序
+        passedPath = backPoints.reverse();
     }
 
-    // 将索引转换为坐标点
-    passedPath = passedPathSegments.map(idx => fullPath[idx]);
-
-    // 如果当前在路上，添加投影点到已走路径的末尾
-    if (onRoute && routePoint && passedPath.length > 0) {
-        // 检查投影点是否应该添加到已走路径
-        const lastPassedPoint = passedPath[passedPath.length - 1];
-        const lastPassedIdx = passedPathSegments[passedPathSegments.length - 1];
-
-        if (routeSegIndex === lastPassedIdx) {
-            passedPath.push(routePoint);
-        }
-    }
-
-    // 构建剩余路径（绿色）：未走过的路段
+    // 构建剩余路径（绿色）
     let remainingPath = [];
 
     if (onRoute) {
-        // 从投影点开始，收集所有未走过的路段
-        remainingPath.push(routePoint);
-
-        let currentSegIdx = routeSegIndex;
-        let visited = new Set();
-        visited.add(currentSegIdx);
-
-        // 从当前位置向后查找未走过的连续路段
-        for (let i = routeSegIndex + 1; i < fullPath.length; i++) {
-            const segmentKey = `${i - 1}-${i}`;
-            if (!passedSegments.has(segmentKey) || i === fullPath.length - 1) {
-                remainingPath.push(fullPath[i]);
-            }
-        }
-
-        // 如果剩余路径只有投影点，说明已经完成，保持当前状态
+        // 简化逻辑：剩余路径 = [投影点] + 该段终点及之后的所有节点
+        remainingPath = [routePoint].concat(fullPath.slice(Math.min(fullPath.length - 1, routeSegIndex + 1)));
         if (remainingPath.length < 2) {
             remainingPath = [routePoint, fullPath[fullPath.length - 1]];
         }
     } else {
-        // 偏离路径时：显示完整的未走路段
-        let hasUnpassed = false;
-        for (let i = 0; i < fullPath.length - 1; i++) {
-            const segmentKey = `${i}-${i + 1}`;
-            if (!passedSegments.has(segmentKey)) {
-                if (!hasUnpassed) {
-                    remainingPath.push(fullPath[i]);
-                    hasUnpassed = true;
-                }
-                remainingPath.push(fullPath[i + 1]);
-            }
+        // 偏离路径时：不要把绿线恢复为整条路径，而是仍然从“回到路线的接入点”（投影点）开始画
+        if (routePoint) {
+            remainingPath = [routePoint].concat(fullPath.slice(Math.min(fullPath.length - 1, routeSegIndex + 1)));
+        } else {
+            // 若无投影点退化为从最近索引处开始
+            const startIdx = Math.max(0, Math.min(fullPath.length - 1, segIndex));
+            remainingPath = [fullPath[startIdx]].concat(fullPath.slice(startIdx + 1));
         }
-
-        if (remainingPath.length === 0) {
-            remainingPath = fullPath.slice();
+        if (remainingPath.length < 2 && fullPath.length >= 2) {
+            remainingPath = [fullPath[0], fullPath[fullPath.length - 1]];
         }
     }
 
