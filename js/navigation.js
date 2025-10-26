@@ -40,7 +40,6 @@ let maxPassedSegIndex = -1;        // 记录用户走过的最远路径点索引
 let passedSegments = new Set();    // 记录已走过的路段（格式："startIndex-endIndex"）
 let visitedWaypoints = new Set();  // 记录已到达的途径点名称
 let waypointIndexMap = [];         // [{ index, name, pos:[lng,lat], reached:false }]
-let currentLegTarget = null;       // 当前分段目标：下一未达的途经点或终点 { index, name, type: 'waypoint'|'end' }
 let currentBranchInfo = null;      // 当前检测到的分支信息
 let userChosenBranch = -1;         // 用户选择的分支索引（-1表示未选择或推荐分支）
 let lastBranchNotificationTime = 0; // 上次分支提示的时间戳，避免频繁提示
@@ -1547,9 +1546,6 @@ function startNavigationUI() {
                 console.warn('构建途经点索引映射失败:', e);
                 waypointIndexMap = [];
             }
-
-            // 初始化当前分段目标（下一未达途经点，否则终点）
-            updateCurrentLegTarget();
     }
 
     // 更新导航提示信息
@@ -1736,22 +1732,15 @@ function updateNavigationTip() {
     // 计算到下一个转向点或终点的距离（使用投影，避免因索引相等导致的0米问题）
     let distanceToNext = 0;
     let waypointPrompt = null; // { name, index, distance, directionType }
-    // 刷新当前分段目标，并在计算距离/转向时不跨越该目标
-    try { updateCurrentLegTarget(); } catch (e) {}
-
     if (nextTurnIndex > 0 && nextTurnIndex < navigationPath.length) {
         // 有转向点，计算从“当前位置在路网的投影点”到“转向点索引”的沿路网距离
         const currPos = userMarker ?
             [userMarker.getPosition().lng, userMarker.getPosition().lat] :
             navigationPath[Math.max(0, currentNavigationIndex)];
-        // 限制转向点不越过当前分段目标
-        const cappedTurnIndex = (currentLegTarget && typeof currentLegTarget.index === 'number')
-            ? Math.min(nextTurnIndex, currentLegTarget.index)
-            : nextTurnIndex;
-        distanceToNext = computeDistanceToIndexMeters(currPos, navigationPath, cappedTurnIndex) || 0;
+        distanceToNext = computeDistanceToIndexMeters(currPos, navigationPath, nextTurnIndex) || 0;
         // 如果异常为0，则回退为原有分段累加（兜底）
         if (!isFinite(distanceToNext) || distanceToNext <= 0) {
-            for (let i = currentNavigationIndex; i < cappedTurnIndex; i++) {
+            for (let i = currentNavigationIndex; i < nextTurnIndex; i++) {
                 if (i + 1 < navigationPath.length) {
                     distanceToNext += calculateDistanceBetweenPoints(
                         navigationPath[i],
@@ -1900,12 +1889,7 @@ function findNextTurnPoint() {
     let fallbackAngleAbs = 0;
     const FALLBACK_LOOKAHEAD_M = 60; // 60米窗口内取最大转角索引作为兜底
 
-    // 限制查找范围：不越过当前分段目标（下一未达途经点或终点）
-    const capIndex = (currentLegTarget && typeof currentLegTarget.index === 'number')
-        ? Math.max(Math.min(currentLegTarget.index, navigationPath.length - 1), 1)
-        : navigationPath.length - 1;
-
-    for (let i = currentNavigationIndex + 1; i < capIndex; i++) {
+    for (let i = currentNavigationIndex + 1; i < navigationPath.length - 1; i++) {
         // 累计前进距离
         try { distAhead += calculateDistanceBetweenPoints(lastPt, navigationPath[i]); } catch (e) {}
         lastPt = navigationPath[i];
@@ -1943,13 +1927,13 @@ function findNextTurnPoint() {
         }
     }
 
-    // 如果没有找到转向点，设置为当前分段目标或兜底
+    // 如果没有找到转向点，设置为终点
     if (fallbackIdx >= 0 && fallbackAngleAbs >= 12) {
         // 兜底：在60米内的最大角度也作为可用转向点
         nextTurnIndex = fallbackIdx;
         console.log(`兜底选取转向点 索引:${fallbackIdx}, 角度:${fallbackAngleAbs.toFixed(2)}°`);
     } else {
-        nextTurnIndex = capIndex;
+        nextTurnIndex = navigationPath.length - 1;
     }
 }
 
@@ -2633,51 +2617,6 @@ function buildWaypointIndexMap(path, waypoints) {
     // 按索引升序
     map.sort((a, b) => a.index - b.index);
     return map;
-}
-
-// 更新当前分段目标（下一未达途经点，否则终点）
-function updateCurrentLegTarget() {
-    if (!navigationPath || navigationPath.length === 0) {
-        currentLegTarget = null;
-        return;
-    }
-
-    // 如果还未构建索引映射，保持为空
-    if (!Array.isArray(waypointIndexMap)) waypointIndexMap = [];
-
-    // 计算当前位置的沿路网进度索引
-    const curr = userMarker ? [userMarker.getPosition().lng, userMarker.getPosition().lat] : navigationPath[Math.max(0, currentNavigationIndex || 0)];
-    const proj = projectPointOntoPathMeters(curr, navigationPath);
-    const progressIdx = proj ? proj.index : (currentNavigationIndex || 0);
-
-    // 判定通过阈值
-    let passTurnThreshold = 8;
-    try {
-        if (MapConfig && MapConfig.navigationConfig && typeof MapConfig.navigationConfig.turnPassDistanceMeters === 'number') {
-            passTurnThreshold = MapConfig.navigationConfig.turnPassDistanceMeters;
-        }
-    } catch (e) {}
-
-    // 标记所有已过索引的途经点为 reached（避免错过提醒导致卡住）
-    waypointIndexMap.forEach(w => {
-        if (!w || w.reached) return;
-        if (typeof w.index === 'number' && progressIdx >= w.index) {
-            w.reached = true;
-            if (w.name) visitedWaypoints.add(w.name);
-        }
-    });
-
-    // 选择第一个未达的途经点作为目标
-    const nextWp = waypointIndexMap.find(w => w && !w.reached);
-    if (nextWp) {
-        currentLegTarget = { index: nextWp.index, name: nextWp.name || '途经点', type: 'waypoint' };
-        return;
-    }
-
-    // 否则终点为目标
-    const endIdx = navigationPath.length - 1;
-    const endName = (routeData && routeData.end && routeData.end.name) ? routeData.end.name : '终点';
-    currentLegTarget = { index: endIdx, name: endName, type: 'end' };
 }
 
 // 显示退出导航确认弹窗
