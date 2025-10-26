@@ -43,13 +43,10 @@ function adjustForScreenHeight() {
     const screenHeight = window.innerHeight;
     const driverCard = document.querySelector('.driver-card');
     const functionsContainer = document.querySelector('.functions-container');
-    const profileHeader = document.querySelector('.profile-header');
     const bottomNav = document.querySelector('.bottom-nav');
-
     console.log('当前屏幕高度:', screenHeight);
 
     // 计算固定元素高度
-    const headerHeight = profileHeader ? profileHeader.offsetHeight : 60;
     const bottomNavHeight = bottomNav ? bottomNav.offsetHeight : 60;
     const driverCardHeight = driverCard ? driverCard.offsetHeight : 140;
 
