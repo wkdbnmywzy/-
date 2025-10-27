@@ -311,34 +311,14 @@ function startRealtimeLocationTracking() {
                 initialLocationMarker = null;
             }
 
-            // 初始化或更新自身标记
-            if (!selfMarker) {
-                const iconCfg = MapConfig.markerStyles.headingLocation || {};
-                var w = (iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
-                var h = (iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
-
-                let iconImage = iconCfg.icon;
-                // 如果开启箭头模式或 PNG 未配置，则改用 SVG 箭头，以确保旋转效果明显
-                if (iconCfg.useSvgArrow === true || !iconImage) {
-                    iconImage = createHeadingArrowDataUrl('#007bff');
-                }
-
-                const icon = new AMap.Icon({
-                    size: new AMap.Size(w, h),
-                    image: iconImage,
-                    imageSize: new AMap.Size(w, h)
-                });
-                selfMarker = new AMap.Marker({
-                    position: curr,
-                    icon: icon,
-                    offset: new AMap.Pixel(-(w/2), -(h/2)),
-                    zIndex: 1000,
-                    angle: 0,
-                    map: map
-                });
-            } else {
-                selfMarker.setPosition(curr);
-            }
+            // 初始化或更新自身标记（使用统一的工具函数）
+            selfMarker = updateOrCreateLocationMarker({
+                existingMarker: selfMarker,
+                position: curr,
+                map: map,
+                zIndex: 1000,
+                color: '#007bff'
+            });
 
             // 处理方向角（从浏览器API获取）
             let heading = null;
@@ -500,34 +480,14 @@ function startRealtimeLocationTracking() {
                 initialLocationMarker = null;
             }
 
-            // 初始化或更新自身标记
-            if (!selfMarker) {
-                const iconCfg = MapConfig.markerStyles.headingLocation || {};
-                var w = (iconCfg.size && iconCfg.size.w) ? iconCfg.size.w : 36;
-                var h = (iconCfg.size && iconCfg.size.h) ? iconCfg.size.h : 36;
-
-                let iconImage = iconCfg.icon;
-                // 如果开启箭头模式或 PNG 未配置，则改用 SVG 箭头，以确保旋转效果明显
-                if (iconCfg.useSvgArrow === true || !iconImage) {
-                    iconImage = createHeadingArrowDataUrl('#007bff');
-                }
-
-                const icon = new AMap.Icon({
-                    size: new AMap.Size(w, h),
-                    image: iconImage,
-                    imageSize: new AMap.Size(w, h)
-                });
-                selfMarker = new AMap.Marker({
-                    position: curr,
-                    icon: icon,
-                    offset: new AMap.Pixel(-(w/2), -(h/2)),
-                    zIndex: 1000,
-                    angle: 0,
-                    map: map
-                });
-            } else {
-                selfMarker.setPosition(curr);
-            }
+            // 初始化或更新自身标记（使用统一的工具函数）
+            selfMarker = updateOrCreateLocationMarker({
+                existingMarker: selfMarker,
+                position: curr,
+                map: map,
+                zIndex: 1000,
+                color: '#007bff'
+            });
 
             // 处理方向角（从浏览器API获取）
             let heading = null;

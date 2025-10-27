@@ -795,16 +795,23 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         actualStartNodeId = startEdge.end;
     } else {
         // 投影点在线段中间，需要分割边并创建新节点
+        // 规范化投影点坐标
+        const normalizedStartPoint = normalizeCoordinate(startSegment.projectionPoint);
+        if (!normalizedStartPoint) {
+            console.error('起点投影点坐标无效:', startSegment.projectionPoint);
+            return null;
+        }
+        
         const tempStartNode = {
             id: kmlNodes.length,
-            lng: startSegment.projectionPoint.lng,
-            lat: startSegment.projectionPoint.lat
+            lng: normalizedStartPoint.lng,
+            lat: normalizedStartPoint.lat
         };
         kmlNodes.push(tempStartNode);
         actualStartNodeId = tempStartNode.id;
 
         // 分割边
-        splitEdgeAtPoint(startEdge, startSegment.projectionPoint, tempStartNode, startInfo.segmentIndex);
+        splitEdgeAtPoint(startEdge, normalizedStartPoint, tempStartNode, startInfo.segmentIndex);
     }
 
     // 处理终点
@@ -828,16 +835,23 @@ function planKMLRoute(startCoordinate, endCoordinate) {
         actualEndNodeId = endEdge.end;
     } else {
         // 投影点在线段中间，需要分割边
+        // 规范化投影点坐标
+        const normalizedEndPoint = normalizeCoordinate(endSegment.projectionPoint);
+        if (!normalizedEndPoint) {
+            console.error('终点投影点坐标无效:', endSegment.projectionPoint);
+            return null;
+        }
+        
         const tempEndNode = {
             id: kmlNodes.length,
-            lng: endSegment.projectionPoint.lng,
-            lat: endSegment.projectionPoint.lat
+            lng: normalizedEndPoint.lng,
+            lat: normalizedEndPoint.lat
         };
         kmlNodes.push(tempEndNode);
         actualEndNodeId = tempEndNode.id;
 
         // 分割边
-        splitEdgeAtPoint(endEdge, endSegment.projectionPoint, tempEndNode, endInfo.segmentIndex);
+        splitEdgeAtPoint(endEdge, normalizedEndPoint, tempEndNode, endInfo.segmentIndex);
     }
 
     // 重新构建邻接表（如果创建了新节点）
@@ -906,24 +920,56 @@ function splitEdgeAtPoint(edge, point, newNode, segmentIndex) {
     // 找到分割点在坐标数组中的位置
     const coords = edge.coordinates;
 
+    // 规范化投影点格式，确保与边上其他坐标格式一致
+    const normalizedPoint = normalizeCoordinate(point);
+    
+    // 验证规范化后的坐标
+    if (!normalizedPoint || normalizedPoint.lng === undefined || normalizedPoint.lat === undefined) {
+        console.error('投影点坐标无效，无法分割边:', point);
+        return;
+    }
+
     // 创建两段新的坐标数组
     // 第一段：从边起点到投影点
-    const coords1 = coords.slice(0, segmentIndex + 1);
-    coords1.push({lng: point.lng, lat: point.lat});
+    const coords1 = coords.slice(0, segmentIndex + 1).map(c => normalizeCoordinate(c));
+    coords1.push(normalizedPoint);
 
     // 第二段：从投影点到边终点
-    const coords2 = [{lng: point.lng, lat: point.lat}];
-    coords2.push(...coords.slice(segmentIndex + 1));
+    const coords2 = [normalizedPoint];
+    const remainingCoords = coords.slice(segmentIndex + 1).map(c => normalizeCoordinate(c));
+    coords2.push(...remainingCoords);
+
+    // 验证坐标数组
+    if (coords1.length < 2 || coords2.length < 2) {
+        console.error('分割后的坐标数组过短，无法创建有效边');
+        return;
+    }
 
     // 计算两段的距离
     let dist1 = 0;
     for (let i = 0; i < coords1.length - 1; i++) {
-        dist1 += calculateDistance(coords1[i], coords1[i + 1]);
+        const d = calculateDistance(coords1[i], coords1[i + 1]);
+        if (isNaN(d) || !isFinite(d)) {
+            console.error(`coords1[${i}]到coords1[${i+1}]距离计算失败:`, coords1[i], coords1[i + 1]);
+            return;
+        }
+        dist1 += d;
     }
 
     let dist2 = 0;
     for (let i = 0; i < coords2.length - 1; i++) {
-        dist2 += calculateDistance(coords2[i], coords2[i + 1]);
+        const d = calculateDistance(coords2[i], coords2[i + 1]);
+        if (isNaN(d) || !isFinite(d)) {
+            console.error(`coords2[${i}]到coords2[${i+1}]距离计算失败:`, coords2[i], coords2[i + 1]);
+            return;
+        }
+        dist2 += d;
+    }
+
+    // 验证距离有效性
+    if (dist1 < 0.02 || dist2 < 0.02) {
+        console.warn(`分割后的边过短: dist1=${dist1.toFixed(4)}m, dist2=${dist2.toFixed(4)}m，跳过分割`);
+        return;
     }
 
     // 移除原边
@@ -936,41 +982,79 @@ function splitEdgeAtPoint(edge, point, newNode, segmentIndex) {
     addEdge(edgeStartNodeId, newNode.id, dist1, coords1);
     addEdge(newNode.id, edgeEndNodeId, dist2, coords2);
 
-    console.log(`边已分割: ${edgeStartNodeId}->${newNode.id}->${edgeEndNodeId}`);
+    console.log(`边已分割: ${edgeStartNodeId}->${newNode.id}->${edgeEndNodeId}, dist1=${dist1.toFixed(2)}m, dist2=${dist2.toFixed(2)}m`);
+}
+
+// 规范化坐标格式为 {lng, lat}
+function normalizeCoordinate(coord) {
+    if (!coord) {
+        console.error('坐标为空或未定义');
+        return null;
+    }
+
+    let lng, lat;
+
+    // 处理对象格式 {lng, lat}
+    if (coord.lng !== undefined && coord.lat !== undefined) {
+        lng = coord.lng;
+        lat = coord.lat;
+    }
+    // 处理数组格式 [lng, lat]
+    else if (Array.isArray(coord) && coord.length >= 2) {
+        lng = coord[0];
+        lat = coord[1];
+    }
+    // 处理 AMap.LngLat 对象
+    else if (coord.getLng && coord.getLat) {
+        lng = coord.getLng();
+        lat = coord.getLat();
+    }
+    else {
+        console.error('无法识别的坐标格式:', coord);
+        return null;
+    }
+
+    // 验证坐标值
+    if (isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+        console.error('坐标包含无效值:', {lng, lat});
+        return null;
+    }
+
+    return {lng: lng, lat: lat};
 }
 
 // 计算两点之间的距离（米）
 function calculateDistance(coord1, coord2) {
     const R = 6371000; // 地球半径（米）
 
-    // 统一坐标格式
-    let lng1, lat1, lng2, lat2;
+    // 使用 normalizeCoordinate 统一坐标格式
+    const normalized1 = normalizeCoordinate(coord1);
+    const normalized2 = normalizeCoordinate(coord2);
 
-    if (Array.isArray(coord1)) {
-        lng1 = coord1[0];
-        lat1 = coord1[1];
-    } else if (coord1.lng !== undefined && coord1.lat !== undefined) {
-        lng1 = coord1.lng;
-        lat1 = coord1.lat;
-    } else {
+    // 验证规范化结果
+    if (!normalized1) {
         console.error('无效的 coord1 格式:', coord1);
         return 0;
     }
 
-    if (Array.isArray(coord2)) {
-        lng2 = coord2[0];
-        lat2 = coord2[1];
-    } else if (coord2.lng !== undefined && coord2.lat !== undefined) {
-        lng2 = coord2.lng;
-        lat2 = coord2.lat;
-    } else {
+    if (!normalized2) {
         console.error('无效的 coord2 格式:', coord2);
         return 0;
     }
 
-    // 验证坐标有效性
+    const lng1 = normalized1.lng;
+    const lat1 = normalized1.lat;
+    const lng2 = normalized2.lng;
+    const lat2 = normalized2.lat;
+
+    // 验证坐标有效性（双重检查）
     if (isNaN(lng1) || isNaN(lat1) || isNaN(lng2) || isNaN(lat2)) {
         console.error('坐标包含 NaN:', { lng1, lat1, lng2, lat2 });
+        return 0;
+    }
+
+    if (!isFinite(lng1) || !isFinite(lat1) || !isFinite(lng2) || !isFinite(lat2)) {
+        console.error('坐标包含无限值:', { lng1, lat1, lng2, lat2 });
         return 0;
     }
 
@@ -984,7 +1068,15 @@ function calculateDistance(coord1, coord2) {
               Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    return R * c;
+    const distance = R * c;
+
+    // 验证结果有效性
+    if (isNaN(distance) || !isFinite(distance) || distance < 0) {
+        console.error('距离计算结果无效:', distance, '坐标:', coord1, coord2);
+        return 0;
+    }
+
+    return distance;
 }
 
 // 显示KML路径

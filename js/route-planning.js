@@ -236,30 +236,17 @@ function startNavigation() {
         return;
     }
 
-    if (!isNavigating) {
-        // 开始导航
-        startKMLNavigation();
-    } else {
-        // 停止导航
-        stopNavigation();
-    }
+    // 已移除开始导航的所有自动执行逻辑，改为提示用户导航已被禁用。
+    // 这样可以避免启动模拟导航、创建DOM或开启定时器。
+    alert('开始导航功能已被禁用。如需恢复，请联系开发者。');
+    return;
 }
 
 function startKMLNavigation() {
-    if (!window.currentKMLRoute) {
-        alert('请先规划KML路线');
-        return;
-    }
-
-    isNavigating = true;
-    document.getElementById('start-nav-btn').innerHTML = '<i class="fas fa-stop"></i> 停止导航';
-    document.getElementById('route-btn').disabled = true;
-
-    // 显示KML导航信息
-    showKMLNavigationInfo();
-
-    // 开始KML模拟导航
-    startKMLSimulationNavigation(window.currentKMLRoute);
+    // 此函数已被禁用以移除开始导航后的行为。
+    console.log('startKMLNavigation 已禁用');
+    alert('KML导航功能已被禁用。');
+    return;
 }
 
 function showKMLNavigationInfo() {
@@ -301,90 +288,9 @@ function showKMLNavigationInfo() {
 }
 
 function startKMLSimulationNavigation(kmlRoute) {
-    const path = kmlRoute.path;
-    let currentPointIndex = 0;
-
-    // 创建导航车辆标记
-    navigationMarker = new AMap.Marker({
-        position: path[0],
-        icon: new AMap.Icon({
-            size: new AMap.Size(30, 30),
-            image: createHeadingArrowIcon('#007bff'),
-            imageSize: new AMap.Size(30, 30)
-        }),
-        map: map,
-        // 箭头图标使用居中对齐，旋转围绕中心
-        offset: new AMap.Pixel(-15, -15)
-    });
-
-    // 初始化已走路径（灰色）
-    traveledPath = [path[0]];
-    if (traveledPolyline) {
-        map.remove(traveledPolyline);
-    }
-    traveledPolyline = new AMap.Polyline({
-        path: traveledPath,
-        strokeColor: '#B0B0B0',
-        strokeWeight: 6,
-        strokeOpacity: 0.9,
-        lineJoin: 'round',
-        lineCap: 'round',
-        zIndex: 30,
-        map: map
-    });
-
-    // 清除之前的定时器
-    if (window.navigationInterval) {
-        clearInterval(window.navigationInterval);
-    }
-
-    // 开始模拟导航
-    window.navigationInterval = setInterval(function() {
-        if (currentPointIndex < path.length - 1) {
-            currentPointIndex++;
-
-            // 更新车辆位置
-            navigationMarker.setPosition(path[currentPointIndex]);
-
-            // 记录已走路径并更新灰线路径
-            traveledPath.push(path[currentPointIndex]);
-            if (traveledPolyline) {
-                traveledPolyline.setPath(traveledPath);
-            }
-
-            // 移动地图中心到车辆位置
-            map.setCenter(path[currentPointIndex]);
-
-            // 计算方向
-            if (currentPointIndex < path.length - 1) {
-                const currentPos = path[currentPointIndex];
-                const nextPos = path[currentPointIndex + 1];
-                const angle = calculateBearing(currentPos, nextPos);
-                navigationMarker.setAngle(angle);
-            }
-
-            // 更新剩余信息
-            updateKMLRemainingInfo(currentPointIndex, path.length);
-
-        } else {
-            // 到达目的地
-            clearInterval(window.navigationInterval);
-            alert('已到达目的地！');
-            stopNavigation();
-
-            // 显示到达标记
-            const endMarker = new AMap.Marker({
-                position: path[path.length - 1],
-                icon: new AMap.Icon({
-                    size: new AMap.Size(30, 38),
-                    image: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
-                    imageSize: new AMap.Size(30, 38)
-                }),
-                map: map,
-                offset: new AMap.Pixel(-15, -38)
-            });
-        }
-    }, 800); // 每800毫秒移动一次，比较适合KML路径
+    // 模拟导航逻辑已移除，避免创建标记或定时器。
+    console.log('startKMLSimulationNavigation 已禁用');
+    return;
 }
 
 function updateKMLRemainingInfo(currentIndex, totalPoints) {
