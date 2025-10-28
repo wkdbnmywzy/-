@@ -847,46 +847,19 @@ function displayKMLFeatures(features, fileName) {
             description: feature.description
         });
 
-        // 添加点击事件 - 切换图标状态（移动端优化）
-        // 使用标志位防止重复触发
-        let isHandlingTouch = false;
-        
-        // 为marker添加click事件（PC端和移动端备用）
+        // 添加点击事件 - 切换图标状态（PC和移动端通用）
         marker.on('click', function(e) {
-            // 如果正在处理touch事件，跳过click事件
-            if (isHandlingTouch) {
-                isHandlingTouch = false;
-                return;
-            }
-            
+            // 阻止事件冒泡
             if (e && e.originalEvent) {
-                e.originalEvent.stopPropagation(); // 防止事件冒泡到地图
+                e.originalEvent.stopPropagation();
             }
-            toggleIconState(marker);
-        });
+            if (e && e.stop) {
+                e.stop();
+            }
 
-        // 在DOM渲染后添加touchstart事件监听器（移动端优化）
-        setTimeout(() => {
-            const markerDom = marker.getDom();
-            if (markerDom) {
-                // 添加移动端触摸样式
-                markerDom.style.touchAction = 'manipulation';
-                markerDom.style.webkitTapHighlightColor = 'transparent';
-                markerDom.style.userSelect = 'none';
-                
-                // 添加touchstart事件，实现即时响应
-                markerDom.addEventListener('touchstart', function(e) {
-                    e.stopPropagation(); // 防止事件冒泡
-                    e.preventDefault(); // 防止300ms延迟和双击缩放
-                    
-                    // 设置标志位，防止后续的click事件重复触发
-                    isHandlingTouch = true;
-                    setTimeout(() => { isHandlingTouch = false; }, 500);
-                    
-                    toggleIconState(marker);
-                }, { passive: false });
-            }
-        }, 100);
+            toggleIconState(marker);
+            return false;
+        });
 
         // 添加到markers数组，用于后续恢复默认状态
         layerMarkers.push(marker);
@@ -1088,7 +1061,19 @@ function createPointMarkerContent(name, index, style) {
 
 // 切换图标状态（down/up）
 function toggleIconState(marker) {
-    const content = marker.getContent();
+    // 防止重复触发（使用防抖）
+    if (window.isTogglingIcon) return;
+    window.isTogglingIcon = true;
+
+    // 获取marker内容
+    let content = null;
+    if (typeof marker.getContent === 'function') {
+        content = marker.getContent();
+    } else if (typeof marker.getDom === 'function') {
+        const dom = marker.getDom();
+        if (dom) content = dom.innerHTML;
+    }
+
     if (typeof content === 'string') {
         const div = document.createElement('div');
         div.innerHTML = content;
@@ -1097,9 +1082,8 @@ function toggleIconState(marker) {
         if (iconDiv) {
             const currentState = iconDiv.dataset.state;
             const iconType = iconDiv.dataset.iconType;
-            const name = iconDiv.dataset.name;
 
-            // 先重置所有其他marker到down状态（排除当前marker）
+            // 先重置所有其他marker到down状态
             resetAllMarkersState(marker);
 
             // 切换当前marker状态
@@ -1111,18 +1095,45 @@ function toggleIconState(marker) {
             if (img) {
                 img.src = newIconPath;
                 iconDiv.dataset.state = newState;
-                marker.setContent(div.innerHTML);
-                
+
+                // 更新marker内容
+                if (typeof marker.setContent === 'function') {
+                    marker.setContent(div.innerHTML);
+                } else if (typeof marker.getDom === 'function') {
+                    const markerDom = marker.getDom();
+                    if (markerDom) markerDom.innerHTML = div.innerHTML;
+                }
+
                 // 记录当前激活的marker
                 window.activeKMLMarker = (newState === 'up') ? marker : null;
             }
         }
     }
+
+    // 100ms后解锁，防止快速重复点击
+    setTimeout(() => {
+        window.isTogglingIcon = false;
+    }, 100);
 }
 
 // 重置marker图标状态为默认（down）
 function resetMarkerState(marker) {
-    const content = marker.getContent();
+    // 安全获取marker内容
+    let content = null;
+    
+    // 方法1: 尝试通过 getContent() 获取（如果方法存在）
+    if (typeof marker.getContent === 'function') {
+        content = marker.getContent();
+    }
+    
+    // 方法2: 如果 getContent 不存在，尝试通过 DOM 获取
+    if (!content && typeof marker.getDom === 'function') {
+        const dom = marker.getDom();
+        if (dom) {
+            content = dom.innerHTML;
+        }
+    }
+    
     if (typeof content === 'string') {
         const div = document.createElement('div');
         div.innerHTML = content;
@@ -1136,7 +1147,16 @@ function resetMarkerState(marker) {
             if (img) {
                 img.src = downIconPath;
                 iconDiv.dataset.state = 'down';
-                marker.setContent(div.innerHTML);
+                
+                // 更新marker内容
+                if (typeof marker.setContent === 'function') {
+                    marker.setContent(div.innerHTML);
+                } else if (typeof marker.getDom === 'function') {
+                    const markerDom = marker.getDom();
+                    if (markerDom) {
+                        markerDom.innerHTML = div.innerHTML;
+                    }
+                }
             }
         }
     }
@@ -1167,15 +1187,13 @@ function resetAllMarkersState(excludeMarker = null) {
 function setupMapClickToResetMarkers() {
     // 避免重复绑定
     if (window.mapClickResetBound) return;
-    
+
     if (typeof map !== 'undefined' && map) {
         map.on('click', function(e) {
-            // 点击地图空白处，恢复所有marker到默认状态
             resetAllMarkersState();
         });
-        
+
         window.mapClickResetBound = true;
-        console.log('已设置地图点击恢复marker默认状态功能');
     }
 }
 
