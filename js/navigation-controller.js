@@ -24,7 +24,7 @@ class NavigationController {
         this.gpsWatchId = null;
         
         // 路径吸附和判定
-        this.ON_ROUTE_THRESHOLD = 5; // 5米判定阈值
+        this.ON_ROUTE_THRESHOLD = 5; // 5米判定阈值（沿路径左右各5米，共10米宽走廊）
         this.ARRIVAL_THRESHOLD = 5;  // 5米到达判定
         
         // 轨迹记录

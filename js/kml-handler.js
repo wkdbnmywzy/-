@@ -847,11 +847,48 @@ function displayKMLFeatures(features, fileName) {
             description: feature.description
         });
 
-        // 添加点击事件 - 切换图标状态
-        marker.on('click', function() {
+        // 添加点击事件 - 切换图标状态（移动端优化）
+        // 使用标志位防止重复触发
+        let isHandlingTouch = false;
+        
+        // 为marker添加click事件（PC端和移动端备用）
+        marker.on('click', function(e) {
+            // 如果正在处理touch事件，跳过click事件
+            if (isHandlingTouch) {
+                isHandlingTouch = false;
+                return;
+            }
+            
+            if (e && e.originalEvent) {
+                e.originalEvent.stopPropagation(); // 防止事件冒泡到地图
+            }
             toggleIconState(marker);
         });
 
+        // 在DOM渲染后添加touchstart事件监听器（移动端优化）
+        setTimeout(() => {
+            const markerDom = marker.getDom();
+            if (markerDom) {
+                // 添加移动端触摸样式
+                markerDom.style.touchAction = 'manipulation';
+                markerDom.style.webkitTapHighlightColor = 'transparent';
+                markerDom.style.userSelect = 'none';
+                
+                // 添加touchstart事件，实现即时响应
+                markerDom.addEventListener('touchstart', function(e) {
+                    e.stopPropagation(); // 防止事件冒泡
+                    e.preventDefault(); // 防止300ms延迟和双击缩放
+                    
+                    // 设置标志位，防止后续的click事件重复触发
+                    isHandlingTouch = true;
+                    setTimeout(() => { isHandlingTouch = false; }, 500);
+                    
+                    toggleIconState(marker);
+                }, { passive: false });
+            }
+        }, 100);
+
+        // 添加到markers数组，用于后续恢复默认状态
         layerMarkers.push(marker);
     });
 
@@ -863,6 +900,9 @@ function displayKMLFeatures(features, fileName) {
         visible: true,
         features: features  // 保存要素信息（含样式）用于恢复
     });
+
+    // 初始化地图点击事件，用于恢复marker默认状态
+    setupMapClickToResetMarkers();
 
     // 停止实时定位，避免地图自动移回用户位置
     if (typeof stopRealtimeLocationTracking === 'function') {
@@ -1059,7 +1099,10 @@ function toggleIconState(marker) {
             const iconType = iconDiv.dataset.iconType;
             const name = iconDiv.dataset.name;
 
-            // 切换状态
+            // 先重置所有其他marker到down状态（排除当前marker）
+            resetAllMarkersState(marker);
+
+            // 切换当前marker状态
             const newState = currentState === 'down' ? 'up' : 'down';
             const newIconPath = getIconPath(iconType, newState);
 
@@ -1069,8 +1112,70 @@ function toggleIconState(marker) {
                 img.src = newIconPath;
                 iconDiv.dataset.state = newState;
                 marker.setContent(div.innerHTML);
+                
+                // 记录当前激活的marker
+                window.activeKMLMarker = (newState === 'up') ? marker : null;
             }
         }
+    }
+}
+
+// 重置marker图标状态为默认（down）
+function resetMarkerState(marker) {
+    const content = marker.getContent();
+    if (typeof content === 'string') {
+        const div = document.createElement('div');
+        div.innerHTML = content;
+        const iconDiv = div.querySelector('.kml-icon-marker');
+
+        if (iconDiv && iconDiv.dataset.state === 'up') {
+            const iconType = iconDiv.dataset.iconType;
+            const downIconPath = getIconPath(iconType, 'down');
+            
+            const img = iconDiv.querySelector('img');
+            if (img) {
+                img.src = downIconPath;
+                iconDiv.dataset.state = 'down';
+                marker.setContent(div.innerHTML);
+            }
+        }
+    }
+}
+
+// 重置所有marker到默认状态（可选择性排除某个marker）
+function resetAllMarkersState(excludeMarker = null) {
+    if (!kmlLayers || kmlLayers.length === 0) return;
+    
+    kmlLayers.forEach(layer => {
+        if (layer.markers && layer.visible) {
+            layer.markers.forEach(marker => {
+                // 排除指定的marker
+                if (marker !== excludeMarker) {
+                    resetMarkerState(marker);
+                }
+            });
+        }
+    });
+    
+    // 清除激活的marker记录（除非排除了某个marker）
+    if (!excludeMarker) {
+        window.activeKMLMarker = null;
+    }
+}
+
+// 设置地图点击事件，恢复所有marker到默认状态
+function setupMapClickToResetMarkers() {
+    // 避免重复绑定
+    if (window.mapClickResetBound) return;
+    
+    if (typeof map !== 'undefined' && map) {
+        map.on('click', function(e) {
+            // 点击地图空白处，恢复所有marker到默认状态
+            resetAllMarkersState();
+        });
+        
+        window.mapClickResetBound = true;
+        console.log('已设置地图点击恢复marker默认状态功能');
     }
 }
 

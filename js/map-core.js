@@ -24,6 +24,18 @@ function initMap() {
     
     // 地图旋转时，标记会自动跟随地图旋转，无需手动处理
 
+    // 监听地图加载错误
+    map.on('error', function(e) {
+        console.error('地图加载错误:', e);
+        if (e && e.info && e.info.indexOf('OVERSEA_AUTH') !== -1) {
+            console.error('海外鉴权失败：API Key未开通海外服务权限');
+            // 显示友好提示
+            setTimeout(() => {
+                alert('地图服务加载失败\n\n可能原因：\n1. 当前网络环境被识别为海外\n2. API Key未开通海外服务\n3. 使用了VPN或代理服务器\n\n建议：\n- 在高德开放平台开通海外服务\n- 或关闭VPN/代理后重试');
+            }, 1000);
+        }
+    });
+
     // 等待地图完全加载后启动实时定位或恢复状态
     map.on('complete', function() {
         console.log('地图加载完成，准备启动实时定位或恢复状态');
@@ -186,15 +198,17 @@ function getCurrentLocation() {
             }, 200);
 
             // 添加当前位置标记
+            // 确保使用正方形尺寸以保持圆形图标不变形
+            const locationIconSize = 32; // 使用32x32确保圆形不变形
             var marker = new AMap.Marker({
                 position: [lng, lat],
                 icon: new AMap.Icon({
-                    size: new AMap.Size(30, 30),
+                    size: new AMap.Size(locationIconSize, locationIconSize),
                     image: MapConfig.markerStyles.currentLocation.icon,
-                    imageSize: new AMap.Size(30, 30)
+                    imageSize: new AMap.Size(locationIconSize, locationIconSize)
                 }),
                 // 圆形"我的位置"图标用居中对齐
-                offset: new AMap.Pixel(-15, -15),
+                offset: new AMap.Pixel(-locationIconSize/2, -locationIconSize/2),
                 map: map,
                 zIndex: 999
             });

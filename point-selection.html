@@ -476,12 +476,11 @@
     function validateAndGetPosition(locationName) {
         console.log('验证地点:', locationName);
 
-        // 如果是"我的位置"，使用当前位置
+        // 如果是"我的位置"，使用特殊标记让导航页面处理
         if (locationName === '我的位置') {
-            // 注意：在点位选择页面没有地图，所以无法获取当前位置
-            // 返回一个标记，让导航页面去处理
-            console.log('验证通过: 我的位置（将在导航页面获取）');
-            return [0, 0]; // 临时坐标，导航页面会替换
+            // 返回特殊标记 'MY_LOCATION'，导航页面会识别并使用实际GPS位置
+            console.log('验证通过: 我的位置（将在导航页面获取实际GPS位置）');
+            return 'MY_LOCATION'; // 特殊标记，不是坐标
         }
 
         // 从KML点位中查找

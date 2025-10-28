@@ -10,6 +10,7 @@ let navigationMap;
 let routeData = null;
 let drivingInstance = null;
 let routePolyline = null;
+let startConnectionLine = null; // 起点到路径的连接线（绿色虚线）
 let startMarker = null;
 let endMarker = null;
 let waypointMarkers = [];
@@ -31,8 +32,7 @@ let lastDeviceHeadingNav = null; // 度，0-360，顺时针（相对正北）
 // 导航页动态角度偏移：用于自动修正稳定的180°反向
 let dynamicAngleOffsetNav = 0; // 0 或 180
 let calibrationStateNav = { count0: 0, count180: 0, locked: false };
-let isOffRoute = false;            // 是否偏离路径
-let offRouteThreshold = 15;        // 偏离路径阈值（米），考虑GPS精度设为15米
+// 注：isOffRoute 和 offRouteThreshold 已废弃，由 NavigationController.ON_ROUTE_THRESHOLD 接管
 let passedRoutePolyline = null;    // 已走过的规划路径（灰色）
 let deviatedRoutePolyline = null;  // 偏离的实际路径（黄色）
 let deviatedPath = [];             // 偏离路径的点���合
@@ -90,6 +90,18 @@ function initNavigationMap() {
 
         // 3. 启动实时定位（显示我的位置）
         startRealtimePositionTracking();
+    });
+
+    // 监听地图加载错误
+    navigationMap.on('error', function(e) {
+        console.error('地图加载错误:', e);
+        if (e && e.info && e.info.indexOf('OVERSEA_AUTH') !== -1) {
+            console.error('海外鉴权失败：API Key未开通海外服务权限');
+            // 显示友好提示
+            setTimeout(() => {
+                alert('地图服务加载失败\n\n可能原因：\n1. 网络连接问题\n2. API Key未开通海外服务\n3. 使用了VPN或代理\n\n请检查网络环境或联系管理员配置API Key');
+            }, 1000);
+        }
     });
 
     console.log('导航地图初始化完成');
@@ -555,6 +567,63 @@ function updateNavigationUI() {
     }
 }
 
+// 等待GPS定位成功后规划路线
+function waitForGPSAndPlanRoute() {
+    console.log('等待GPS定位...');
+    
+    // 检查是否已经有GPS位置
+    if (lastGpsPos && lastGpsPos[0] !== 0 && lastGpsPos[1] !== 0) {
+        console.log('GPS已定位，使用位置:', lastGpsPos);
+        updateMyLocationAndPlanRoute(lastGpsPos);
+        return;
+    }
+
+    // 设置定时器，等待GPS定位
+    let checkCount = 0;
+    const maxChecks = 20; // 最多等待10秒
+    const checkInterval = setInterval(() => {
+        checkCount++;
+        
+        if (lastGpsPos && lastGpsPos[0] !== 0 && lastGpsPos[1] !== 0) {
+            console.log('GPS定位成功，位置:', lastGpsPos);
+            clearInterval(checkInterval);
+            updateMyLocationAndPlanRoute(lastGpsPos);
+        } else if (checkCount >= maxChecks) {
+            clearInterval(checkInterval);
+            console.warn('GPS定位超时，使用默认位置');
+            alert('无法获取当前位置\n请确保已授权位置权限');
+            // 使用默认位置
+            updateMyLocationAndPlanRoute([116.397428, 39.90923]);
+        }
+    }, 500);
+}
+
+// 更新"我的位置"坐标并重新规划路线
+function updateMyLocationAndPlanRoute(actualPosition) {
+    if (!routeData) return;
+
+    // 更新起点坐标
+    if (routeData.start && (routeData.start.position === 'MY_LOCATION' || 
+        !routeData.start.position || 
+        (Array.isArray(routeData.start.position) && routeData.start.position[0] === 0 && routeData.start.position[1] === 0))) {
+        console.log('更新起点为实际GPS位置:', actualPosition);
+        routeData.start.position = actualPosition;
+        routeData.start.isMyLocation = true; // 标记为我的位置
+    }
+
+    // 更新终点坐标
+    if (routeData.end && (routeData.end.position === 'MY_LOCATION' || 
+        !routeData.end.position || 
+        (Array.isArray(routeData.end.position) && routeData.end.position[0] === 0 && routeData.end.position[1] === 0))) {
+        console.log('更新终点为实际GPS位置:', actualPosition);
+        routeData.end.position = actualPosition;
+        routeData.end.isMyLocation = true; // 标记为我的位置
+    }
+
+    // 重新规划路线
+    planRoute();
+}
+
 // 规划路线（使用KML路径）
 function planRoute() {
     if (!routeData || !routeData.start || !routeData.end) {
@@ -562,8 +631,28 @@ function planRoute() {
         return;
     }
 
-    const startLngLat = routeData.start.position || [116.397428, 39.90923];
-    const endLngLat = routeData.end.position || [116.407428, 39.91923];
+    // 处理"我的位置"的特殊情况
+    let startLngLat = routeData.start.position;
+    let endLngLat = routeData.end.position;
+
+    // 如果起点是"我的位置"的特殊标记或无效坐标
+    if (startLngLat === 'MY_LOCATION' || !startLngLat || (Array.isArray(startLngLat) && startLngLat[0] === 0 && startLngLat[1] === 0)) {
+        console.log('起点是"我的位置"，等待获取实际GPS位置...');
+        // 等待GPS定位成功后再规划路线
+        waitForGPSAndPlanRoute();
+        return;
+    }
+
+    // 如果终点是"我的位置"的特殊标记或无效坐标
+    if (endLngLat === 'MY_LOCATION' || !endLngLat || (Array.isArray(endLngLat) && endLngLat[0] === 0 && endLngLat[1] === 0)) {
+        console.log('终点是"我的位置"，等待获取实际GPS位置...');
+        waitForGPSAndPlanRoute();
+        return;
+    }
+
+    // 使用默认坐标作为后备
+    startLngLat = startLngLat || [116.397428, 39.90923];
+    endLngLat = endLngLat || [116.407428, 39.91923];
 
     console.log('开始规划路线，起点:', startLngLat, '终点:', endLngLat);
 
@@ -662,6 +751,8 @@ function planRoute() {
         updateRouteInfoFromKML({ distance: totalDistance });
         // 绘制合并后的路线
         drawKMLRoute({ path: combinedPath });
+        // 如果起点是"我的位置"，检查是否需要绘制连接线
+        drawStartConnectionLineIfNeeded(startLngLat, combinedPath);
         // 调整地图视野
         adjustMapView(startLngLat, endLngLat);
     } else {
@@ -790,6 +881,12 @@ function drawKMLRoute(routeResult) {
         navigationMap.remove(routePolyline);
         routePolyline = null;
     }
+    
+    // 清除之前的连接线
+    if (startConnectionLine) {
+        navigationMap.remove(startConnectionLine);
+        startConnectionLine = null;
+    }
 
     // 验证路径数据
     if (!path || path.length < 2) {
@@ -797,12 +894,12 @@ function drawKMLRoute(routeResult) {
         return;
     }
 
-    // 绘制路线（使用与KML线一致的样式）
+    // 绘制路线（宽度为21px，约为图标大小的2/3）
     try {
         routePolyline = new AMap.Polyline({
             path: path,
             strokeColor: '#00C853',     // 标准导航绿色
-            strokeWeight: 4,             // 与KML线宽一致（3-4px）
+            strokeWeight: 21,            // 21px宽度，视觉效果更好
             strokeOpacity: 0.95,         // 稍微透明，更自然
             lineJoin: 'round',
             lineCap: 'round',
@@ -854,6 +951,75 @@ function drawKMLRoute(routeResult) {
     }
 }
 
+// 绘制起点到路径的连接线（如果需要）
+function drawStartConnectionLineIfNeeded(startPos, routePath) {
+    // 清除之前的连接线
+    if (startConnectionLine) {
+        navigationMap.remove(startConnectionLine);
+        startConnectionLine = null;
+    }
+
+    // 检查起点是否是"我的位置"
+    const isMyLocationStart = routeData?.start?.name === '我的位置' || routeData?.start?.isMyLocation === true;
+    if (!isMyLocationStart) {
+        console.log('起点不是"我的位置"，无需绘制连接线');
+        return;
+    }
+
+    // 获取路径的第一个点
+    if (!routePath || routePath.length < 1) {
+        console.warn('路径数据不足，无法绘制连接线');
+        return;
+    }
+
+    const firstPathPoint = routePath[0];
+    const firstPathLng = Array.isArray(firstPathPoint) ? firstPathPoint[0] : firstPathPoint.lng;
+    const firstPathLat = Array.isArray(firstPathPoint) ? firstPathPoint[1] : firstPathPoint.lat;
+
+    // 计算起点到路径第一个点的距离
+    const startLng = Array.isArray(startPos) ? startPos[0] : startPos.lng;
+    const startLat = Array.isArray(startPos) ? startPos[1] : startPos.lat;
+
+    // 使用AMap的距离计算
+    let distance = 0;
+    try {
+        distance = AMap.GeometryUtil.distance(
+            [startLng, startLat],
+            [firstPathLng, firstPathLat]
+        );
+    } catch (e) {
+        // 备用计算：简单的直线距离
+        const dx = (firstPathLng - startLng) * 111000 * Math.cos(startLat * Math.PI / 180);
+        const dy = (firstPathLat - startLat) * 111000;
+        distance = Math.sqrt(dx * dx + dy * dy);
+    }
+
+    console.log(`起点到路径第一个点的距离: ${distance.toFixed(2)}米`);
+
+    // 如果距离大于2米，绘制绿色虚线连接
+    if (distance > 2) {
+        console.log('绘制起点连接线（绿色虚线）');
+        startConnectionLine = new AMap.Polyline({
+            path: [
+                [startLng, startLat],
+                [firstPathLng, firstPathLat]
+            ],
+            strokeColor: '#00C853',      // 与路线相同的绿色
+            strokeWeight: 21,             // 与路线相同的宽度
+            strokeOpacity: 0.8,           // 稍微透明一些
+            strokeStyle: 'dashed',        // 虚线样式
+            strokeDasharray: [15, 10],    // 虚线样式：15px实线，10px间隔
+            lineJoin: 'round',
+            lineCap: 'round',
+            zIndex: 149,                  // 比路线稍低，确保路线在上层
+            map: navigationMap
+        });
+        console.log('起点连接线绘制完成');
+    } else {
+        console.log('起点距离路径很近，无需绘制连接线');
+    }
+}
+
 // 绘制直线（备用方案，使用与首页一致的线宽）
 function drawStraightLine(start, end) {
     // 清除之前的路线
@@ -861,11 +1027,17 @@ function drawStraightLine(start, end) {
         navigationMap.remove(routePolyline);
         routePolyline = null;
     }
+    
+    // 清除之前的连接线
+    if (startConnectionLine) {
+        navigationMap.remove(startConnectionLine);
+        startConnectionLine = null;
+    }
 
     routePolyline = new AMap.Polyline({
         path: [start, end],
         strokeColor: '#00C853',
-        strokeWeight: 4, // 与首页KML线宽一致
+        strokeWeight: 21, // 21px宽度
         strokeOpacity: 0.9,
         lineJoin: 'round',
         lineCap: 'round',
@@ -923,26 +1095,41 @@ function addRouteMarkers(startLngLat, endLngLat) {
         endMarker = null;
     }
 
-    // 根据起点是否为“我的位置”选择不同的图标
+    // 根据起点是否为"我的位置"选择不同的图标
     const isMyLocationStart = routeData?.start?.name === '我的位置' || routeData?.start?.isMyLocation === true;
-    // 为“我的位置”使用导航目录下的圆形图标（居中对齐），否则使用针状起点图标（尖端对齐）
-    const startIcon = new AMap.Icon({
-        size: isMyLocationStart ? new AMap.Size(30, 30) : new AMap.Size(30, 38),
-        image: isMyLocationStart
-            ? MapConfig.markerStyles.currentLocation.icon
-            : 'images/工地数字导航小程序切图/司机/2X/地图icon/起点.png',
-        imageSize: isMyLocationStart ? new AMap.Size(30, 30) : new AMap.Size(30, 38)
-    });
+    
+    // 【重要修复】如果起点是"我的位置"，不创建startMarker，使用已存在的userMarker即可
+    // 这样避免了显示两个"我的位置"图标的问题
+    if (isMyLocationStart) {
+        console.log('起点是"我的位置"，使用实时定位的userMarker，不创建startMarker');
+        // 将userMarker的zIndex提高，确保显示在上层
+        if (userMarker) {
+            try {
+                userMarker.setzIndex(120);
+            } catch (e) {
+                console.warn('设置userMarker zIndex失败:', e);
+            }
+        }
+        // 不创建startMarker，startMarker保持为null
+    } else {
+        // 起点不是"我的位置"，创建普通起点标记
+        const startIcon = new AMap.Icon({
+            size: new AMap.Size(30, 38),
+            image: 'images/工地数字导航小程序切图/司机/2X/地图icon/起点.png',
+            imageSize: new AMap.Size(30, 38)
+        });
 
-    startMarker = new AMap.Marker({
-        position: startLngLat,
-        icon: startIcon,
-        // “我的位置”圆形图标用居中对齐；起点针状用尖端对齐
-        offset: isMyLocationStart ? new AMap.Pixel(-15, -15) : new AMap.Pixel(-15, -38),
-        zIndex: 100,
-        map: navigationMap,
-        title: routeData?.start?.name || '起点'
-    });
+        startMarker = new AMap.Marker({
+            position: startLngLat,
+            icon: startIcon,
+            offset: new AMap.Pixel(-15, -38),
+            zIndex: 100,
+            map: navigationMap,
+            title: routeData?.start?.name || '起点'
+        });
+        
+        console.log('创建起点标记:', routeData?.start?.name);
+    }
 
     // 创建终点标记（使用本地"终点.png"）
     const endIcon = new AMap.Icon({
@@ -1426,6 +1613,11 @@ function cleanupMap() {
             navigationMap.remove(routePolyline);
             routePolyline = null;
         }
+        // 清除连接线
+        if (startConnectionLine) {
+            navigationMap.remove(startConnectionLine);
+            startConnectionLine = null;
+        }
         // 销毁地图实例
         navigationMap.destroy();
         navigationMap = null;
@@ -1532,6 +1724,12 @@ function startNavigationUI() {
 
     // 隐藏KML线要素，保留面和规划路径
     hideKMLLines();
+    
+    // 清除起点连接线（导航开始后由navigationRenderer接管引导）
+    if (startConnectionLine) {
+        navigationMap.remove(startConnectionLine);
+        startConnectionLine = null;
+    }
 
     // 显示导航提示卡片
     showTipCard();
@@ -2599,269 +2797,11 @@ function stopRealNavigationTracking() {
 // - projectPointOntoPathMeters -> NavigationController.projectPointOnSegment()
 // - calculateProjectionDistanceAlongPath -> NavigationController.calculateDistanceAlongPath()
 
-// 保留的工具函数：normalizeLngLat, interpolateLngLat (其他地方可能还在使用)
+// 保留的工具函数：normalizeLngLat (仍在被调用)
+// 注意：以下旧的路径更新逻辑已废弃，由 NavigationController 接管
 
-// 规范化点为 [lng, lat]
-function normalizeLngLat(p) {
-    if (projectionPoint && Array.isArray(projectionPoint) && projectionPoint.length >= 2) {
-        // 如果已提供投影点，需要找到它在路径上的位置信息
-        projection = projectPointOntoPathMeters(projectionPoint, fullPath);
-        if (!projection) {
-            projection = {
-                projected: projectionPoint,
-                index: segIndex >= 0 ? segIndex : 0,
-                t: 0,
-                distance: 0
-            };
-        }
-    } else {
-        // 将当前位置投影到路网
-        projection = projectPointOntoPathMeters(currentPos, fullPath);
-        if (!projection) return;
-    }
-
-    const routePoint = projection.projected;
-    const routeSegIndex = projection.index;
-
-    // 判断用户是否在路径上（基于GPS到投影点的距离）
-    const onRoute = !isOffRoute;
-
-    // 计算当前投影点在路径上的绝对距离（从路径起点算起）
-    const currentProjectionDistance = calculateProjectionDistanceAlongPath(projection, fullPath);
-
-    // 初始化起始距离（首次到达路线上时）
-    if (onRoute && projectionStartDistance === 0 && projectionMaxDistance === 0) {
-        projectionStartDistance = currentProjectionDistance;
-        projectionMaxDistance = currentProjectionDistance;
-        console.log(`导航标灰起点初始化: ${projectionStartDistance.toFixed(2)}米`);
-    }
-
-    // 更新最远到达距离（只增不减）
-    if (onRoute && currentProjectionDistance > projectionMaxDistance) {
-        projectionMaxDistance = currentProjectionDistance;
-        console.log(`投影点前进至: ${projectionMaxDistance.toFixed(2)}米，累积前进: ${(projectionMaxDistance - projectionStartDistance).toFixed(2)}米`);
-    }
-
-    // 更新最远索引（用于兼容性）
-    if (routeSegIndex > maxPassedSegIndex) {
-        maxPassedSegIndex = routeSegIndex;
-    }
-
-    // 处理偏离路径的情况
-    if (!onRoute) {
-        // 添加当前位置到偏离路径（使用实际GPS位置，不是投影点）
-        if (deviatedPath.length === 0 ||
-            calculateDistanceBetweenPoints(currentPos, deviatedPath[deviatedPath.length - 1]) > 2) {
-            // 只有当移动超过2米才添加新点，避免过于密集
-            deviatedPath.push(currentPos);
-        }
-
-        // 创建或更新黄色偏离路径
-        if (deviatedPath.length >= 2) {
-            if (!deviatedRoutePolyline) {
-                deviatedRoutePolyline = new AMap.Polyline({
-                    path: deviatedPath,
-                    strokeColor: '#FFC107', // 黄色
-                    strokeWeight: 6,
-                    strokeOpacity: 0.8,
-                    strokeStyle: 'dashed', // 虚线样式
-                    lineJoin: 'round',
-                    lineCap: 'round',
-                    zIndex: 160, // 偏离路径在绿色路径之上，灰色路径之下
-                    map: navigationMap
-                });
-                console.log('创建黄色偏离路径，长度:', deviatedPath.length, '点');
-            } else {
-                deviatedRoutePolyline.setPath(deviatedPath);
-                console.log('更新黄色偏离路径，长度:', deviatedPath.length, '点');
-            }
-        }
-    } else {
-        // 回到路线上时，清除偏离路径
-        if (deviatedRoutePolyline) {
-            navigationMap.remove(deviatedRoutePolyline);
-            deviatedRoutePolyline = null;
-        }
-        deviatedPath = [];
-    }
-
-    // 【新逻辑】构建已走过的路径（灰色）：基于投影点累积移动距离
-    let passedPath = [];
-    
-    if (projectionMaxDistance > projectionStartDistance) {
-        // 沿路径从起点开始累积距离，构建灰色路径
-        let accumulatedDistance = 0;
-        passedPath.push(fullPath[0]); // 添加路径起点
-        
-        for (let i = 0; i < fullPath.length - 1; i++) {
-            const segStart = fullPath[i];
-            const segEnd = fullPath[i + 1];
-            const segLength = calculateDistanceBetweenPoints(segStart, segEnd);
-            const segStartDist = accumulatedDistance;
-            const segEndDist = accumulatedDistance + segLength;
-            
-            // 检查这个线段是否在标灰范围内
-            if (segStartDist < projectionStartDistance && segEndDist <= projectionStartDistance) {
-                // 整个线段在起点之前，跳过
-                accumulatedDistance += segLength;
-                continue;
-            } else if (segStartDist < projectionStartDistance && segEndDist > projectionStartDistance) {
-                // 起点在这个线段内，从起点位置开始标灰
-                const t = (projectionStartDistance - segStartDist) / segLength;
-                const startPoint = interpolateLngLat(segStart, segEnd, t);
-                if (passedPath.length === 1 && passedPath[0] === fullPath[0]) {
-                    passedPath[0] = startPoint; // 替换起点
-                } else {
-                    passedPath.push(startPoint);
-                }
-            }
-            
-            if (segEndDist <= projectionMaxDistance) {
-                // 整个线段都已走过
-                passedPath.push(segEnd);
-            } else if (segStartDist < projectionMaxDistance && segEndDist > projectionMaxDistance) {
-                // 最远点在这个线段内，标灰到最远点
-                const t = (projectionMaxDistance - segStartDist) / segLength;
-                const endPoint = interpolateLngLat(segStart, segEnd, t);
-                passedPath.push(endPoint);
-                break; // 已到达最远点，停止
-            } else if (segStartDist >= projectionMaxDistance) {
-                // 已超过最远点，停止
-                break;
-            }
-            
-            accumulatedDistance += segLength;
-        }
-    }
-
-    // 【新逻辑】构建剩余路径（绿色）：从投影点最远位置到终点
-    let remainingPath = [];
-
-    if (onRoute && projectionMaxDistance > 0) {
-        // 从最远投影点位置开始，构建剩余路径
-        let accumulatedDistance = 0;
-        let started = false;
-        
-        for (let i = 0; i < fullPath.length - 1; i++) {
-            const segStart = fullPath[i];
-            const segEnd = fullPath[i + 1];
-            const segLength = calculateDistanceBetweenPoints(segStart, segEnd);
-            const segStartDist = accumulatedDistance;
-            const segEndDist = accumulatedDistance + segLength;
-            
-            if (!started) {
-                if (segStartDist < projectionMaxDistance && segEndDist > projectionMaxDistance) {
-                    // 最远点在这个线段内，从最远点开始
-                    const t = (projectionMaxDistance - segStartDist) / segLength;
-                    const startPoint = interpolateLngLat(segStart, segEnd, t);
-                    remainingPath.push(startPoint);
-                    remainingPath.push(segEnd);
-                    started = true;
-                } else if (segEndDist <= projectionMaxDistance) {
-                    // 还没到最远点，继续
-                    accumulatedDistance += segLength;
-                    continue;
-                } else if (segStartDist >= projectionMaxDistance) {
-                    // 已超过最远点，从这个线段开始
-                    remainingPath.push(segStart);
-                    remainingPath.push(segEnd);
-                    started = true;
-                }
-            } else {
-                // 已经开始，继续添加后续点
-                remainingPath.push(segEnd);
-            }
-            
-            accumulatedDistance += segLength;
-        }
-        
-        // 如果没有构建出剩余路径，说明已经到终点了
-        if (remainingPath.length === 0) {
-            remainingPath = [fullPath[fullPath.length - 1]];
-        }
-    } else if (!onRoute && projectionMaxDistance > 0) {
-        // 偏离路径时：从最远点到终点的完整路径
-        let accumulatedDistance = 0;
-        let started = false;
-        
-        for (let i = 0; i < fullPath.length; i++) {
-            if (i < fullPath.length - 1) {
-                const segLength = calculateDistanceBetweenPoints(fullPath[i], fullPath[i + 1]);
-                if (accumulatedDistance + segLength > projectionMaxDistance && !started) {
-                    started = true;
-                }
-                accumulatedDistance += segLength;
-            }
-            
-            if (started || accumulatedDistance >= projectionMaxDistance) {
-                remainingPath.push(fullPath[i]);
-            }
-        }
-        
-        if (remainingPath.length === 0) {
-            remainingPath = fullPath.slice();
-        }
-    } else {
-        // 还未初始化或特殊情况，显示完整路径
-        remainingPath = fullPath.slice();
-    }
-
-    console.log('路径状态:', {
-        在路径上: onRoute,
-        当前投影距离: currentProjectionDistance.toFixed(2) + '米',
-        标灰起点: projectionStartDistance.toFixed(2) + '米',
-        最远到达: projectionMaxDistance.toFixed(2) + '米',
-        累积前进: (projectionMaxDistance - projectionStartDistance).toFixed(2) + '米',
-        灰色路径点数: passedPath.length,
-        黄色偏离点数: deviatedPath.length,
-        绿色路径点数: remainingPath.length
-    });
-
-    // 更新或创建灰色已走路径
-    if (passedPath.length >= 2) {
-        if (!passedRoutePolyline) {
-            passedRoutePolyline = new AMap.Polyline({
-                path: passedPath,
-                strokeColor: '#9E9E9E',
-                strokeWeight: 8,
-                strokeOpacity: 0.9,
-                lineJoin: 'round',
-                lineCap: 'round',
-                zIndex: 170,                 // 已走路径在最上层（最显眼）
-                map: navigationMap
-            });
-            console.log('创建灰色已走路径，长度:', passedPath.length, '点');
-        } else {
-            passedRoutePolyline.setPath(passedPath);
-            console.log('更新灰色已走路径，长度:', passedPath.length, '点');
-        }
-    } else if (passedRoutePolyline) {
-        // 如果已走路径太短，移除灰色线
-        navigationMap.remove(passedRoutePolyline);
-        passedRoutePolyline = null;
-    }
-
-    // 更新绿色剩余路径
-    if (remainingPath.length >= 2) {
-        routePolyline.setPath(remainingPath);
-    } else if (routePoint) {
-        routePolyline.setPath([routePoint]);
-    }
-}
-
-// 更新剩余绿色路线为：当前点 + 后续节点（旧函数，保留用于兼容）
-function updateRemainingPolyline(currentPos, fullPath, segIndex) {
-    if (!routePolyline) return;
-    // 使用投影点，确保路线对齐路网
-    const projection = projectPointOntoPathMeters(currentPos, fullPath);
-    const routePoint = projection ? projection.projected : currentPos;
-    const remaining = [routePoint].concat(fullPath.slice((projection ? projection.index : segIndex) + 1));
-    if (remaining.length >= 2) {
-        routePolyline.setPath(remaining);
-    } else {
-        routePolyline.setPath([routePoint]);
-    }
-}
+// ====== 以下函数保留用于兼容性 ======
+// 注：updateRemainingPolyline 已废弃并删除，由 NavigationController.buildRemainingPath() 接管
 
 // 将一个地理点投影到路径上（近似平面计算），返回最近线段索引、投影比例t以及投影点
 function projectPointOntoPathMeters(point, path) {
@@ -2888,41 +2828,9 @@ function projectPointOntoPathMeters(point, path) {
     return best;
 }
 
-// 计算投影点在路径上的绝对距离（从路径起点到投影点沿路径的距离，米）
-function calculateProjectionDistanceAlongPath(projection, path) {
-    if (!projection || !path || path.length < 2) return 0;
-    
-    let distance = 0;
-    
-    // 累加从起点到投影点所在线段起点的距离
-    for (let i = 0; i < projection.index; i++) {
-        distance += calculateDistanceBetweenPoints(path[i], path[i + 1]);
-    }
-    
-    // 加上投影点在当前线段上的距离
-    const segStart = path[projection.index];
-    const segEnd = path[projection.index + 1];
-    const segLength = calculateDistanceBetweenPoints(segStart, segEnd);
-    distance += segLength * projection.t;
-    
-    return distance;
-}
+// 注：calculateProjectionDistanceAlongPath 已废弃并删除，由 NavigationController.calculateDistanceAlongPath() 接管
 
-// 计算沿路网从投影点到终点的剩余距离（米）
-function computeRemainingRouteDistanceMeters(path, projection) {
-    if (!path || path.length < 2 || !projection) return 0;
-    const idx = Math.max(0, Math.min(path.length - 2, projection.index));
-    let dist = 0;
-    const projPoint = normalizeLngLat(projection.projected);
-    const segEnd = normalizeLngLat(path[idx + 1]);
-    dist += calculateDistanceBetweenPoints(projPoint, segEnd);
-    for (let j = idx + 1; j < path.length - 1; j++) {
-        const a = normalizeLngLat(path[j]);
-        const b = normalizeLngLat(path[j + 1]);
-        dist += calculateDistanceBetweenPoints(a, b);
-    }
-    return dist;
-}
+// 注：computeRemainingRouteDistanceMeters 已废弃并删除（从未被调用）
 
 // 规范化点为 [lng, lat]
 function normalizeLngLat(p) {
@@ -2932,18 +2840,11 @@ function normalizeLngLat(p) {
     return [0, 0];
 }
 
-// 线性插值地理点（简化，足够短距离）
-function interpolateLngLat(a, b, t) {
-    const aArr = normalizeLngLat(a);
-    const bArr = normalizeLngLat(b);
-    const lng = aArr[0] + (bArr[0] - aArr[0]) * t;
-    const lat = aArr[1] + (bArr[1] - aArr[1]) * t;
-    return [lng, lat];
-}
+// 注：interpolateLngLat 已废弃并删除（从未被调用）
 
 // 完成导航：统计并弹窗
 function finishNavigation() {
-    stopSimulatedNavigation();
+    // 注：stopSimulatedNavigation 已废弃，现在使用真实GPS导航
     isNavigating = false;
 
     // 估算总时间（若有开始时间则按实际流逝；否则按速度估算）
@@ -3476,34 +3377,4 @@ function getSmartNextWaypoint(currentPos, heading) {
     return best;
 }
 
-/**
- * 获取最近的未访问途径点（兼容旧版，已废弃）
- * @deprecated 使用 getSmartNextWaypoint 代替
- * @returns {Object|null} 最近的未访问途径点信息
- */
-function getNearestUnvisitedWaypoint() {
-    if (waypointsOnPath.length === 0 || projectionMaxDistance === 0) {
-        return null;
-    }
-    
-    // 筛选未访问的途径点
-    const unvisited = waypointsOnPath.filter(wp => !wp.visited);
-    
-    if (unvisited.length === 0) {
-        return null;
-    }
-    
-    // 找到距离当前投影点最近的
-    let nearest = null;
-    let minDistance = Infinity;
-    
-    unvisited.forEach(wp => {
-        const distance = Math.abs(wp.distanceOnPath - projectionMaxDistance);
-        if (distance < minDistance) {
-            minDistance = distance;
-            nearest = wp;
-        }
-    });
-    
-    return nearest;
-}
+// 注：getNearestUnvisitedWaypoint 已废弃并删除，使用 getSmartNextWaypoint 代替

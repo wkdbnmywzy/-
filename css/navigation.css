@@ -791,3 +791,31 @@
     background: #0D5CE3;
     transform: scale(0.98);
 }
+
+/* ========== 隐藏高德地图 Logo 和版权信息 ========== */
+/* 隐藏高德地图 logo */
+.amap-logo {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+.amap-logo img {
+    display: none !important;
+}
+
+/* 隐藏高德地图版权信息 */
+.amap-copyright {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* 隐藏百度地图相关（如果有）*/
+.BMap_cpyCtrl {
+    display: none !important;
+}
+
+.anchorBL {
+    display: none !important;
+}

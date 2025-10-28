@@ -22,14 +22,17 @@ class NavigationRenderer {
         // 移除旧的虚线
         this.removeGuideLine();
         
-        // 创建绿色虚线
+        // 创建绿色虚线（与路线规划阶段的连接线样式统一）
         this.guideLinePolyline = new AMap.Polyline({
             path: [userPos, startPos],
-            strokeColor: '#00FF00',      // 绿色
-            strokeWeight: 4,
+            strokeColor: '#00C853',      // 深绿色，与导航路线一致
+            strokeWeight: 21,            // 21px，与导航路线一致
+            strokeOpacity: 0.8,          // 稍微透明
             strokeStyle: 'dashed',       // 虚线
-            strokeDasharray: [10, 10],   // 虚线样式
-            zIndex: 50,
+            strokeDasharray: [15, 10],   // 虚线样式：15px实线，10px间隔
+            lineJoin: 'round',
+            lineCap: 'round',
+            zIndex: 149,                 // 比路线稍低，确保路线在上层
             map: this.map
         });
         

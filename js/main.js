@@ -88,16 +88,71 @@ function initBottomNav() {
     console.log('初始化底部导航栏, 找到', navItems.length, '个导航项');
 
     navItems.forEach(item => {
-        item.addEventListener('click', function(e) {
+        // 使用touchstart事件处理移动端点击，避免双击延迟
+        const handleNavClick = function(e) {
+            e.preventDefault(); // 防止默认行为
+            e.stopPropagation(); // 防止事件冒泡
+            
             console.log('导航项被点击:', this.getAttribute('data-page'));
             const page = this.getAttribute('data-page');
 
             // 更新导航栏状态
+            updateNavState(navItems, this);
+
+            // 页面跳转
+            navigateToPage(page);
+        };
+
+        // 同时监听touch和click事件，确保在不同设备上都能工作
+        item.addEventListener('touchstart', handleNavClick, { passive: false });
+        item.addEventListener('click', handleNavClick);
+    });
+
+    // 监听地图容器点击，保持导航状态
+    setupMapClickHandler(navItems);
+}
+
+/**
+ * 更新导航栏状态
+ */
+function updateNavState(navItems, activeItem) {
+    navItems.forEach(nav => {
+        const img = nav.querySelector('.nav-icon-img');
+        const text = nav.querySelector('.nav-text');
+
+        if (nav === activeItem) {
+            nav.classList.add('active');
+            img.src = img.getAttribute('data-active');
+            text.style.color = '#5BA8E3';
+        } else {
+            nav.classList.remove('active');
+            img.src = img.getAttribute('data-inactive');
+            text.style.color = '#666666';
+        }
+    });
+}
+
+/**
+ * 设置地图点击处理器，点击地图时保持当前页面的导航状态
+ */
+function setupMapClickHandler(navItems) {
+    const mapContainer = document.getElementById('map-container');
+    if (!mapContainer) return;
+
+    // 点击地图区域时，确保导航栏状态与当前页面一致
+    mapContainer.addEventListener('click', function(e) {
+        // 确保点击的是地图本身，而不是地图上的控件
+        if (e.target === mapContainer || e.target.closest('#map-container')) {
+            // 获取当前页面
+            const currentPage = getCurrentPage();
+            
+            // 找到对应的导航项并确保其为活跃状态
             navItems.forEach(nav => {
+                const page = nav.getAttribute('data-page');
                 const img = nav.querySelector('.nav-icon-img');
                 const text = nav.querySelector('.nav-text');
 
-                if (nav === this) {
+                if (page === currentPage) {
                     nav.classList.add('active');
                     img.src = img.getAttribute('data-active');
                     text.style.color = '#5BA8E3';
@@ -107,11 +162,22 @@ function initBottomNav() {
                     text.style.color = '#666666';
                 }
             });
-
-            // 页面跳转
-            navigateToPage(page);
-        });
+        }
     });
+}
+
+/**
+ * 获取当前页面
+ */
+function getCurrentPage() {
+    const path = window.location.pathname;
+    if (path.includes('task.html')) {
+        return 'task';
+    } else if (path.includes('profile.html')) {
+        return 'profile';
+    } else {
+        return 'index';
+    }
 }
 
 /**

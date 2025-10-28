@@ -1386,6 +1386,9 @@ body {
     cursor: pointer;
     padding: 8px;
     pointer-events: auto;
+    touch-action: manipulation; /* 防止移动端双击延迟 */
+    -webkit-tap-highlight-color: transparent; /* 移除点击高亮 */
+    user-select: none; /* 防止选中文本 */
 }
 
 .nav-icon-img {
@@ -1896,4 +1899,32 @@ body {
     color: #666;
     cursor: pointer;
     font-size: 14px;
+}
+
+/* ========== 隐藏高德地图 Logo 和版权信息 ========== */
+/* 隐藏高德地图 logo */
+.amap-logo {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+.amap-logo img {
+    display: none !important;
+}
+
+/* 隐藏高德地图版权信息 */
+.amap-copyright {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* 隐藏百度地图相关（如果有）*/
+.BMap_cpyCtrl {
+    display: none !important;
+}
+
+.anchorBL {
+    display: none !important;
 }

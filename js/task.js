@@ -33,7 +33,11 @@ class TaskManager {
     bindEvents() {
         // 底部导航切换
         document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', (e) => {
+            // 使用touchstart事件处理移动端点击，避免双击延迟
+            const handleNavClick = (e) => {
+                e.preventDefault(); // 防止默认行为
+                e.stopPropagation(); // 防止事件冒泡
+                
                 const page = item.getAttribute('data-page');
 
                 // 更新导航栏状态
@@ -55,7 +59,11 @@ class TaskManager {
 
                 // 页面跳转
                 this.navigateTo(page);
-            });
+            };
+
+            // 同时监听touch和click事件，确保在不同设备上都能工作
+            item.addEventListener('touchstart', handleNavClick, { passive: false });
+            item.addEventListener('click', handleNavClick);
         });
 
         // 导航弹窗按钮
