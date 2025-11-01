@@ -1226,9 +1226,9 @@ function setupNavigationEvents() {
                 currentCount = waypointsContainer.querySelectorAll('.waypoint-input').length;
             }
 
-            // 限制最多 2 个途经点
-            if (currentCount >= 2) {
-                alert('最多只能添加 2 个途经点');
+            // 限制最多 5 个途经点
+            if (currentCount >= 5) {
+                alert('最多只能添加 5 个途经点');
                 return;
             }
 
