@@ -1036,7 +1036,7 @@ function saveProcessedKMLData(features, fileName) {
     }
 }
 
-// 调整地图视野到指定坐标范围
+// 调整地图视野到指定坐标范围（确保完全居中显示）
 function fitMapToCoordinates(coordinates) {
     if (!coordinates || coordinates.length === 0) return;
 
@@ -1076,20 +1076,60 @@ function fitMapToCoordinates(coordinates) {
         [maxLng, maxLat]
     );
 
-    // 设置地图视野到边界范围，减小边距让内容占据更多屏幕
-    // 边距顺序: [上, 右, 下, 左]，增加右边距让地图内容左移
-    map.setBounds(bounds, 60, [10, 60, 10, 10]); // 右边距60px，让内容左移
-
-    // 聚焦后再放大一级，让工地区域更清晰
-    setTimeout(() => {
-        const currentZoom = map.getZoom();
-        // 在当前缩放基础上放大1级，但不超过18
-        const targetZoom = Math.min(currentZoom + 1, 18);
-        if (targetZoom !== currentZoom) {
-            map.setZoom(targetZoom);
+    // 计算边界对角线距离（米），用于判断是否为单点/极小范围
+    let diagonalMeters = 0;
+    try {
+        if (typeof AMap !== 'undefined' && AMap.GeometryUtil && typeof AMap.GeometryUtil.distance === 'function') {
+            diagonalMeters = AMap.GeometryUtil.distance([minLng, minLat], [maxLng, maxLat]);
+        } else {
+            // 简单估算（近似）
+            const avgLat = (minLat + maxLat) / 2;
+            const latMeters = (maxLat - minLat) * 111000;
+            const lngMeters = (maxLng - minLng) * 111000 * Math.cos(avgLat * Math.PI / 180);
+            diagonalMeters = Math.sqrt(latMeters * latMeters + lngMeters * lngMeters);
         }
-    }, 100);
+    } catch (e) {
+        diagonalMeters = 0;
+    }
+
+    // 设计目标：
+    // - 如果只有单点或区域很小（<50m），将其居中并设置适当的默认缩放
+    // - 否则使用 setBounds 并使用对称内边距以确保完全居中显示
+
+    const DEFAULT_POINT_ZOOM = (typeof MapConfig !== 'undefined' && MapConfig.kmlDefaultZoom) ? MapConfig.kmlDefaultZoom : 17;
+    const SMALL_AREA_THRESHOLD = 50; // 米
+    const padding = (typeof MapConfig !== 'undefined' && MapConfig.kmlFitPadding) ? MapConfig.kmlFitPadding : [40, 40, 40, 40];
+
+    if (validCoordinates.length === 1 || diagonalMeters <= SMALL_AREA_THRESHOLD) {
+        // 中心点
+        const centerLng = (minLng + maxLng) / 2;
+        const centerLat = (minLat + maxLat) / 2;
+
+        try {
+            map.setCenter([centerLng, centerLat]);
+            map.setZoom(DEFAULT_POINT_ZOOM, false, 300);
+        } catch (e) {
+            console.warn('设置中心/缩放时出错，回退处理:', e);
+        }
+
+        return;
+    }
+
+    // 对于普通范围，使用对称内边距确保居中完整显示
+    try {
+        // AMap 的 setBounds 支持第三个参数为内边距数组 [top,right,bottom,left]
+        map.setBounds(bounds, false, padding);
+    } catch (e) {
+        console.warn('使用 setBounds 失败，尝试 setCenter 作为回退:', e);
+        // fallback: 设置中心为中点，尽力放大到合适级别
+        const centerLng = (minLng + maxLng) / 2;
+        const centerLat = (minLat + maxLat) / 2;
+        try {
+            map.setCenter([centerLng, centerLat]);
+        } catch (e2) {}
+    }
 }
+
 
 // 切换图标状态（down/up）- 单击切换，再次单击或点击其他地方恢复
 function toggleIconState(marker) {
