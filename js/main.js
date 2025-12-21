@@ -177,61 +177,6 @@ function navigateToPage(page) {
 }
 
 /**
- * 加载默认KML文件
- */
-function loadDefaultKMLFile() {
-    console.log('[KML加载] 使用默认KML文件模式');
-
-    const kmlFile = '丰隆.kml';
-    console.log('[KML加载] 尝试加载:', kmlFile);
-
-    fetch(kmlFile)
-        .then(resp => {
-            if (!resp.ok) {
-                throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-            }
-            return resp.text();
-        })
-        .then(kmlText => {
-            console.log('[KML加载] 成功加载 KML 文件');
-            window.isFirstKMLImport = true;
-            try {
-                sessionStorage.setItem('kmlRawData', kmlText);
-                sessionStorage.setItem('kmlFileName', kmlFile);
-            } catch (e) {
-                console.warn('[KML加载] 保存到sessionStorage失败:', e);
-            }
-
-            if (typeof parseKML === 'function') {
-                parseKML(kmlText, kmlFile);
-            } else {
-                console.error('[KML加载] parseKML函数不存在');
-            }
-
-            // 解析/显示完成后确保启动定位
-            setTimeout(() => {
-                if (typeof startRealtimeLocationTracking === 'function') {
-                    try {
-                        startRealtimeLocationTracking();
-                    } catch (e) {
-                        console.warn('[KML加载] 启动实时定位失败:', e);
-                    }
-                } else if (typeof getCurrentLocation === 'function') {
-                    try {
-                        getCurrentLocation();
-                    } catch (e) {
-                        console.warn('[KML加载] 一次性定位失败:', e);
-                    }
-                }
-            }, 300);
-        })
-        .catch(err => {
-            console.error('[KML加载] 加载失败:', err);
-            alert('加载地图数据失败，请刷新页面重试');
-        });
-}
-
-/**
  * 从API加载地图数据（点、线、面）
  */
 async function loadMapDataFromAPI() {
@@ -386,7 +331,8 @@ async function loadMapDataFromAPI() {
 
     } catch (error) {
         console.error('[API加载] 加载地图数据失败:', error);
-        alert('加载地图数据失败：' + error.message + '\n请检查网络连接或联系管理员');
+        // alert('加载地图数据失败：' + error.message + '\n请检查网络连接或联系管理员');
+        alert('加载地图数据失败：' + error.message + '\n您所在位置周边无项目现场');
     }
 }
 
