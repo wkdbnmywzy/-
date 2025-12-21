@@ -1823,14 +1823,15 @@ const NavCore = (function() {
                 }
             }
 
-            // 【简化】统一的两阶段播报逻辑：
-            // 阶段1：距离≤15米时，播报"前方准备xx"
-            // 阶段2：距离≤5米或前2个点时，播报"xx"
-            
-            // 阶段2：距离≤5米或到达转向点前2个点，播报执行指令
-            const isVeryNear = (distanceToTurn <= 5) || 
-                              (currentIndex >= nextTurnPoint.pointIndex - 2 && currentIndex < nextTurnPoint.pointIndex);
-            
+            // 【优化】基于当前速度的两阶段播报逻辑（避免高速时来不及播报）
+            // 计算预警与执行距离（单位：米），根据速度动态调整，带上下限保护
+            const prepWarnDistance = Math.max(15, Math.min(120, currentSpeed * 6)); // 预警：约提前6秒，范围[15,120]
+            const execDistance = Math.max(5, Math.min(30, currentSpeed * 1.5));     // 执行：约1.5秒内到达，范围[5,30]
+
+            // 阶段2：非常接近时播报执行指令（距离<=execDistance 或 前若干点）
+            const isVeryNear = (distanceToTurn <= execDistance) || 
+                              (currentIndex >= nextTurnPoint.pointIndex - Math.ceil(execDistance / 3) && currentIndex < nextTurnPoint.pointIndex);
+
             if (isVeryNear) {
                 if (!hasPromptedBefore) {
                     const guidance = {
@@ -1848,13 +1849,13 @@ const NavCore = (function() {
                     isTurningPhase = true;
                     turningPhaseEndTime = now + 5000;
                     
-                    console.log(`[转向播报] ${turnAction}, 索引=${currentIndex}/${nextTurnPoint.pointIndex}, 距离=${distanceToTurn.toFixed(1)}米`);
+                    console.log(`[转向播报] ${turnAction}, 索引=${currentIndex}/${nextTurnPoint.pointIndex}, 距离=${distanceToTurn.toFixed(1)}米, 执行阈值=${execDistance}米`);
                 }
                 return;
             }
             
-            // 阶段1：距离≤15米且>5米时，播报"前方准备xx"
-            if (distanceToTurn <= 15 && distanceToTurn > 5) {
+            // 阶段1：距离≤prepWarnDistance且>execDistance时，播报"前方准备xx"
+            if (distanceToTurn <= prepWarnDistance && distanceToTurn > execDistance) {
                 if (!hasPrompted1_4) {
                     const guidance = {
                         type: nextTurnPoint.turnType,
@@ -1870,7 +1871,7 @@ const NavCore = (function() {
                     // 进入转弯准备阶段
                     isTurningPhase = true;
                     
-                    console.log(`[转向预警] 前方准备${turnAction}, 索引=${currentIndex}/${nextTurnPoint.pointIndex}, 距离=${distanceToTurn.toFixed(1)}米`);
+                    console.log(`[转向预警] 前方准备${turnAction}, 索引=${currentIndex}/${nextTurnPoint.pointIndex}, 距离=${distanceToTurn.toFixed(1)}米, 预警阈值=${prepWarnDistance}米`);
                 }
                 return;
             }
