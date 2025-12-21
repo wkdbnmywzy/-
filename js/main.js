@@ -332,7 +332,7 @@ async function loadMapDataFromAPI() {
     } catch (error) {
         console.error('[API加载] 加载地图数据失败:', error);
         // alert('加载地图数据失败：' + error.message + '\n请检查网络连接或联系管理员');
-        alert('加载地图数据失败：' + error.message + '\n您所在位置周边无项目现场');
+        alert('您所在位置周边无项目现场');
     }
 }
 
