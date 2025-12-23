@@ -559,7 +559,21 @@ const NavUI = (function() {
             }
 
             if (destDistanceEl) {
-                destDistanceEl.textContent = Math.round(totalDistance);
+                if (totalDistance >= 1000) {
+                    destDistanceEl.textContent = (totalDistance / 1000).toFixed(1);
+                    // 更新单位为"公里"
+                    const unitEl = destDistanceEl.nextElementSibling;
+                    if (unitEl && unitEl.classList.contains('unit')) {
+                        unitEl.textContent = '公里';
+                    }
+                } else {
+                    destDistanceEl.textContent = Math.round(totalDistance);
+                    // 更新单位为"米"
+                    const unitEl = destDistanceEl.nextElementSibling;
+                    if (unitEl && unitEl.classList.contains('unit')) {
+                        unitEl.textContent = '米';
+                    }
+                }
             }
 
             if (destTimeEl) {
@@ -635,10 +649,10 @@ const NavUI = (function() {
                 // 距离显示：大于1000米显示公里，否则显示米
                 if (totalDistance >= 1000) {
                     distanceElem.textContent = (totalDistance / 1000).toFixed(1);
-                    if (distanceUnitElem) distanceUnitElem.textContent = 'km';
+                    if (distanceUnitElem) distanceUnitElem.textContent = '公里';
                 } else {
                     distanceElem.textContent = Math.round(totalDistance);
-                    if (distanceUnitElem) distanceUnitElem.textContent = 'm';
+                    if (distanceUnitElem) distanceUnitElem.textContent = '米';
                 }
             }
             if (timeElem) {
