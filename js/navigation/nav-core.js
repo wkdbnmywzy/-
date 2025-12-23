@@ -72,8 +72,7 @@ const NavCore = (function() {
     let isProcessingGPS = false;     // 是否正在处理GPS更新
     let gpsProcessStartTime = 0;     // GPS处理开始时间
     let heartbeatCheckerId = null;   // 心跳检测定时器
-    let lastDisplayPosition = null;  // 上次显示的位置（用于检测位置卡死）
-    let lastPositionChangeTime = 0;  // 上次位置变化时间
+    let lastDisplayPosition = null;  // 上次显示的位置（用于检测位置卡死） 
     const GPS_MIN_INTERVAL = 300;    // GPS处理最小间隔（毫秒）
     const GPS_TIMEOUT = 3000;        // GPS处理超时时间（毫秒）
 
@@ -2740,6 +2739,10 @@ const NavCore = (function() {
             // 重新计算转向点
             const newTurningPoints = detectTurningPoints(window.currentSegmentPointSet, 30);
             window.currentSegmentTurningPoints = newTurningPoints;
+
+            // 【关键】重新检测段间关系
+            // 因为路线变化了，需要重新分析转向序列
+            detectSegmentRelations();
 
             console.log('[偏航重规划] 新点集生成:', {
                 点数: window.currentSegmentPointSet.length,
