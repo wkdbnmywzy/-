@@ -1551,6 +1551,23 @@ const NavCore = (function() {
                 sectionStart = prevTurnIndex >= 0 ? prevTurnIndex : 0;
                 sectionEnd = nextTurnIndex;
 
+                // 【修复】始终允许向前搜索一定范围，避免吸附索引卡住
+                // 即使不在转向点附近，也允许向前搜索15个点（约45米）
+                const forwardSearchRange = Math.min(currentSnappedIndex + 15, pointSet.length - 1);
+                if (forwardSearchRange > sectionEnd) {
+                    // 扩大搜索范围到下一节或更远
+                    let extendedEnd = forwardSearchRange;
+                    // 找到覆盖forwardSearchRange的转向点
+                    for (let i = 0; i < turningPoints.length; i++) {
+                        if (turningPoints[i].pointIndex > forwardSearchRange) {
+                            extendedEnd = turningPoints[i].pointIndex;
+                            break;
+                        }
+                    }
+                    sectionEnd = Math.max(sectionEnd, extendedEnd);
+                    console.log(`[点集吸附] 扩大向前搜索范围: ${sectionStart} - ${sectionEnd}`);
+                }
+
                 // 【关键优化】如果接近转向点（距离转向点<8个点），扩大搜索范围到下一节
                 // 这样可以避免V字急转弯和直角转弯时误判为偏离
                 // 8个点 × 3米/点 = 24米的提前搜索距离
@@ -1560,7 +1577,7 @@ const NavCore = (function() {
                         // 找到下下个转向点
                         for (let i = 0; i < turningPoints.length; i++) {
                             if (turningPoints[i].pointIndex > nextTurnIndex) {
-                                sectionEnd = turningPoints[i].pointIndex;
+                                sectionEnd = Math.max(sectionEnd, turningPoints[i].pointIndex);
                                 console.log(`[点集吸附] 接近转向点(${distanceToTurn}个点)，扩大搜索到下一节: ${sectionStart} - ${sectionEnd}`);
                                 break;
                             }
@@ -1748,22 +1765,39 @@ const NavCore = (function() {
                 return;
             }
 
-            // 计算到下一个转向点的距离（沿路线距离）
-            // 优化：如果提供了当前GPS位置，则用GPS位置到下一个点的首段距离，减少首段误差；否则从吸附点开始累加
+            // 计算到下一个转向点的距离
+            // 【修复】优先使用GPS位置直接计算到转向点的距离，更准确
             let distanceToTurn = 0;
-            if (currentPosition && currentIndex >= 0 && currentIndex < pointSet.length - 1) {
-                // 当前GPS位置到下一个点
-                const firstNext = pointSet[currentIndex + 1].position;
-                distanceToTurn += haversineDistance(
+            const turnPointPos = pointSet[nextTurnPoint.pointIndex].position;
+            const turnLng = Array.isArray(turnPointPos) ? turnPointPos[0] : turnPointPos.lng;
+            const turnLat = Array.isArray(turnPointPos) ? turnPointPos[1] : turnPointPos.lat;
+
+            if (currentPosition) {
+                // 方案1：直接计算GPS位置到转向点的直线距离（最准确）
+                const directDistance = haversineDistance(
                     currentPosition[1], currentPosition[0],
-                    firstNext[1], firstNext[0]
+                    turnLat, turnLng
                 );
-                // 累加剩余路段
-                for (let i = currentIndex + 1; i < nextTurnPoint.pointIndex && i < pointSet.length - 1; i++) {
-                    const p1 = pointSet[i].position;
-                    const p2 = pointSet[i + 1].position;
-                    distanceToTurn += haversineDistance(p1[1], p1[0], p2[1], p2[0]);
+                
+                // 方案2：沿路线计算距离（用于对比）
+                let routeDistance = 0;
+                if (currentIndex >= 0 && currentIndex < pointSet.length - 1) {
+                    // GPS位置到下一个吸附点
+                    const nextPoint = pointSet[currentIndex + 1].position;
+                    routeDistance += haversineDistance(
+                        currentPosition[1], currentPosition[0],
+                        nextPoint[1], nextPoint[0]
+                    );
+                    // 累加剩余路段
+                    for (let i = currentIndex + 1; i < nextTurnPoint.pointIndex && i < pointSet.length - 1; i++) {
+                        const p1 = pointSet[i].position;
+                        const p2 = pointSet[i + 1].position;
+                        routeDistance += haversineDistance(p1[1], p1[0], p2[1], p2[0]);
+                    }
                 }
+                
+                // 使用两者中较小的值（避免吸附索引落后导致距离偏大）
+                distanceToTurn = Math.min(directDistance, routeDistance > 0 ? routeDistance : directDistance);
             } else {
                 // 从吸附点开始累加
                 for (let i = currentIndex; i < nextTurnPoint.pointIndex && i < pointSet.length - 1; i++) {
