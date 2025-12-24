@@ -2615,7 +2615,7 @@ const NavCore = (function() {
     /**
      * 检查用户是否回归到原路线（绿色点集）
      * 【修改】只有吸附到绿色点集才算回归，吸附到KML其他路线不算
-     * @param {Array} position - 当前GPS位置 [lng, lat]
+     * @param {Array} position - 检测位置 [lng, lat]（应传入KML吸附后的位置，避免GPS漂移误判）
      * @param {Array} pointSet - 原路线点集（绿色点集）
      * @returns {Object} { rejoined: boolean, index: number, distance: number }
      */
@@ -2647,9 +2647,9 @@ const NavCore = (function() {
                 }
             }
 
-            // 【关键修改】使用与正常吸附相同的阈值（SNAP_THRESHOLD = 8米）
-            // 只有真正吸附到绿色点集才算回归
-            if (nearestDistance <= SNAP_THRESHOLD && nearestIndex > currentSnappedIndex) {
+            // 【修改】回归阈值设为10米，比正常吸附(8米)宽松一点，更容易检测回归
+            const REJOIN_THRESHOLD = 10;
+            if (nearestDistance <= REJOIN_THRESHOLD && nearestIndex > currentSnappedIndex) {
                 return {
                     rejoined: true,
                     index: nearestIndex,
@@ -2667,7 +2667,7 @@ const NavCore = (function() {
     /**
      * 检测当前位置是否在KML其他路线上，如果是则重新规划到当前段终点
      * 【修改】明确区分：吸附到绿色点集=回归，吸附到KML其他路线=偏航重规划
-     * @param {Array} position - 当前GPS位置 [lng, lat]
+     * @param {Array} position - KML吸附后的位置 [lng, lat]（不是原始GPS位置）
      * @returns {string|boolean} 'rejoined'表示回归原路线, true表示重新规划成功, false表示失败
      */
     function checkAndReplanFromKML(position) {
@@ -2752,7 +2752,7 @@ const NavCore = (function() {
             const newPath = newRoute.path;
 
             // 【优化】比较新旧路线是否有明显差异
-            const isRouteSimilar = compareRoutes(oldPointSet, newPath);
+            const isRouteSimilar = compareRoutes(greenPointSet, newPath);
             
             if (isRouteSimilar) {
                 console.log('[偏航重规划] 新路线与原路线相似，跳过重新规划');
@@ -3152,12 +3152,13 @@ const NavCore = (function() {
                 if (kmlSnapped) {
                     console.log('[KML吸附] 成功吸附到KML路网:', kmlSnapped);
 
-                    // 【关键】先检查是否回归到绿色点集
+                    // 【关键】检查KML吸附后的位置是否在绿色点集上
+                    // 使用吸附后的位置判断更准确，避免GPS漂移导致的误判
                     const greenPointSet = window.currentSegmentPointSet;
                     const rejoinCheck = checkRejoinOriginalRoute(kmlSnapped, greenPointSet);
                     
                     if (rejoinCheck.rejoined) {
-                        // 吸附到绿色点集 = 回归原路线
+                        // KML吸附点在绿色点集附近 = 回归原路线
                         console.log('[KML吸附] ✓ 吸附点在绿色点集上，判定为回归原路线');
                         
                         // 更新吸附索引

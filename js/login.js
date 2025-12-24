@@ -300,27 +300,45 @@ function handleAccountLogin(e) {
 }
 
 /**
- * 调用真实登录API
+ * 调用真实登录API（RSA加密版本）
  * @param {string} username - 用户名
  * @param {string} password - 密码
  * @returns {Promise<{success: boolean, user?: object, message?: string}>}
  */
 async function loginWithAPI(username, password) {
     try {
+        // 1. 获取RSA公钥
+        const publicKey = await fetchPublicKey();
+        
+        if (!publicKey) {
+            return {
+                success: false,
+                message: '获取加密公钥失败，请稍后重试'
+            };
+        }
+        
+        // 2. 使用公钥加密登录信息
+        const encryptedData = encryptLoginData(publicKey, username, password);
+        
+        if (!encryptedData) {
+            return {
+                success: false,
+                message: '加密失败，请稍后重试'
+            };
+        }
+        
+        // 3. 发送加密后的登录请求
         const response = await fetch('https://dmap.cscec3bxjy.cn/api/user/auth/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                username: username,
-                password: password
+                encrypted_data: encryptedData
             })
         });
 
         const data = await response.json();
-
-        console.log('[登录] API返回数据:', data);
 
         if (response.ok && data.code === 200) {
             // 登录成功，保存token
@@ -332,15 +350,12 @@ async function loginWithAPI(username, password) {
             
             if (token) {
                 sessionStorage.setItem('authToken', token);
-                console.log('[登录] Token已保存:', token.substring(0, 20) + '...');
             } else {
                 console.error('[登录] 未找到token，data.data:', data.data);
             }
 
             if (!userId) {
                 console.warn('[登录] 未找到用户ID，将无法获取用户项目列表');
-            } else {
-                console.log('[登录] 用户ID:', userId);
             }
 
             // 获取用户参与的项目列表（需要用户ID）
@@ -378,6 +393,73 @@ async function loginWithAPI(username, password) {
 }
 
 /**
+ * 获取RSA公钥
+ * @returns {Promise<string|null>} 公钥字符串，失败返回null
+ */
+async function fetchPublicKey() {
+    try {
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/user/auth/public-key', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.code === 200 && data.data?.public_key) {
+            return data.data.public_key;
+        } else {
+            console.error('[公钥] 获取失败:', data.message);
+            return null;
+        }
+    } catch (error) {
+        console.error('[公钥] API调用失败:', error);
+        return null;
+    }
+}
+
+/**
+ * 使用RSA公钥加密登录数据
+ * @param {string} publicKey - RSA公钥
+ * @param {string} username - 用户名
+ * @param {string} password - 密码
+ * @returns {string|null} Base64编码的加密数据，失败返回null
+ */
+function encryptLoginData(publicKey, username, password) {
+    try {
+        // 检查JSEncrypt是否可用
+        if (typeof JSEncrypt === 'undefined') {
+            console.error('[加密] JSEncrypt库未加载');
+            return null;
+        }
+
+        // 初始化加密器
+        const encryptor = new JSEncrypt();
+        encryptor.setPublicKey(publicKey);
+
+        // 准备载荷（JSON字符串）
+        const payload = JSON.stringify({
+            username: username,
+            password: password
+        });
+
+        // 加密
+        const encryptedData = encryptor.encrypt(payload);
+        
+        if (!encryptedData) {
+            console.error('[加密] 加密失败，可能是数据太长或公钥无效');
+            return null;
+        }
+
+        return encryptedData;
+    } catch (error) {
+        console.error('[加密] 加密过程出错:', error);
+        return null;
+    }
+}
+
+/**
  * 获取用户参与的项目列表
  * @param {string} token - 认证token
  * @param {number} userId - 用户ID
@@ -400,8 +482,6 @@ async function fetchUserProjects(token, userId) {
             }
         });
 
-        console.log('[项目列表] 第一步 - HTTP状态:', response.status);
-
         if (response.status === 404) {
             console.warn('[项目列表] 接口暂未实现(404)，将使用默认项目列表');
             console.info('[项目列表] 提示：如需使用用户项目数据，请联系后端实现该接口');
@@ -409,8 +489,6 @@ async function fetchUserProjects(token, userId) {
         }
 
         const data = await response.json();
-        console.log('[项目列表] 第一步 - API返回数据:', data);
-        console.log('[项目列表] 第一步 - data.data详细内容:', JSON.stringify(data.data, null, 2));
 
         if (!response.ok || data.code !== 200) {
             console.error('[项目列表] 获取项目ID列表失败:', data.message);
@@ -427,8 +505,6 @@ async function fetchUserProjects(token, userId) {
             console.warn('[项目列表] 用户没有关联的项目，data.data内容:', data.data);
             return [];
         }
-
-        console.log('[项目列表] 获取到项目ID列表:', projectIdsArray);
 
         // 第二步：根据每个项目ID获取项目详情
         const projectDetailsPromises = projectIdsArray.map(async (projectId) => {
@@ -469,8 +545,6 @@ async function fetchUserProjects(token, userId) {
         
         // 过滤掉获取失败的项目
         const validProjects = projectDetails.filter(p => p !== null);
-        
-        console.log('[项目列表] 最终获取到的项目详情:', validProjects);
         
         return validProjects;
 
@@ -520,7 +594,6 @@ function handleLoginSuccess(user, loginType) {
     sessionStorage.setItem('loginType', loginType); // 保存登录类型
 
     // 显示成功消息
-    console.log('登录成功', user, '登录类型:', loginType);
 
     // 账号密码登录：立即进入项目选择页（无延迟）
     if (loginType === 'account') {
@@ -541,8 +614,6 @@ function handleLoginSuccess(user, loginType) {
 // 清除历史存储数据
 function clearHistoryStorage() {
     try {
-        console.log('清除历史存储数据...');
-
         // 清除sessionStorage中的历史数据（但保留项目选择）
         const keysToRemove = [
             'kmlData',              // KML数据
@@ -562,8 +633,6 @@ function clearHistoryStorage() {
 
         // 清除localStorage中的搜索历史
         localStorage.removeItem('searchHistory');
-
-        console.log('历史存储数据已清除');
     } catch (e) {
         console.error('清除历史存储数据失败:', e);
     }
@@ -638,8 +707,6 @@ function initProjectSelection() {
                 };
                 sessionStorage.setItem('projectSelection', JSON.stringify(projectSelection));
 
-                console.log('项目选择已保存:', projectSelection);
-
                 // 检查是否是管理员
                 const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
                 if (currentUser.role === 'manager') {
@@ -695,9 +762,6 @@ function initProjectSelection() {
                     projectsData[province].push(project.projectName);
                 }
             });
-            console.log('[项目选择] 使用用户项目数据:', projectsData);
-        } else {
-            console.log('[项目选择] 使用默认项目数据');
         }
 
         const provinces = Object.keys(projectsData);
@@ -936,7 +1000,6 @@ function showVehicleCard() {
         const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
         if (currentUser.licensePlate && licensePlateInput) {
             licensePlateInput.value = currentUser.licensePlate;
-            console.log('[车辆信息] 自动填充车牌号:', currentUser.licensePlate);
         }
     }
 
@@ -1038,8 +1101,6 @@ function handleVehicleSubmit(e) {
 
     // 保存车辆信息
     sessionStorage.setItem('vehicleInfo', JSON.stringify(vehicleInfo));
-
-    console.log('车辆信息已保存:', vehicleInfo);
 
     // 延迟后跳转到主页面
     setTimeout(() => {
