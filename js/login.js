@@ -307,7 +307,7 @@ function handleAccountLogin(e) {
  */
 async function loginWithAPI(username, password) {
     try {
-        const response = await fetch('http://115.159.67.12:8081/api/v1/auth/login', {
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/user/auth/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -325,6 +325,11 @@ async function loginWithAPI(username, password) {
         if (response.ok && data.code === 200) {
             // 登录成功，保存token
             const token = data.data?.access_token || data.data?.token || data.data;
+            const userInfo = data.data?.user || {};
+            
+            // 获取用户ID（优先使用id，其次user_id）
+            const userId = userInfo.id || userInfo.user_id;
+            
             if (token) {
                 sessionStorage.setItem('authToken', token);
                 console.log('[登录] Token已保存:', token.substring(0, 20) + '...');
@@ -332,13 +337,28 @@ async function loginWithAPI(username, password) {
                 console.error('[登录] 未找到token，data.data:', data.data);
             }
 
+            if (!userId) {
+                console.warn('[登录] 未找到用户ID，将无法获取用户项目列表');
+            } else {
+                console.log('[登录] 用户ID:', userId);
+            }
+
+            // 获取用户参与的项目列表（需要用户ID）
+            const userProjects = userId ? await fetchUserProjects(token, userId) : [];
+            
+            // 获取用户的车牌号（暂时不可用，后续可扩展）
+            const userVehicle = { licensePlate: '' };
+
             // 返回用户信息
             return {
                 success: true,
                 user: {
                     username: username,
-                    role: data.data?.user?.role || 'user',
-                    ...data.data?.user
+                    userId: userId,
+                    role: userInfo.role || userInfo.roles?.[0]?.name || 'user',
+                    projects: userProjects,
+                    licensePlate: userVehicle.licensePlate,
+                    ...userInfo
                 }
             };
         } else {
@@ -356,6 +376,111 @@ async function loginWithAPI(username, password) {
         };
     }
 }
+
+/**
+ * 获取用户参与的项目列表
+ * @param {string} token - 认证token
+ * @param {number} userId - 用户ID
+ * @returns {Promise<Array>} 项目列表
+ */
+async function fetchUserProjects(token, userId) {
+    // 如果没有userId，直接返回空数组
+    if (!userId) {
+        console.warn('[项目列表] 缺少用户ID，将使用默认项目列表');
+        return [];
+    }
+
+    try {
+        // 第一步：获取用户关联的项目ID列表
+        const response = await fetch(`https://dmap.cscec3bxjy.cn/api/project/relations_users/${userId}/projects`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('[项目列表] 第一步 - HTTP状态:', response.status);
+
+        if (response.status === 404) {
+            console.warn('[项目列表] 接口暂未实现(404)，将使用默认项目列表');
+            console.info('[项目列表] 提示：如需使用用户项目数据，请联系后端实现该接口');
+            return [];
+        }
+
+        const data = await response.json();
+        console.log('[项目列表] 第一步 - API返回数据:', data);
+        console.log('[项目列表] 第一步 - data.data详细内容:', JSON.stringify(data.data, null, 2));
+
+        if (!response.ok || data.code !== 200) {
+            console.error('[项目列表] 获取项目ID列表失败:', data.message);
+            return [];
+        }
+
+        // 获取项目ID列表（尝试多种可能的字段名）
+        const projectIds = data.data?.projects || data.data?.project_ids || data.data?.projectIds || [];
+        
+        // 如果data.data本身就是数组
+        const projectIdsArray = Array.isArray(data.data) ? data.data : projectIds;
+        
+        if (projectIdsArray.length === 0) {
+            console.warn('[项目列表] 用户没有关联的项目，data.data内容:', data.data);
+            return [];
+        }
+
+        console.log('[项目列表] 获取到项目ID列表:', projectIdsArray);
+
+        // 第二步：根据每个项目ID获取项目详情
+        const projectDetailsPromises = projectIdsArray.map(async (projectId) => {
+            try {
+                const detailResponse = await fetch(`https://dmap.cscec3bxjy.cn/api/project/projects/${projectId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!detailResponse.ok) {
+                    console.error(`[项目详情] 获取项目 ${projectId} 详情失败:`, detailResponse.status);
+                    return null;
+                }
+
+                const detailData = await detailResponse.json();
+                
+                if (detailData.code === 200 && detailData.data) {
+                    const project = detailData.data;
+                    return {
+                        id: project.id,
+                        province: project.province || project.location || '',
+                        projectName: project.name || project.project_name || project.projectName || ''
+                    };
+                }
+                
+                return null;
+            } catch (error) {
+                console.error(`[项目详情] 获取项目 ${projectId} 详情异常:`, error);
+                return null;
+            }
+        });
+
+        // 等待所有项目详情获取完成
+        const projectDetails = await Promise.all(projectDetailsPromises);
+        
+        // 过滤掉获取失败的项目
+        const validProjects = projectDetails.filter(p => p !== null);
+        
+        console.log('[项目列表] 最终获取到的项目详情:', validProjects);
+        
+        return validProjects;
+
+    } catch (error) {
+        console.error('[项目列表] API调用失败:', error);
+        console.warn('[项目列表] 将使用默认项目列表');
+        return [];
+    }
+}
+
 
 // 验证手机号登录
 function validatePhoneLogin(phone, code) {
@@ -482,8 +607,8 @@ function hideError(msgElement) {
 
 // 初始化项目选择
 function initProjectSelection() {
-    // 项目数据
-    const projectsData = {
+    // 项目数据（默认数据，将被用户实际项目覆盖）
+    let projectsData = {
         '江苏省': ['苏州丰隆项目','胥江一号项目',  '圆融国际广场项目', '汇川动力总部项目'],
         '湖北省': ['汉韵公馆项目', '葛店试验场项目','测试项目']
     };
@@ -553,6 +678,27 @@ function initProjectSelection() {
         const projectColumn = document.getElementById('project-column');
 
         if (!provinceColumn || !projectColumn) return;
+
+        // 从用户信息中获取项目列表
+        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+        const userProjects = currentUser.projects || [];
+
+        // 如果用户有项目列表，使用用户的项目
+        if (userProjects.length > 0) {
+            projectsData = {};
+            userProjects.forEach(project => {
+                const province = project.province || '未知省份';
+                if (!projectsData[province]) {
+                    projectsData[province] = [];
+                }
+                if (project.projectName && !projectsData[province].includes(project.projectName)) {
+                    projectsData[province].push(project.projectName);
+                }
+            });
+            console.log('[项目选择] 使用用户项目数据:', projectsData);
+        } else {
+            console.log('[项目选择] 使用默认项目数据');
+        }
 
         const provinces = Object.keys(projectsData);
 
@@ -761,6 +907,7 @@ function showVehicleCard() {
     const vehicleCard = document.getElementById('vehicle-card');
     const vehicleTitle = document.getElementById('vehicle-title');
     const driverNameGroup = document.getElementById('driver-name-group');
+    const licensePlateInput = document.getElementById('license-plate');
     const loginType = sessionStorage.getItem('loginType');
 
     // 根据登录类型设置标题和显示字段
@@ -784,6 +931,13 @@ function showVehicleCard() {
         }
         vehicleCard?.classList.add('fixed');
         vehicleCard?.classList.remove('temporary');
+
+        // 从用户信息中获取车牌号并自动填充
+        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+        if (currentUser.licensePlate && licensePlateInput) {
+            licensePlateInput.value = currentUser.licensePlate;
+            console.log('[车辆信息] 自动填充车牌号:', currentUser.licensePlate);
+        }
     }
 
     // 滑动到车辆卡片

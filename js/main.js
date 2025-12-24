@@ -199,7 +199,7 @@ async function loadMapDataFromAPI() {
         }
 
         // 2. 准备请求headers
-        const baseURL = 'http://115.159.67.12:8088/api/v1';
+        const baseURL = 'https://dmap.cscec3bxjy.cn/api/map';
         const headers = {
             'Content-Type': 'application/json'
         };
