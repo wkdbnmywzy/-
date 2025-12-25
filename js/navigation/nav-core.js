@@ -8,10 +8,10 @@ const NavCore = (function() {
     'use strict';
 
     // ==================== 吸附阈值配置（全局变量，便于调整）====================
-    const SNAP_THRESHOLD_NORMAL = 8;      // 常规吸附阈值（直线路段、偏离轨迹吸附KML）
-    const SNAP_THRESHOLD_TURNING = 10;    // 转弯处吸附阈值（转弯时GPS误差大，放宽阈值）
-    const SNAP_THRESHOLD_BUFFER = 12;     // 偏离缓冲阈值（8-12米需要连续确认）
-    const DEVIATION_CONFIRM_COUNT = 5;    // 偏离确认次数（连续5次8-12米才确认偏离）
+    const SNAP_THRESHOLD_NORMAL = 9;      // 常规吸附阈值（直线路段、偏离轨迹吸附KML）
+    const SNAP_THRESHOLD_TURNING = 11;    // 转弯处吸附阈值（转弯时GPS误差大，放宽阈值）
+    const SNAP_THRESHOLD_BUFFER = 12;     // 偏离缓冲阈值（9-12米需要连续确认）
+    const DEVIATION_CONFIRM_COUNT = 5;    // 偏离确认次数（连续5次9-12米才确认偏离）
     // ========================================================================
 
     // 导航状态
@@ -66,6 +66,7 @@ const NavCore = (function() {
     let hasAnnouncedDeviation = false; // 是否已播报偏离
     let lastReplanTime = 0;          // 上次重新规划的时间戳（用于防抖）
     let isDeviationConfirmed = false; // 是否已确认偏离
+    let savedOriginalGreenPointSet = null; // 【新增】偏离时保存的原始绿色点集（用于判断回归）
 
     // GPS处理节流与心跳检测
     let lastGPSProcessTime = 0;      // 上次GPS处理完成时间
@@ -754,6 +755,9 @@ const NavCore = (function() {
                 nextTurningPointIndex = -1;
                 hasPrompted1_4 = false;
                 hasPromptedBefore = false;
+
+                // 重置偏离相关状态
+                savedOriginalGreenPointSet = null;
 
                 // 显示下一段的绿色路线（会重新计算转向点）
                 showCurrentSegmentRoute();
@@ -1478,6 +1482,7 @@ const NavCore = (function() {
             deviationConfirmCount = 0;
             isDeviationConfirmed = false;
             hasAnnouncedDeviation = false;
+            savedOriginalGreenPointSet = null; // 清除保存的原始绿色点集
 
             // 重置GPS处理状态
             isProcessingGPS = false;
@@ -2614,9 +2619,9 @@ const NavCore = (function() {
 
     /**
      * 检查用户是否回归到原路线（绿色点集）
-     * 【修改】只有吸附到绿色点集才算回归，吸附到KML其他路线不算
-     * @param {Array} position - 检测位置 [lng, lat]（应传入KML吸附后的位置，避免GPS漂移误判）
-     * @param {Array} pointSet - 原路线点集（绿色点集）
+     * 【简化版】只要在绿色点集上找到距离≤8米的点，就算回归
+     * @param {Array} position - 检测位置 [lng, lat]（应传入KML吸附后的位置）
+     * @param {Array} pointSet - 原路线点集（偏离时保存的绿色点集）
      * @returns {Object} { rejoined: boolean, index: number, distance: number }
      */
     function checkRejoinOriginalRoute(position, pointSet) {
@@ -2628,13 +2633,11 @@ const NavCore = (function() {
             const posLng = position[0];
             const posLat = position[1];
 
-            // 从当前吸附点之后开始搜索（用户不可能回到已走过的点）
-            const searchStart = Math.max(0, currentSnappedIndex + 1);
-            
             let nearestIndex = -1;
             let nearestDistance = Infinity;
 
-            for (let i = searchStart; i < pointSet.length; i++) {
+            // 搜索整个点集，找到最近的点
+            for (let i = 0; i < pointSet.length; i++) {
                 const point = pointSet[i].position;
                 const lng = Array.isArray(point) ? point[0] : point.lng;
                 const lat = Array.isArray(point) ? point[1] : point.lat;
@@ -2647,9 +2650,11 @@ const NavCore = (function() {
                 }
             }
 
-            // 【修改】回归阈值设为10米，比正常吸附(8米)宽松一点，更容易检测回归
-            const REJOIN_THRESHOLD = 10;
-            if (nearestDistance <= REJOIN_THRESHOLD && nearestIndex > currentSnappedIndex) {
+            // 回归阈值设为9米，与吸附阈值一致
+            const REJOIN_THRESHOLD = SNAP_THRESHOLD_NORMAL;
+
+            if (nearestDistance <= REJOIN_THRESHOLD) {
+                console.log(`[回归检测] ✓ 距离绿色点集${nearestDistance.toFixed(1)}米，索引${nearestIndex}，判定为回归`);
                 return {
                     rejoined: true,
                     index: nearestIndex,
@@ -2657,6 +2662,7 @@ const NavCore = (function() {
                 };
             }
 
+            console.log(`[回归检测] × 距离绿色点集${nearestDistance.toFixed(1)}米，最近索引${nearestIndex}，未达到回归阈值`);
             return { rejoined: false };
         } catch (e) {
             console.error('[回归检测] 执行失败:', e);
@@ -2665,59 +2671,36 @@ const NavCore = (function() {
     }
 
     /**
-     * 检测当前位置是否在KML其他路线上，如果是则重新规划到当前段终点
-     * 【修改】明确区分：吸附到绿色点集=回归，吸附到KML其他路线=偏航重规划
-     * @param {Array} position - KML吸附后的位置 [lng, lat]（不是原始GPS位置）
-     * @returns {string|boolean} 'rejoined'表示回归原路线, true表示重新规划成功, false表示失败
+     * 从当前位置重新规划路线到段终点
+     * 【简化版】只做重新规划，回归判断已在调用方完成
+     * @param {Array} position - 当前位置 [lng, lat]
+     * @returns {boolean} 重新规划是否成功
      */
-    function checkAndReplanFromKML(position) {
+    function replanRouteFromPosition(position) {
         try {
             // 检查是否有KML路线规划功能
             if (typeof planKMLRoute !== 'function' || typeof resetKMLGraph !== 'function') {
-                console.log('[偏航重规划] KML路线规划功能不可用');
+                console.log('[重新规划] KML路线规划功能不可用');
                 return false;
             }
 
             // 获取当前段的终点
             const currentSegment = segmentRanges[currentSegmentIndex];
             if (!currentSegment) {
-                console.log('[偏航重规划] 无法获取当前段信息');
+                console.log('[重新规划] 无法获取当前段信息');
                 return false;
             }
 
             const fullPointSet = window.navigationPointSet;
             if (!fullPointSet || fullPointSet.length === 0) {
-                console.log('[偏航重规划] 点集不存在');
+                console.log('[重新规划] 点集不存在');
                 return false;
-            }
-
-            // 【关键修改】先检查是否能吸附到绿色点集（原规划路线）
-            const greenPointSet = window.currentSegmentPointSet;
-            if (greenPointSet && greenPointSet.length > 0) {
-                const rejoinResult = checkRejoinOriginalRoute(position, greenPointSet);
-                if (rejoinResult.rejoined) {
-                    console.log(`[偏航重规划] ✓ 用户回归到绿色点集，索引=${rejoinResult.index}，距离=${rejoinResult.distance.toFixed(1)}米`);
-                    
-                    // 更新吸附索引到回归点
-                    currentSnappedIndex = rejoinResult.index;
-                    lastSnappedIndex = rejoinResult.index - 1;
-                    
-                    // 重置转向点提示状态
-                    lastTurningPointIndex = -1;
-                    nextTurningPointIndex = -1;
-                    hasPrompted1_4 = false;
-                    hasPromptedBefore = false;
-                    
-                    return 'rejoined'; // 返回特殊标志表示回归原路线
-                } else {
-                    console.log(`[偏航重规划] 未能吸附到绿色点集，继续尝试重新规划`);
-                }
             }
 
             // 获取当前段终点位置
             const segmentEndPoint = fullPointSet[currentSegment.end];
             if (!segmentEndPoint) {
-                console.log('[偏航重规划] 无法获取段终点');
+                console.log('[重新规划] 无法获取段终点');
                 return false;
             }
 
@@ -2725,7 +2708,7 @@ const NavCore = (function() {
             const endLng = Array.isArray(endPos) ? endPos[0] : endPos.lng;
             const endLat = Array.isArray(endPos) ? endPos[1] : endPos.lat;
 
-            console.log('[偏航重规划] 尝试从当前位置重新规划到段终点:', {
+            console.log('[重新规划] 从当前位置规划到段终点:', {
                 当前位置: position,
                 段终点: [endLng, endLat],
                 当前段: currentSegmentIndex,
@@ -2739,30 +2722,19 @@ const NavCore = (function() {
             const newRoute = planKMLRoute(position, [endLng, endLat]);
 
             if (!newRoute || !newRoute.path || newRoute.path.length < 2) {
-                console.log('[偏航重规划] 无法规划新路线（可能不在KML路网上）');
+                console.log('[重新规划] 无法规划新路线（可能不在KML路网上）');
                 return false;
             }
 
-            console.log('[偏航重规划] 新路线规划成功:', {
+            console.log('[重新规划] 新路线规划成功:', {
                 路径点数: newRoute.path.length,
                 总距离: newRoute.distance ? newRoute.distance.toFixed(1) + '米' : '未知'
             });
 
-            // 更新当前段的路线
             const newPath = newRoute.path;
 
-            // 【优化】比较新旧路线是否有明显差异
-            const isRouteSimilar = compareRoutes(greenPointSet, newPath);
-            
-            if (isRouteSimilar) {
-                console.log('[偏航重规划] 新路线与原路线相似，跳过重新规划');
-                return false; // 返回false表示不需要重新规划
-            }
-
-            // 【修复】在重新规划前，先固化当前已走过的灰色路线
-            // 这样重新规划后，之前走过的路线仍然显示为灰色
+            // 固化当前已走过的灰色路线
             NavRenderer.lowerCompletedSegmentZIndex();
-            console.log('[偏航重规划] 已固化之前走过的灰色路线');
 
             // 重新生成点集（只更新当前段）
             const newPointSet = resamplePathWithOriginalPoints(newPath, 3);
@@ -2776,16 +2748,12 @@ const NavCore = (function() {
             const newTurningPoints = detectTurningPoints(window.currentSegmentPointSet, 30);
             window.currentSegmentTurningPoints = newTurningPoints;
 
-            // 【关键】重新检测段间关系
-            // 因为路线变化了，需要重新分析转向序列
-            detectSegmentRelations();
-
-            console.log('[偏航重规划] 新点集生成:', {
+            console.log('[重新规划] 新点集生成:', {
                 点数: window.currentSegmentPointSet.length,
                 转向点数: newTurningPoints.length
             });
 
-            // 重新绘制路线
+            // 重新绘制新的绿色路线（清除旧的）
             NavRenderer.drawRoute(newPath);
 
             // 重置吸附状态
@@ -2808,7 +2776,7 @@ const NavCore = (function() {
 
             return true;
         } catch (e) {
-            console.error('[偏航重规划] 执行失败:', e);
+            console.error('[重新规划] 执行失败:', e);
             return false;
         }
     }
@@ -2998,9 +2966,8 @@ const NavCore = (function() {
                         // 设置强制校验标志，偏离回归后立即执行实时对齐
                         forceSecondaryCheck = true;
 
-                        // 播报"已回到规划路线"，并重置TTS抑制以确保后续播报
+                        // 不在这里播报，播报逻辑在偏离处理的主流程中统一处理
                         if (typeof NavTTS !== 'undefined' && NavTTS.resetSuppression) NavTTS.resetSuppression();
-                        NavTTS.speak('已回到规划路线', { force: false });
                     }
                 }
 
@@ -3143,108 +3110,117 @@ const NavCore = (function() {
                     deviationConfirmCount = DEVIATION_CONFIRM_COUNT; // 设置为已确认
                 }
 
+                // 【新增】首次确认偏离时，保存原始绿色点集
+                if (isDeviationConfirmed && !savedOriginalGreenPointSet) {
+                    const currentPointSet = window.currentSegmentPointSet;
+                    if (currentPointSet && currentPointSet.length > 0) {
+                        savedOriginalGreenPointSet = [...currentPointSet];
+                        console.log('[偏离确认] 已保存原始绿色点集，点数:', savedOriginalGreenPointSet.length);
+                    }
+                }
+
                 // 已确认偏离，进入偏离处理逻辑
                 console.log('[点集吸附] 已确认偏离，显示真实GPS轨迹');
 
-                // 【优化方案】偏离后持续尝试吸附KML全路网并重新规划
+                // 【简化方案】偏离后持续尝试吸附KML全路网
                 let replanResult = false;
 
                 if (kmlSnapped) {
                     console.log('[KML吸附] 成功吸附到KML路网:', kmlSnapped);
 
-                    // 【关键】检查KML吸附后的位置是否在绿色点集上
-                    // 使用吸附后的位置判断更准确，避免GPS漂移导致的误判
-                    const greenPointSet = window.currentSegmentPointSet;
-                    const rejoinCheck = checkRejoinOriginalRoute(kmlSnapped, greenPointSet);
-                    
-                    if (rejoinCheck.rejoined) {
-                        // KML吸附点在绿色点集附近 = 回归原路线
-                        console.log('[KML吸附] ✓ 吸附点在绿色点集上，判定为回归原路线');
-                        
-                        // 更新吸附索引
-                        currentSnappedIndex = rejoinCheck.index;
-                        lastSnappedIndex = rejoinCheck.index - 1;
-                        
-                        // 重置偏离状态
-                        deviationConfirmCount = 0;
-                        isDeviationConfirmed = false;
-                        hasAnnouncedDeviation = false;
-                        NavRenderer.endDeviation(kmlSnapped, true);
+                    // 【核心逻辑】使用偏离时保存的原始绿色点集判断是否回归
+                    // savedOriginalGreenPointSet 在首次确认偏离时保存，始终代表偏离前的绿色路线
+                    if (savedOriginalGreenPointSet && savedOriginalGreenPointSet.length > 0) {
+                        const rejoinCheck = checkRejoinOriginalRoute(kmlSnapped, savedOriginalGreenPointSet);
 
-                        // 重置转向点提示状态
-                        lastTurningPointIndex = -1;
-                        nextTurningPointIndex = -1;
-                        hasPrompted1_4 = false;
-                        hasPromptedBefore = false;
+                        if (rejoinCheck.rejoined) {
+                            // ========== 回归原路线 ==========
+                            console.log('[KML吸附] ✓ 吸附点在原始绿色点集上，判定为回归原路线');
 
-                        // 重置TTS抑制状态
-                        if (typeof NavTTS !== 'undefined' && NavTTS.resetSuppression) {
-                            NavTTS.resetSuppression();
-                        }
+                            // 恢复原始绿色路线点集
+                            window.currentSegmentPointSet = savedOriginalGreenPointSet;
 
-                        // 播报"已回到规划路线"
-                        NavTTS.speak('已回到规划路线', { force: true });
+                            // 重新计算转向点
+                            const restoredTurningPoints = detectTurningPoints(savedOriginalGreenPointSet, 30);
+                            window.currentSegmentTurningPoints = restoredTurningPoints;
 
-                        // 更新显示位置
-                        displayPosition = kmlSnapped;
-                        displayHeading = 0;
+                            // 重新绘制原始绿色路线
+                            const originalPath = savedOriginalGreenPointSet.map(p => p.position);
+                            NavRenderer.drawRoute(originalPath);
 
-                        // 更新导航提示
-                        updateNavigationGuidance(currentSnappedIndex, kmlSnapped);
+                            // 更新吸附索引
+                            currentSnappedIndex = rejoinCheck.index;
+                            lastSnappedIndex = rejoinCheck.index - 1;
 
-                        replanResult = true;
-                    } else {
-                        // 吸附到KML其他路线 = 偏航，需要重新规划
-                        console.log('[KML吸附] × 吸附点不在绿色点集上，判定为偏航');
-                        
-                        // 检查是否需要重新规划（带2秒防抖）
-                        if (now - lastReplanTime > 2000) {
-                            console.log('[KML吸附] 开始重新规划到当前段终点...');
-                            replanResult = checkAndReplanFromKML(kmlSnapped);
-                            lastReplanTime = now;
+                            // 重置所有偏离相关状态
+                            deviationConfirmCount = 0;
+                            isDeviationConfirmed = false;
+                            hasAnnouncedDeviation = false;
+                            savedOriginalGreenPointSet = null; // 清除保存的点集
+                            NavRenderer.endDeviation(kmlSnapped, true);
 
-                            if (replanResult === 'rejoined') {
-                                // 重新规划过程中发现可以回归（理论上不应该走到这里）
-                                console.log('[KML吸附] ✓ 重规划时发现可回归原路线');
-                                deviationConfirmCount = 0;
-                                isDeviationConfirmed = false;
-                                hasAnnouncedDeviation = false;
-                                NavRenderer.endDeviation(kmlSnapped, true);
+                            // 重置转向点提示状态
+                            lastTurningPointIndex = -1;
+                            nextTurningPointIndex = -1;
+                            hasPrompted1_4 = false;
+                            hasPromptedBefore = false;
 
-                                if (typeof NavTTS !== 'undefined' && NavTTS.resetSuppression) {
-                                    NavTTS.resetSuppression();
-                                }
-
-                                NavTTS.speak('已回到规划路线', { force: true });
-
-                                displayPosition = kmlSnapped;
-                                displayHeading = 0;
-                                updateNavigationGuidance(currentSnappedIndex, kmlSnapped);
-                                replanResult = true;
-                            } else if (replanResult === true) {
-                                console.log('[KML吸附] ✓ 重新规划成功');
-                                deviationConfirmCount = 0;
-                                isDeviationConfirmed = false;
-                                hasAnnouncedDeviation = false;
-                                NavRenderer.endDeviation(kmlSnapped, true);
-
-                                if (typeof NavTTS !== 'undefined' && NavTTS.resetSuppression) {
-                                    NavTTS.resetSuppression();
-                                }
-
-                                NavTTS.speak('已重新规划路线', { force: true });
-
-                                displayPosition = kmlSnapped;
-                                displayHeading = 0;
-                                updateNavigationGuidance(0, kmlSnapped);
-                            } else {
-                                console.log('[KML吸附] × 重新规划失败，继续偏离状态');
+                            // 重置TTS抑制状态
+                            if (typeof NavTTS !== 'undefined' && NavTTS.resetSuppression) {
+                                NavTTS.resetSuppression();
                             }
-                        } else {
-                            console.log('[KML吸附] 跳过重新规划（距上次<2秒，防抖中）');
+
+                            // 播报"已回到规划路线"
+                            NavTTS.speak('已回到规划路线', { force: true });
+
+                            // 更新显示位置
                             displayPosition = kmlSnapped;
                             displayHeading = 0;
+
+                            // 更新导航提示
+                            updateNavigationGuidance(currentSnappedIndex, kmlSnapped);
+
+                            replanResult = true;
+                        } else {
+                            // ========== 不在原始绿色点集上，需要重新规划 ==========
+                            console.log('[KML吸附] × 吸附点不在原始绿色点集上，需要重新规划');
+
+                            // 检查是否需要重新规划（带2秒防抖）
+                            if (now - lastReplanTime > 2000) {
+                                console.log('[KML吸附] 开始重新规划到当前段终点...');
+                                replanResult = replanRouteFromPosition(kmlSnapped);
+                                lastReplanTime = now;
+
+                                if (replanResult) {
+                                    console.log('[KML吸附] ✓ 重新规划成功');
+
+                                    // 重置所有偏离相关状态
+                                    deviationConfirmCount = 0;
+                                    isDeviationConfirmed = false;
+                                    hasAnnouncedDeviation = false;
+                                    savedOriginalGreenPointSet = null; // 清除原始点集，不需要回归
+                                    NavRenderer.endDeviation(kmlSnapped, true);
+
+                                    if (typeof NavTTS !== 'undefined' && NavTTS.resetSuppression) {
+                                        NavTTS.resetSuppression();
+                                    }
+
+                                    NavTTS.speak('已重新规划路线', { force: true });
+
+                                    displayPosition = kmlSnapped;
+                                    displayHeading = 0;
+                                    updateNavigationGuidance(0, kmlSnapped);
+                                } else {
+                                    console.log('[KML吸附] × 重新规划失败，继续偏离状态');
+                                }
+                            } else {
+                                console.log('[KML吸附] 跳过重新规划（距上次<2秒，防抖中）');
+                                displayPosition = kmlSnapped;
+                                displayHeading = 0;
+                            }
                         }
+                    } else {
+                        console.warn('[KML吸附] 没有保存的原始绿色点集，无法判断回归');
                     }
                 } else {
                     console.log('[KML吸附] 无法吸附到KML路网，继续显示偏离轨迹');
