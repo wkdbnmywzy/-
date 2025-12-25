@@ -14,7 +14,7 @@ function checkLoginStatus() {
     const isLoggedIn = sessionStorage.getItem('isLoggedIn');
     const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
     
-    if (!isLoggedIn || currentUser.role !== 'manager') {
+    if (!isLoggedIn || (currentUser.role !== 'manager' && !currentUser.isAdmin)) {
         // 未登录或不是管理员，跳转到登录页
         window.location.href = 'login.html';
         return;

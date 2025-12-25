@@ -213,7 +213,7 @@ function updateCountdownText() {
 }
 
 // 处理“其他手机号登录”提交
-function handleOtherPhoneSubmit(e) {
+async function handleOtherPhoneSubmit(e) {
     e.preventDefault();
 
     const phone = phoneInput?.value.trim() || '';
@@ -235,28 +235,142 @@ function handleOtherPhoneSubmit(e) {
         return;
     }
 
-    const result = validatePhoneLogin(phone, code);
-    if (!result.success) {
-        showError(errorMessage, result.message || '验证码错误');
-        return;
-    }
-
-    // 登录成功
+    // 显示加载
     showLoadingScreen();
-    setTimeout(() => {
-        handleLoginSuccess({ username: phone, role: 'driver', phone }, 'phone');
-    }, 400);
+
+    // 调用手机号登录API（暂时使用与账号密码相同的方式，后续替换为真实手机号登录接口）
+    try {
+        const result = await loginWithPhoneAPI(phone, code);
+        if (result.success) {
+            handleLoginSuccess(result.user, 'phone');
+        } else {
+            hideLoadingScreen();
+            showError(errorMessage, result.message || '验证码错误');
+        }
+    } catch (error) {
+        hideLoadingScreen();
+        console.error('手机号登录失败:', error);
+        showError(errorMessage, '登录失败，请稍后重试');
+    }
 }
 
-// 处理手机号登录
-function handlePhoneLogin(e) {
+// 处理手机号登录（一键登录）
+async function handlePhoneLogin(e) {
     e.preventDefault();
-    // 现在界面不要求输入手机号/验证码，直接按一键登录处理
+    
+    // 显示加载
     showLoadingScreen();
-    setTimeout(() => {
-        const mockPhone = '13800138000';
-        handleLoginSuccess({ username: mockPhone, role: 'driver', phone: mockPhone }, 'phone');
-    }, 400);
+    
+    try {
+        // 1. 获取当前GPS位置
+        console.log('[一键登录] 获取GPS位置...');
+        const position = await getCurrentPosition();
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        console.log('[一键登录] GPS位置:', { latitude, longitude });
+        
+        // 2. 根据GPS获取附近项目
+        console.log('[一键登录] 搜索附近项目...');
+        const nearbyProjects = await searchNearbyProjects(latitude, longitude);
+        console.log('[一键登录] 附近项目:', nearbyProjects);
+        
+        // 3. 构建用户信息（手机号登录不需要真正的认证，直接进入项目选择）
+        const phoneUser = {
+            username: '手机用户',
+            phone: '',  // 一键登录暂时没有手机号
+            role: 'driver',
+            isDriver: true,
+            isAdmin: false,
+            projects: nearbyProjects,  // 使用GPS获取的附近项目
+            licensePlate: '',  // 需要手动输入
+            gpsLocation: { latitude, longitude }
+        };
+        
+        // 4. 保存用户信息并进入项目选择
+        handleLoginSuccess(phoneUser, 'phone');
+        
+    } catch (error) {
+        hideLoadingScreen();
+        console.error('[一键登录] 失败:', error);
+        
+        // 根据错误类型显示不同提示
+        if (error.code === 1) {
+            showError(errorMessage, '请允许获取位置权限');
+        } else if (error.code === 2) {
+            showError(errorMessage, '无法获取位置信息，请检查GPS');
+        } else if (error.code === 3) {
+            showError(errorMessage, '获取位置超时，请重试');
+        } else {
+            showError(errorMessage, error.message || '登录失败，请稍后重试');
+        }
+    }
+}
+
+/**
+ * 获取当前GPS位置
+ * @returns {Promise<GeolocationPosition>}
+ */
+function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('浏览器不支持定位功能'));
+            return;
+        }
+        
+        navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    });
+}
+
+/**
+ * 根据GPS位置搜索附近5KM内的项目
+ * @param {number} latitude - 纬度
+ * @param {number} longitude - 经度
+ * @returns {Promise<Array>} 项目列表
+ */
+async function searchNearbyProjects(latitude, longitude) {
+    try {
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/project/projects/search/nearby', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                latitude: latitude,
+                longitude: longitude
+            })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.code === 200) {
+            const projects = data.data || [];
+            
+            // 转换为统一格式
+            return projects.map(project => ({
+                id: project.id,
+                projectCode: project.project_code || project.projectCode,
+                province: project.province || project.city || project.address || '附近项目',
+                projectName: project.name || project.project_name || project.projectName || '',
+                longitude: project.longitude || project.lng,
+                latitude: project.latitude || project.lat,
+                distance: project.distance  // 距离（米）
+            }));
+        } else {
+            console.warn('[附近项目] 搜索失败:', data.message);
+            return [];
+        }
+    } catch (error) {
+        console.error('[附近项目] API调用失败:', error);
+        return [];
+    }
 }
 
 // 处理账号密码登录
@@ -345,8 +459,9 @@ async function loginWithAPI(username, password) {
             const token = data.data?.access_token || data.data?.token || data.data;
             const userInfo = data.data?.user || {};
             
-            // 获取用户ID（优先使用id，其次user_id）
-            const userId = userInfo.id || userInfo.user_id;
+            // 获取用户ID（数字ID用于项目查询，字符串user_id用于司机查询）
+            const userId = userInfo.id;  // 数字ID，如 66
+            const userIdStr = userInfo.user_id;  // 字符串ID，如 'xya'
             
             if (token) {
                 sessionStorage.setItem('authToken', token);
@@ -358,11 +473,32 @@ async function loginWithAPI(username, password) {
                 console.warn('[登录] 未找到用户ID，将无法获取用户项目列表');
             }
 
+            // 获取用户详细信息（包括角色、是否司机等）
+            const userDetail = await fetchUserDetail(token, userId);
+            
+            // 判断用户类型
+            const isDriver = userDetail?.isDriver || false;
+            const isAdmin = userDetail?.isAdmin || false;
+            const roleNames = userDetail?.roleNames || [];
+            const driverId = userDetail?.driver_id;
+            
+            // 确定用户角色（用于后续跳转判断）
+            let userRole = 'user';
+            if (isAdmin) {
+                userRole = 'manager';
+            } else if (isDriver) {
+                userRole = 'driver';
+            }
+            
             // 获取用户参与的项目列表（需要用户ID）
             const userProjects = userId ? await fetchUserProjects(token, userId) : [];
             
-            // 获取用户的车牌号（暂时不可用，后续可扩展）
-            const userVehicle = { licensePlate: '' };
+            // 获取用户关联的车辆信息（仅司机需要）
+            // 用user_id字符串去运输服务查询司机信息
+            let userVehicle = { licensePlate: '' };
+            if (isDriver && userIdStr) {
+                userVehicle = await fetchUserVehicle(token, userIdStr);
+            }
 
             // 返回用户信息
             return {
@@ -370,10 +506,15 @@ async function loginWithAPI(username, password) {
                 user: {
                     username: username,
                     userId: userId,
-                    role: userInfo.role || userInfo.roles?.[0]?.name || 'user',
+                    userIdStr: userIdStr,  // 字符串ID，用于司机查询
+                    role: userRole,
+                    isDriver: isDriver,
+                    isAdmin: isAdmin,
+                    roleNames: roleNames,
                     projects: userProjects,
                     licensePlate: userVehicle.licensePlate,
-                    ...userInfo
+                    ...userInfo,
+                    ...userDetail
                 }
             };
         } else {
@@ -385,6 +526,107 @@ async function loginWithAPI(username, password) {
         }
     } catch (error) {
         console.error('[登录] API调用失败:', error);
+        return {
+            success: false,
+            message: '网络错误，请检查连接后重试'
+        };
+    }
+}
+
+/**
+ * 手机号登录API（暂时使用与账号密码相同的方式，后续替换为真实接口）
+ * @param {string} phone - 手机号
+ * @param {string} code - 验证码
+ * @returns {Promise<{success: boolean, user?: object, message?: string}>}
+ */
+async function loginWithPhoneAPI(phone, code) {
+    try {
+        // TODO: 后续替换为真实的手机号登录接口
+        // 目前暂时使用与账号密码相同的加密登录方式
+        // 真实接口可能是: POST /api/user/auth/phone-login { phone, code }
+        
+        // 1. 获取RSA公钥
+        const publicKey = await fetchPublicKey();
+        
+        if (!publicKey) {
+            return {
+                success: false,
+                message: '获取加密公钥失败，请稍后重试'
+            };
+        }
+        
+        // 2. 使用公钥加密登录信息（暂时用手机号作为用户名，验证码作为密码）
+        const encryptedData = encryptLoginData(publicKey, phone, code);
+        
+        if (!encryptedData) {
+            return {
+                success: false,
+                message: '加密失败，请稍后重试'
+            };
+        }
+        
+        // 3. 发送加密后的登录请求
+        // TODO: 后续替换为真实的手机号登录接口
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/user/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                encrypted_data: encryptedData
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.code === 200) {
+            // 登录成功，保存token
+            const token = data.data?.access_token || data.data?.token || data.data;
+            const userInfo = data.data?.user || {};
+            
+            // 获取用户ID
+            const userId = userInfo.id || userInfo.user_id;
+            
+            if (token) {
+                sessionStorage.setItem('authToken', token);
+            }
+
+            // 获取用户详细信息
+            const userDetail = await fetchUserDetail(token, userId);
+            
+            // 手机号登录默认为司机角色
+            const isDriver = true;
+            const isAdmin = false;
+            const roleNames = userDetail?.roleNames || ['司机'];
+            
+            // 获取用户参与的项目列表
+            const userProjects = userId ? await fetchUserProjects(token, userId) : [];
+
+            // 返回用户信息（手机号登录不获取车辆信息，需要手动输入）
+            return {
+                success: true,
+                user: {
+                    username: phone,
+                    phone: phone,
+                    userId: userId,
+                    role: 'driver',
+                    isDriver: isDriver,
+                    isAdmin: isAdmin,
+                    roleNames: roleNames,
+                    projects: userProjects,
+                    licensePlate: '', // 手机号登录需要手动输入车牌号
+                    ...userInfo,
+                    ...userDetail
+                }
+            };
+        } else {
+            return {
+                success: false,
+                message: data.message || '手机号或验证码错误'
+            };
+        }
+    } catch (error) {
+        console.error('[手机号登录] API调用失败:', error);
         return {
             success: false,
             message: '网络错误，请检查连接后重试'
@@ -460,6 +702,64 @@ function encryptLoginData(publicKey, username, password) {
 }
 
 /**
+ * 获取用户详细信息（包括用户类型、关联的司机ID等）
+ * 使用 /auth/me 接口获取当前登录用户的完整信息
+ * @param {string} token - 认证token
+ * @param {number} userId - 用户ID（备用）
+ * @returns {Promise<Object|null>} 用户详细信息
+ */
+async function fetchUserDetail(token, userId) {
+    if (!token) return null;
+    
+    try {
+        // 使用 /auth/me 接口获取当前登录用户信息
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/user/auth/me', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.code === 200 && data.data) {
+                const user = data.data;
+                console.log('[用户详情] 获取成功:', user);
+                
+                // 解析角色信息，判断用户类型
+                const roles = user.roles || [];
+                const roleNames = roles.map(r => r.role_name || r.name || r);
+                
+                // 判断是否是司机（角色名包含"司机"）
+                const isDriver = roleNames.some(name => 
+                    name.includes('司机') || name.includes('driver')
+                );
+                
+                // 判断是否是管理员（角色名包含"管理员"或"admin"）
+                const isAdmin = roleNames.some(name => 
+                    name.includes('管理员') || name.includes('admin') || name.includes('Admin')
+                );
+                
+                return {
+                    ...user,
+                    roleNames: roleNames,
+                    isDriver: isDriver,
+                    isAdmin: isAdmin
+                    // 注意：不在这里设置driver_id，因为用户ID不等于司机ID
+                };
+            }
+        }
+        
+        console.warn('[用户详情] 获取失败，状态码:', response.status);
+        return null;
+    } catch (error) {
+        console.error('[用户详情] API调用失败:', error);
+        return null;
+    }
+}
+
+/**
  * 获取用户参与的项目列表
  * @param {string} token - 认证token
  * @param {number} userId - 用户ID
@@ -506,10 +806,11 @@ async function fetchUserProjects(token, userId) {
             return [];
         }
 
-        // 第二步：根据每个项目ID获取项目详情
+        // 第二步：根据每个项目编号获取项目详情
+        // API: /projects/code/{project_id} - 根据项目编号(如PJ_001)获取项目信息
         const projectDetailsPromises = projectIdsArray.map(async (projectId) => {
             try {
-                const detailResponse = await fetch(`https://dmap.cscec3bxjy.cn/api/project/projects/${projectId}`, {
+                const detailResponse = await fetch(`https://dmap.cscec3bxjy.cn/api/project/projects/code/${projectId}`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -528,8 +829,12 @@ async function fetchUserProjects(token, userId) {
                     const project = detailData.data;
                     return {
                         id: project.id,
-                        province: project.province || project.location || '',
-                        projectName: project.name || project.project_name || project.projectName || ''
+                        projectCode: projectId,
+                        province: project.province || project.city || project.address || '',
+                        projectName: project.name || project.project_name || project.projectName || project.description || '',
+                        // 项目经纬度（用于地图中心定位）
+                        longitude: project.longitude || project.lng || null,
+                        latitude: project.latitude || project.lat || null
                     };
                 }
                 
@@ -552,6 +857,87 @@ async function fetchUserProjects(token, userId) {
         console.error('[项目列表] API调用失败:', error);
         console.warn('[项目列表] 将使用默认项目列表');
         return [];
+    }
+}
+
+/**
+ * 获取用户关联的车辆信息
+ * 流程：用户user_id → 查询司机详情 → 获取vehicle_id → 查询车辆详情 → 获取车牌号
+ * @param {string} token - 认证token
+ * @param {string} userIdStr - 用户的user_id字符串（如 'xya'）
+ * @returns {Promise<Object>} 车辆信息 { licensePlate: string }
+ */
+async function fetchUserVehicle(token, userIdStr) {
+    const transportBaseURL = 'https://dmap.cscec3bxjy.cn/api/transport';
+    
+    if (!userIdStr) {
+        console.log('[车辆信息] 缺少user_id');
+        return { licensePlate: '' };
+    }
+    
+    try {
+        // 第一步：用user_id字符串查询司机详情
+        console.log('[车辆信息] 查询司机，user_id:', userIdStr);
+        const driverResponse = await fetch(`${transportBaseURL}/drivers/${userIdStr}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!driverResponse.ok) {
+            console.log('[车辆信息] 未找到司机信息，user_id:', userIdStr);
+            return { licensePlate: '' };
+        }
+
+        const driverData = await driverResponse.json();
+        if (driverData.code !== 200 || !driverData.data) {
+            return { licensePlate: '' };
+        }
+
+        const driver = driverData.data;
+        console.log('[车辆信息] 司机详情:', driver);
+
+        // 如果司机信息中直接有车牌号，直接返回
+        if (driver.license_plate || driver.licensePlate) {
+            return { licensePlate: driver.license_plate || driver.licensePlate };
+        }
+
+        // 第二步：获取vehicle_id，查询车辆详情
+        const vehicleId = driver.vehicle_id || driver.vehicleId;
+        if (!vehicleId) {
+            console.log('[车辆信息] 司机没有关联车辆');
+            return { licensePlate: '' };
+        }
+
+        const vehicleResponse = await fetch(`${transportBaseURL}/vehicles/${vehicleId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!vehicleResponse.ok) {
+            console.log('[车辆信息] 未找到车辆信息，vehicleId:', vehicleId);
+            return { licensePlate: '' };
+        }
+
+        const vehicleData = await vehicleResponse.json();
+        if (vehicleData.code === 200 && vehicleData.data) {
+            const vehicle = vehicleData.data;
+            console.log('[车辆信息] 车辆详情:', vehicle);
+            return { 
+                licensePlate: vehicle.license_plate || vehicle.licensePlate || vehicle.plate_number || ''
+            };
+        }
+
+        return { licensePlate: '' };
+
+    } catch (error) {
+        console.error('[车辆信息] 获取失败:', error);
+        return { licensePlate: '' };
     }
 }
 
@@ -709,14 +1095,14 @@ function initProjectSelection() {
 
                 // 检查是否是管理员
                 const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-                if (currentUser.role === 'manager') {
+                if (currentUser.role === 'manager' || currentUser.isAdmin) {
                     // 管理员直接跳转到管理员界面
                     showLoadingScreen();
                     setTimeout(() => {
                         window.location.href = 'admin_index.html';
                     }, 300);
                 } else {
-                    // 普通用户显示车辆信息登记界面
+                    // 普通用户/司机显示车辆信息登记界面
                     showVehicleCard();
                 }
             } else {

@@ -178,6 +178,7 @@ function navigateToPage(page) {
 
 /**
  * 从API加载地图数据（点、线、面）
+ * 根据选择的项目ID请求对应的点线面数据，并以项目经纬度为地图中心
  */
 async function loadMapDataFromAPI() {
     try {
@@ -189,13 +190,34 @@ async function loadMapDataFromAPI() {
             console.log('[API加载] 已禁用自动聚焦');
         }
 
-        // 1. 获取项目选择信息（仅用于日志）
+        // 1. 获取项目选择信息
         const projectSelection = sessionStorage.getItem('projectSelection');
+        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+        
+        let projectId = null;
         let projectName = '所有项目';
+        let projectCenter = null; // 项目中心经纬度
+        
         if (projectSelection) {
-            const { project } = JSON.parse(projectSelection);
-            projectName = project;
-            console.log('[API加载] 当前项目:', projectName);
+            const selection = JSON.parse(projectSelection);
+            projectName = selection.project;
+            
+            // 从用户的项目列表中找到选择的项目，获取项目ID和经纬度
+            const userProjects = currentUser.projects || [];
+            const selectedProject = userProjects.find(p => p.projectName === projectName);
+            
+            if (selectedProject) {
+                projectId = selectedProject.projectCode || selectedProject.id;
+                // 项目经纬度（如果有的话）
+                if (selectedProject.longitude && selectedProject.latitude) {
+                    projectCenter = [selectedProject.longitude, selectedProject.latitude];
+                }
+                console.log('[API加载] 选择的项目:', {
+                    name: projectName,
+                    id: projectId,
+                    center: projectCenter
+                });
+            }
         }
 
         // 2. 准备请求headers
@@ -213,12 +235,24 @@ async function loadMapDataFromAPI() {
             console.warn('[API加载] 未找到Token，尝试无认证请求');
         }
 
-        // 3. 并行请求点、线、面数据（不传projectId，获取所有数据）
-        console.log('[API加载] 请求所有点线面数据...');
+        // 3. 构建请求URL（如果有项目ID则按项目筛选）
+        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000`;
+        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000`;
+        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000`;
+        
+        if (projectId) {
+            pointsUrl += `&project_id=${projectId}`;
+            polylinesUrl += `&project_id=${projectId}`;
+            polygonsUrl += `&project_id=${projectId}`;
+            console.log('[API加载] 按项目ID筛选:', projectId);
+        }
+
+        // 4. 并行请求点、线、面数据
+        console.log('[API加载] 请求点线面数据...');
         const [pointsRes, polylinesRes, polygonsRes] = await Promise.all([
-            fetch(`${baseURL}/points-with-icons?page=1&page_size=1000`, { headers }),
-            fetch(`${baseURL}/polylines?page=1&page_size=1000`, { headers }),
-            fetch(`${baseURL}/polygons?page=1&page_size=1000`, { headers })
+            fetch(pointsUrl, { headers }),
+            fetch(polylinesUrl, { headers }),
+            fetch(polygonsUrl, { headers })
         ]);
 
         // 5. 检查响应
@@ -306,11 +340,25 @@ async function loadMapDataFromAPI() {
             displayKMLFeatures(processedFeatures, kmlData.fileName);
 
             console.log('[API加载] 地图数据已显示');
+            
+            // 如果有项目中心经纬度，设置地图中心
+            if (projectCenter && map) {
+                console.log('[API加载] 设置地图中心为项目位置:', projectCenter);
+                map.setCenter(projectCenter);
+                map.setZoom(15); // 设置合适的缩放级别
+            }
         } else {
             console.warn('[API加载] 无地图数据，跳过显示');
+            
+            // 即使没有数据，如果有项目中心也设置地图中心
+            if (projectCenter && map) {
+                console.log('[API加载] 设置地图中心为项目位置:', projectCenter);
+                map.setCenter(projectCenter);
+                map.setZoom(15);
+            }
         }
 
-        // 10. 启动定位（无论是否有地图数据都要定位）
+        // 12. 启动定位（无论是否有地图数据都要定位）
         setTimeout(() => {
             if (typeof startRealtimeLocationTracking === 'function') {
                 try {
