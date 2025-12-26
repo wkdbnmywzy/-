@@ -895,14 +895,24 @@ const NavCore = (function() {
             }
 
             // 添加原始路径点（除了最后一个点，后面单独加）
+            // 【修复】如果与前一个点距离小于1米，跳过以避免微小折点导致的假转向
             if (i < originalPath.length - 2) {
-                pointSet.push({
-                    position: [lng2, lat2],
-                    index: pointSet.length,
-                    distance: totalDistance,
-                    isOriginal: true,
-                    originalIndex: i + 1
-                });
+                const lastPoint = pointSet[pointSet.length - 1];
+                const lastPos = lastPoint.position;
+                const distToLast = haversineDistance(
+                    lastPos[1], lastPos[0],
+                    lat2, lng2
+                );
+
+                if (distToLast >= 1) {  // 距离 >= 1米才添加
+                    pointSet.push({
+                        position: [lng2, lat2],
+                        index: pointSet.length,
+                        distance: totalDistance,
+                        isOriginal: true,
+                        originalIndex: i + 1
+                    });
+                }
             }
         }
 
@@ -995,11 +1005,13 @@ const NavCore = (function() {
                 if (turnAngle < -180) turnAngle += 360;
 
                 if (Math.abs(turnAngle) >= angleThreshold) {
+                    const detectedTurnType = getTurnType(turnAngle);
+
                     turningPoints.push({
                         pointIndex: i,
                         position: curr,
                         turnAngle: turnAngle,
-                        turnType: getTurnType(turnAngle),
+                        turnType: detectedTurnType,
                         isOriginalPoint: pointSet[i].isOriginal,
                         bearingAfterTurn: bearingOut
                     });
@@ -1116,16 +1128,19 @@ const NavCore = (function() {
      */
     function getTurnType(angle) {
         const absAngle = Math.abs(angle);
+        let result;
 
         if (absAngle >= 150) {
-            return 'uturn';
+            result = 'uturn';
         } else if (angle < -30) {
-            return 'left';
+            result = 'left';
         } else if (angle > 30) {
-            return 'right';
+            result = 'right';
         } else {
-            return 'straight';
+            result = 'straight';
         }
+
+        return result;
     }
 
     /**
@@ -1198,12 +1213,7 @@ const NavCore = (function() {
             const segmentTurningPoints = detectTurningPoints(segmentPointSet, 30);
             window.currentSegmentTurningPoints = segmentTurningPoints;
 
-            console.log(`[分段点集] 当前段点集: ${segmentPointSet.length}个点, 转向点: ${segmentTurningPoints.length}个（重新计算）`);
-
-            // 【调试】转向点标签已禁用
-            // if (NavRenderer && NavRenderer.showTurningPointLabels) {
-            //     NavRenderer.showTurningPointLabels(segmentTurningPoints, segmentPointSet);
-            // }
+            console.log(`[分段点集] 当前段点集: ${segmentPointSet.length}个点, 转向点: ${segmentTurningPoints.length}个`);
         } catch (e) {
             console.error('[分段点集] 生成失败:', e);
         }
@@ -1903,9 +1913,8 @@ const NavCore = (function() {
                 hasPrompted1_4 = false;
                 hasPromptedBefore = false;
 
-                // 【转弯校验】新转向点，重置转弯阶段（可能上一个转弯未完成）
+                // 转弯阶段重置
                 if (isTurningPhase) {
-                    console.log('[转弯校验] 检测到新转向点，重置转弯阶段状态');
                     isTurningPhase = false;
                     turningPhaseEndTime = 0;
                 }
@@ -2254,6 +2263,14 @@ const NavCore = (function() {
     function updateGuidanceUI(guidance, speak = true) {
         try {
             currentGuidance = guidance;
+
+            // 【调试】输出发送到UI的数据
+            console.log(`[updateGuidanceUI] ===== 发送到UI的数据 =====`);
+            console.log(`  type: ${guidance.type}`);
+            console.log(`  action: ${guidance.action}`);
+            console.log(`  distance: ${guidance.distance}`);
+            console.log(`  message: ${guidance.message}`);
+            console.log(`[updateGuidanceUI] =============================`);
 
             // 更新上方提示栏
             if (typeof NavUI !== 'undefined' && NavUI.updateNavigationTip) {
