@@ -828,7 +828,7 @@ function displayKMLFeatures(features, fileName) {
         const marker = new AMap.Polyline({
             path: validCoords,
             strokeColor: '#9AE59D',  // 浅绿色，与导航界面一致
-            strokeWeight: 1,          // 1px细线
+            strokeWeight: 3,          // 3px线宽
             strokeOpacity: 1,
             zIndex: lineZIndex,
             map: map  // 添加到地图上显示

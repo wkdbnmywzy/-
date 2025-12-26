@@ -918,7 +918,7 @@ const NavRenderer = (function() {
                 const polyline = new AMap.Polyline({
                     path: feature.geometry.coordinates,
                     strokeColor: '#9AE59D',
-                    strokeWeight: 1,
+                    strokeWeight: 3,
                     strokeOpacity: 1,
                     zIndex: 20,
                     map: map

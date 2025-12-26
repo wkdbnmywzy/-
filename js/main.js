@@ -464,7 +464,7 @@ function convertAPIDataToFeatures(points, polylines, polygons) {
                 coordinates: coords,
                 style: {
                     strokeColor: line.line_color || '#9AE59D',
-                    strokeWeight: line.line_width || 1,
+                    strokeWeight: line.line_width || 3,
                     strokeOpacity: 1
                 }
             }

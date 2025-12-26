@@ -174,7 +174,7 @@ const APIDataConverter = {
 
         // 解析样式
         const strokeColor = this.parseColor(line.line_color, '#9AE59D');
-        const strokeWeight = parseInt(line.line_width) || 2;
+        const strokeWeight = parseInt(line.line_width) || 3;
         const strokeOpacity = parseFloat(line.line_opacity) || 1;
 
         const feature = {
