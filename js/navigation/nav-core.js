@@ -62,11 +62,12 @@ const NavCore = (function() {
     let totalTravelDistance = 0;     // 总行程距离（米）
 
     // 偏离检测（次数确认机制）
-    let deviationConfirmCount = 0;   // 连续偏离确认计数（8-12米范围内）
+    let deviationConfirmCount = 0;   // 连续偏离确认计数（9-12米范围内）
     let hasAnnouncedDeviation = false; // 是否已播报偏离
     let lastReplanTime = 0;          // 上次重新规划的时间戳（用于防抖）
     let isDeviationConfirmed = false; // 是否已确认偏离
     let savedOriginalGreenPointSet = null; // 【新增】偏离时保存的原始绿色点集（用于判断回归）
+    let replanedSegmentEndPoints = null;   // 【新增】重规划后当前段的最后两个点（用于段间转向检测）
 
     // GPS处理节流与心跳检测
     let lastGPSProcessTime = 0;      // 上次GPS处理完成时间
@@ -626,6 +627,7 @@ const NavCore = (function() {
     /**
      * 检查段间转向（从上一段末到当前段首）
      * 只在首次吸附到段首附近（前5个点）时播报
+     * 【改进】优先使用重规划后保存的段末点
      */
     function checkSegmentTransition() {
         try {
@@ -643,12 +645,21 @@ const NavCore = (function() {
                 return;
             }
 
-            // 获取上一段的最后两个点
-            const prevSegment = segmentRanges[currentSegmentIndex - 1];
-            if (prevSegment.end < 2) return; // 上一段点不够
+            let prevPrevPoint, prevEndPoint;
 
-            const prevPrevPoint = fullPointSet[prevSegment.end - 1].position;
-            const prevEndPoint = fullPointSet[prevSegment.end].position; // 途经点（既是上段终点，也是本段起点）
+            // 【关键】检查上一段是否有重规划后的数据
+            // 如果上一段（currentSegmentIndex - 1）进行过重规划，使用保存的点
+            if (replanedSegmentEndPoints && replanedSegmentEndPoints.segmentIndex === currentSegmentIndex - 1) {
+                prevPrevPoint = replanedSegmentEndPoints.prevPoint;
+                prevEndPoint = replanedSegmentEndPoints.endPoint;
+                console.log('[段间转向] 使用重规划后保存的段末点');
+            } else {
+                // 使用原始点集中的点
+                const prevSegment = segmentRanges[currentSegmentIndex - 1];
+                if (prevSegment.end < 2) return; // 上一段点不够
+                prevPrevPoint = fullPointSet[prevSegment.end - 1].position;
+                prevEndPoint = fullPointSet[prevSegment.end].position;
+            }
 
             // 获取当前段的前两个点
             if (currentSegmentPointSet.length < 2) return;
@@ -675,6 +686,11 @@ const NavCore = (function() {
                 NavTTS.speak(`请${action}`, { force: true });
             } else {
                 console.log(`[段间转向] 角度较小，继续直行`);
+            }
+
+            // 【清理】段间转向检测完成后清除保存的重规划点（已使用）
+            if (replanedSegmentEndPoints && replanedSegmentEndPoints.segmentIndex === currentSegmentIndex - 1) {
+                replanedSegmentEndPoints = null;
             }
         } catch (e) {
             console.error('[段间转向] 检测失败:', e);
@@ -1483,6 +1499,7 @@ const NavCore = (function() {
             isDeviationConfirmed = false;
             hasAnnouncedDeviation = false;
             savedOriginalGreenPointSet = null; // 清除保存的原始绿色点集
+            replanedSegmentEndPoints = null;   // 清除重规划段末点
 
             // 重置GPS处理状态
             isProcessingGPS = false;
@@ -2774,6 +2791,21 @@ const NavCore = (function() {
                 NavRenderer.setHeadingUpMode(position, bearing, true);
             }
 
+            // 【关键】保存重规划后当前段的最后两个点，用于段间转向检测
+            // 当切换到下一段时，需要用这些点来计算正确的转向角度
+            if (newPointSet.length >= 2) {
+                replanedSegmentEndPoints = {
+                    segmentIndex: currentSegmentIndex,
+                    prevPoint: newPointSet[newPointSet.length - 2].position,
+                    endPoint: newPointSet[newPointSet.length - 1].position
+                };
+                console.log('[重新规划] 已保存段末两点用于段间转向检测:', {
+                    段索引: currentSegmentIndex,
+                    倒数第二点: replanedSegmentEndPoints.prevPoint,
+                    末点: replanedSegmentEndPoints.endPoint
+                });
+            }
+
             return true;
         } catch (e) {
             console.error('[重新规划] 执行失败:', e);
@@ -3079,22 +3111,24 @@ const NavCore = (function() {
                 
                 // 【次数确认机制】检查是否在12米缓冲区内
                 const nearestDistance = findNearestDistanceInSet(position);
-                
+
                 if (nearestDistance <= SNAP_THRESHOLD_BUFFER && !isDeviationConfirmed) {
-                    // 在8-12米缓冲区内，需要连续确认
+                    // 在9-12米缓冲区内，需要连续确认
                     deviationConfirmCount++;
-                    console.log(`[偏离确认] 距离${nearestDistance.toFixed(1)}米（8-12米缓冲区），计数 ${deviationConfirmCount}/${DEVIATION_CONFIRM_COUNT}`);
-                    
+                    console.log(`[偏离确认] 距离${nearestDistance.toFixed(1)}米（9-12米缓冲区），计数 ${deviationConfirmCount}/${DEVIATION_CONFIRM_COUNT}`);
+
                     if (deviationConfirmCount < DEVIATION_CONFIRM_COUNT) {
                         // 还未达到确认次数，继续显示上次吸附位置
                         displayPosition = NavRenderer.getLastSnappedPosition() || position;
-                        displayHeading = calculateCurrentBearing(currentSnappedIndex);
-                        NavRenderer.setCenterOnly(displayPosition, true);
-                        
+                        displayHeading = 0;
+
                         // 更新用户标记和精度圈
                         NavRenderer.updateUserMarker(displayPosition, displayHeading, true, true);
                         NavRenderer.updateAccuracyCircle(position, accuracy);
-                        
+
+                        // 【修复】缓冲区确认期间也需要旋转地图对齐道路
+                        secondaryVerticalCheck(displayPosition, currentSnappedIndex);
+
                         // 【关键】提前return前必须重置处理标志
                         isProcessingGPS = false;
                         lastGPSProcessTime = Date.now();
