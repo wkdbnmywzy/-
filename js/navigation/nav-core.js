@@ -8,10 +8,12 @@ const NavCore = (function() {
     'use strict';
 
     // ==================== 吸附阈值配置（全局变量，便于调整）====================
-    const SNAP_THRESHOLD_NORMAL = 9;      // 常规吸附阈值（直线路段、偏离轨迹吸附KML）
+    const SNAP_THRESHOLD_NORMAL = 10;     // 常规吸附阈值（直线路段、偏离后KML吸附、回归原路线）
     const SNAP_THRESHOLD_TURNING = 11;    // 转弯处吸附阈值（转弯时GPS误差大，放宽阈值）
-    const SNAP_THRESHOLD_BUFFER = 12;     // 偏离缓冲阈值（9-12米需要连续确认）
-    const DEVIATION_CONFIRM_COUNT = 5;    // 偏离确认次数（连续5次9-12米才确认偏离）
+    const SNAP_THRESHOLD_BUFFER = 12;     // 偏离缓冲阈值（10-12米需要连续确认）
+    const DEVIATION_CONFIRM_COUNT = 5;    // 偏离确认次数（连续5次10-12米才确认偏离）
+    const WAYPOINT_ARRIVAL_DISTANCE = 6;  // 途径点到达判断距离（GPS距离途径点≤6米）
+    const WAYPOINT_CHECK_DISTANCE = 12;   // 途径点优先检查距离（偏离确认后优先检查是否到达）
     // ========================================================================
 
     // 导航状态
@@ -717,7 +719,7 @@ const NavCore = (function() {
 
         // 判断到达条件：
         // 1. 点集索引到达最后1-2个点
-        // 2. 或GPS实际位置距离途径点/终点 ≤ 3米
+        // 2. 或GPS实际位置距离途径点/终点 ≤ WAYPOINT_ARRIVAL_DISTANCE米
         const isNearEnd = currentIndex >= pointSet.length - 3; // 最后2个点范围
 
         let actualDistance = Infinity;
@@ -728,11 +730,11 @@ const NavCore = (function() {
             );
         }
 
-        const isWithin3Meters = actualDistance <= 3;
+        const isWithinArrivalDistance = actualDistance <= WAYPOINT_ARRIVAL_DISTANCE;
 
         // 任一条件满足即判定到达
-        if (isNearEnd || isWithin3Meters) {
-            console.log(`[分段] 完成路段${currentSegmentIndex}: ${segmentRanges[currentSegmentIndex].name} (点集索引:${currentIndex}/${pointSet.length-1}, 实际距离:${actualDistance.toFixed(2)}米)`);
+        if (isNearEnd || isWithinArrivalDistance) {
+            console.log(`[分段] 完成路段${currentSegmentIndex}: ${segmentRanges[currentSegmentIndex].name} (点集索引:${currentIndex}/${pointSet.length-1}, 实际距离:${actualDistance.toFixed(2)}米, 到达阈值:${WAYPOINT_ARRIVAL_DISTANCE}米)`);
 
             // 【修复】到达途径点时，补全灰色路线到整段末尾
             // 防止因吸附跳跃导致中间路线没有变灰
@@ -3150,6 +3152,45 @@ const NavCore = (function() {
                     if (currentPointSet && currentPointSet.length > 0) {
                         savedOriginalGreenPointSet = [...currentPointSet];
                         console.log('[偏离确认] 已保存原始绿色点集，点数:', savedOriginalGreenPointSet.length);
+                    }
+                }
+
+                // 【新增】偏离确认后优先检查是否到达途径点（≤12米范围内）
+                // 避免在途径点附近因GPS漂移误判为偏离
+                if (isDeviationConfirmed) {
+                    const currentPointSet = window.currentSegmentPointSet;
+                    if (currentPointSet && currentPointSet.length > 0) {
+                        const endPoint = currentPointSet[currentPointSet.length - 1].position;
+                        const endLng = Array.isArray(endPoint) ? endPoint[0] : endPoint.lng;
+                        const endLat = Array.isArray(endPoint) ? endPoint[1] : endPoint.lat;
+                        const distanceToWaypoint = haversineDistance(
+                            position[1], position[0],
+                            endLat, endLng
+                        );
+                        
+                        if (distanceToWaypoint <= WAYPOINT_CHECK_DISTANCE) {
+                            console.log(`[途径点检查] 距离途径点${distanceToWaypoint.toFixed(1)}米，优先检查是否到达`);
+                            
+                            // 检查是否满足到达条件
+                            if (distanceToWaypoint <= WAYPOINT_ARRIVAL_DISTANCE) {
+                                console.log(`[途径点检查] ✓ 距离≤${WAYPOINT_ARRIVAL_DISTANCE}米，判定为到达途径点`);
+                                
+                                // 直接触发段完成检查
+                                const segmentCompleted = checkSegmentCompletion(currentPointSet.length - 1, position);
+                                if (segmentCompleted) {
+                                    // 重置偏离状态
+                                    deviationConfirmCount = 0;
+                                    isDeviationConfirmed = false;
+                                    hasAnnouncedDeviation = false;
+                                    savedOriginalGreenPointSet = null;
+                                    NavRenderer.endDeviation(position, true);
+                                    
+                                    isProcessingGPS = false;
+                                    lastGPSProcessTime = Date.now();
+                                    return;
+                                }
+                            }
+                        }
                     }
                 }
 
