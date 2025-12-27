@@ -383,7 +383,7 @@ const NavCore = (function() {
      * 规划路线（支持途径点的多段路线规划）
      * 【问题7优化】当起点是"我的位置"且不在道路上时，自动找到最近的道路点作为实际起点
      */
-    function planRoute() {
+    async function planRoute() {
         try {
             if (!routeData || !routeData.start || !routeData.end) {
                 console.error('[NavCore] 路线数据不完整');
@@ -394,15 +394,37 @@ const NavCore = (function() {
             const endPos = routeData.end.position;
             const waypoints = routeData.waypoints || [];
 
+            // 【新增】如果起点是"我的位置"，先获取最新的GPS位置
+            const isMyLocationStart = routeData.start.name === '我的位置' || 
+                                      routeData.start.isMyLocation === true;
+            
+            if (isMyLocationStart) {
+                console.log('[NavCore] 起点是"我的位置"，获取最新GPS位置...');
+                try {
+                    const currentGPS = await getCurrentGPSPosition();
+                    if (currentGPS) {
+                        startPos = currentGPS;
+                        routeData.start.position = currentGPS;
+                        console.log('[NavCore] 已更新起点为最新GPS位置:', currentGPS);
+                        
+                        // 移动地图视野到当前位置
+                        const mapInstance = NavRenderer.getMap();
+                        if (mapInstance) {
+                            mapInstance.setCenter(currentGPS);
+                            console.log('[NavCore] 地图已移动到当前位置');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[NavCore] 获取GPS位置失败，使用原有位置:', e);
+                }
+            }
+
             const syncSuccess = syncKMLLayersToGlobal();
             if (!syncSuccess) {
                 console.warn('[NavCore] KML图层同步失败');
             }
 
             // 【问题7】检查起点是否是"我的位置"，如果是，检查是否在道路上
-            const isMyLocationStart = routeData.start.name === '我的位置' || 
-                                      routeData.start.isMyLocation === true;
-            
             if (isMyLocationStart && typeof findNearestKMLSegment === 'function') {
                 // 构建KML图（如果还没构建）
                 if (!window.kmlGraph && typeof buildKMLGraph === 'function') {
@@ -1341,6 +1363,10 @@ const NavCore = (function() {
         }
     }
 
+    /**
+     * 获取当前GPS位置（Promise方式，快速获取）
+     * @returns {Promise<Array|null>} [lng, lat] 或 null
+     */
     /**
      * 获取当前GPS位置（Promise方式，快速获取）
      * @returns {Promise<Array|null>} [lng, lat] 或 null
