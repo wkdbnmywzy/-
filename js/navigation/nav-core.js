@@ -521,6 +521,11 @@ const NavCore = (function() {
             const turningPoints = detectTurningPoints(pointSet, 30);
             window.navigationTurningPoints = turningPoints;
 
+            // 显示转向标签（导航开始前）- 暂时隐藏
+            // if (turningPoints.length > 0) {
+            //     NavRenderer.showTurnLabels(turningPoints);
+            // }
+
             calculateSegmentRanges(path, waypoints);
         } catch (e) {
             console.error('[NavCore] 规划路线失败:', e);
@@ -1024,13 +1029,13 @@ const NavCore = (function() {
     }
 
     /**
-     * 过滤掉相互抵消的转向点（S型小弯）
+     * 过滤掉相互抵消的转向点（S型小弯）和假转向点
      * @param {Array} turningPoints - 转向点数组
      * @param {Array} pointSet - 点集
      * @returns {Array} 过滤后的转向点数组
      */
     function filterCancelingTurns(turningPoints, pointSet) {
-        if (!turningPoints || turningPoints.length < 2) {
+        if (!turningPoints || turningPoints.length === 0) {
             return turningPoints;
         }
 
@@ -1040,7 +1045,40 @@ const NavCore = (function() {
         while (i < turningPoints.length) {
             const current = turningPoints[i];
 
-            // 检查是否有下一个转向点
+            // 【新增】单点假转向检测：检查转向点前后更远距离的整体方向变化
+            // 如果前后10个点（约30米）的整体方向变化很小，说明是假转向
+            const checkRange = 10; // 前后各检查10个点
+            const beforeIdx = Math.max(0, current.pointIndex - checkRange);
+            const afterIdx = Math.min(pointSet.length - 1, current.pointIndex + checkRange);
+
+            if (afterIdx - beforeIdx >= 6) { // 至少有6个点才能判断
+                const beforePos = pointSet[beforeIdx].position;
+                const afterPos = pointSet[afterIdx].position;
+                const currentPos = pointSet[current.pointIndex].position;
+
+                // 计算整体方向：从前面的点到后面的点
+                const overallBearing = calculateBearing(beforePos, afterPos);
+                
+                // 计算进入转向点的方向
+                const bearingIn = calculateBearing(beforePos, currentPos);
+                
+                // 计算离开转向点的方向
+                const bearingOut = calculateBearing(currentPos, afterPos);
+
+                // 计算整体方向变化
+                let overallChange = bearingOut - bearingIn;
+                if (overallChange > 180) overallChange -= 360;
+                if (overallChange < -180) overallChange += 360;
+
+                // 如果整体方向变化 ≤ 20度，认为是假转向（路线数据噪声）
+                if (Math.abs(overallChange) <= 20) {
+                    console.log(`[转向点过滤] 跳过假转向：点${current.pointIndex}(${current.turnAngle.toFixed(1)}°)，整体方向变化${overallChange.toFixed(1)}°`);
+                    i++;
+                    continue;
+                }
+            }
+
+            // 检查是否有下一个转向点（S型小弯检测）
             if (i < turningPoints.length - 1) {
                 const next = turningPoints[i + 1];
 
@@ -1052,25 +1090,22 @@ const NavCore = (function() {
                     pathDistance += haversineDistance(p1[1], p1[0], p2[1], p2[0]);
                 }
 
-                // 判断是否为抵消转向（S型小弯）
+                // 判断是否为抵消转向（S型小弯）- 放宽距离限制到15米
                 const isCanceling =
-                    pathDistance <= 2 &&  // 路径距离 ≤ 2米
+                    pathDistance <= 15 &&  // 路径距离 ≤ 15米
                     ((current.turnAngle > 0 && next.turnAngle < 0) ||  // 转向相反（左右或右左）
                      (current.turnAngle < 0 && next.turnAngle > 0)) &&
-                    Math.abs(Math.abs(current.turnAngle) - Math.abs(next.turnAngle)) <= 10;  // 角度接近抵消（误差≤10度）
+                    Math.abs(Math.abs(current.turnAngle) - Math.abs(next.turnAngle)) <= 20;  // 角度接近抵消（误差≤20度）
 
                 if (isCanceling) {
                     // 再次确认：检查转向前后的总体方向变化
-                    // 如果是真正的S弯，前后方向应该基本一致
-                    // 扩大检查范围：向前向后各看2-3个点
-                    const beforeIdx = Math.max(0, current.pointIndex - 3);
-                    const afterIdx = Math.min(pointSet.length - 1, next.pointIndex + 3);
+                    const beforeIdx2 = Math.max(0, current.pointIndex - 5);
+                    const afterIdx2 = Math.min(pointSet.length - 1, next.pointIndex + 5);
 
-                    if (beforeIdx < current.pointIndex && afterIdx > next.pointIndex) {
-                        const beforePos = pointSet[beforeIdx].position;
-                        const afterPos = pointSet[afterIdx].position;
+                    if (beforeIdx2 < current.pointIndex && afterIdx2 > next.pointIndex) {
+                        const beforePos = pointSet[beforeIdx2].position;
+                        const afterPos = pointSet[afterIdx2].position;
 
-                        // 计算整体方向变化（跨越S弯前后的方向）
                         const bearingBefore = calculateBearing(beforePos, pointSet[current.pointIndex].position);
                         const bearingAfter = calculateBearing(pointSet[next.pointIndex].position, afterPos);
 
@@ -1078,8 +1113,8 @@ const NavCore = (function() {
                         if (directionChange > 180) directionChange -= 360;
                         if (directionChange < -180) directionChange += 360;
 
-                        // 如果前后方向变化 ≤ 15度，确认是S弯，跳过这两个转向点
-                        if (Math.abs(directionChange) <= 15) {
+                        // 如果前后方向变化 ≤ 25度，确认是S弯，跳过这两个转向点
+                        if (Math.abs(directionChange) <= 25) {
                             console.log(`[转向点过滤] 跳过S型小弯：点${current.pointIndex}(${current.turnAngle.toFixed(1)}°)和点${next.pointIndex}(${next.turnAngle.toFixed(1)}°)，路径距离${pathDistance.toFixed(2)}米，方向变化${directionChange.toFixed(1)}°`);
                             i += 2;  // 跳过这两个点
                             continue;
@@ -1274,6 +1309,9 @@ const NavCore = (function() {
                 window.selfMarker.hide();
                 console.log('[NavCore] 已隐藏主地图的selfMarker');
             }
+
+            // 清除转向标签（导航开始后不再显示）
+            NavRenderer.clearTurnLabels();
 
             // 隐藏完整路线，只显示第一段
             showCurrentSegmentRoute();

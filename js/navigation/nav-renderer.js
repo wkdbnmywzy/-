@@ -31,6 +31,7 @@ const NavRenderer = (function() {
     let compassIndicator = null;     // 指北针
     let directionIndicator = null;   // 方向指示器（东南西北）
     let debugDirectionArrow = null;  // 调试用方向箭头
+    let turnLabelMarkers = [];       // 转向标签标记数组
 
     // KML图层
     let kmlLayers = [];
@@ -1308,6 +1309,107 @@ const NavRenderer = (function() {
         return R * c;
     }
 
+    /**
+     * 显示转向标签（在导航开始前显示所有转向点）
+     * @param {Array} turningPoints - 转向点数组
+     */
+    function showTurnLabels(turningPoints) {
+        try {
+            // 先清除旧的转向标签
+            clearTurnLabels();
+
+            if (!map || !turningPoints || turningPoints.length === 0) {
+                console.log('[NavRenderer] 无转向点需要显示');
+                return;
+            }
+
+            // 按位置分组转向点（同一位置可能有多个转向）
+            const positionGroups = {};
+            turningPoints.forEach(tp => {
+                const pos = tp.position;
+                const key = `${pos[0].toFixed(6)},${pos[1].toFixed(6)}`;
+                if (!positionGroups[key]) {
+                    positionGroups[key] = {
+                        position: pos,
+                        turns: [],
+                        pointIndex: tp.pointIndex
+                    };
+                }
+                positionGroups[key].turns.push(tp.turnType);
+            });
+
+            // 按pointIndex排序
+            const sortedGroups = Object.values(positionGroups).sort((a, b) => a.pointIndex - b.pointIndex);
+
+            // 为每个位置创建标签
+            sortedGroups.forEach((group, index) => {
+                // 去重并按顺序排列转向类型
+                const turnOrder = ['left', 'right', 'uturn'];
+                const uniqueTurns = [...new Set(group.turns)];
+                uniqueTurns.sort((a, b) => turnOrder.indexOf(a) - turnOrder.indexOf(b));
+
+                // 转换为中文
+                const turnTextMap = {
+                    'left': '左',
+                    'right': '右',
+                    'uturn': '掉头',
+                    'slight-left': '左',
+                    'slight-right': '右',
+                    'sharp-left': '左',
+                    'sharp-right': '右'
+                };
+
+                const labelText = uniqueTurns.map(t => turnTextMap[t] || t).join(',');
+
+                // 创建标签
+                const labelContent = `<div style="
+                    background: rgba(255, 152, 0, 0.9);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                    font-weight: bold;
+                    white-space: nowrap;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    border: 1px solid rgba(255,255,255,0.5);
+                ">${labelText}</div>`;
+
+                const marker = new AMap.Marker({
+                    position: group.position,
+                    content: labelContent,
+                    offset: new AMap.Pixel(-20, -30),
+                    zIndex: 300,
+                    map: map
+                });
+
+                turnLabelMarkers.push(marker);
+            });
+
+            console.log(`[NavRenderer] 已显示 ${turnLabelMarkers.length} 个转向标签`);
+        } catch (e) {
+            console.error('[NavRenderer] 显示转向标签失败:', e);
+        }
+    }
+
+    /**
+     * 清除转向标签
+     */
+    function clearTurnLabels() {
+        try {
+            if (turnLabelMarkers.length > 0) {
+                turnLabelMarkers.forEach(marker => {
+                    if (marker) {
+                        map.remove(marker);
+                    }
+                });
+                turnLabelMarkers = [];
+                console.log('[NavRenderer] 转向标签已清除');
+            }
+        } catch (e) {
+            console.error('[NavRenderer] 清除转向标签失败:', e);
+        }
+    }
+
     // 公开API
     return {
         initMap,
@@ -1348,6 +1450,10 @@ const NavRenderer = (function() {
         getLastSnappedPosition,
         setLastSnappedPosition,
         clearDeviationHistory,
+
+        // 【新增】转向标签相关
+        showTurnLabels,
+        clearTurnLabels,
 
         // 暴露KML图层给路径规划模块使用
         getKMLLayers: () => kmlLayers
