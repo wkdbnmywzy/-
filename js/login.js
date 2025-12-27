@@ -461,7 +461,9 @@ async function loginWithAPI(username, password) {
             
             // 获取用户ID（数字ID用于项目查询，字符串user_id用于司机查询）
             const userId = userInfo.id;  // 数字ID，如 66
-            const userIdStr = userInfo.user_id;  // 字符串ID，如 'xya'
+            const userIdStr = userInfo.user_id;  // 字符串ID，如 'USER_20251119_0229'
+            
+            console.log('[登录] 用户ID信息 - 数字ID:', userId, ', 字符串user_id:', userIdStr);
             
             if (token) {
                 sessionStorage.setItem('authToken', token);
@@ -491,7 +493,9 @@ async function loginWithAPI(username, password) {
             }
             
             // 获取用户参与的项目列表（需要用户ID）
-            const userProjects = userId ? await fetchUserProjects(token, userId) : [];
+            // API需要字符串user_id（如USER_20251119_0229），而非数字id
+            console.log('[项目列表] 准备调用，使用userIdStr:', userIdStr);
+            const userProjects = userIdStr ? await fetchUserProjects(token, userIdStr) : [];
             
             // 获取用户关联的车辆信息（仅司机需要）
             // 用user_id字符串去运输服务查询司机信息
@@ -585,7 +589,10 @@ async function loginWithPhoneAPI(phone, code) {
             const userInfo = data.data?.user || {};
             
             // 获取用户ID
-            const userId = userInfo.id || userInfo.user_id;
+            const userId = userInfo.id;  // 数字ID
+            const userIdStr = userInfo.user_id;  // 字符串ID
+            
+            console.log('[手机登录] 用户ID信息 - 数字ID:', userId, ', 字符串user_id:', userIdStr);
             
             if (token) {
                 sessionStorage.setItem('authToken', token);
@@ -600,7 +607,7 @@ async function loginWithPhoneAPI(phone, code) {
             const roleNames = userDetail?.roleNames || ['司机'];
             
             // 获取用户参与的项目列表
-            const userProjects = userId ? await fetchUserProjects(token, userId) : [];
+            const userProjects = userIdStr ? await fetchUserProjects(token, userIdStr) : [];
 
             // 返回用户信息（手机号登录不获取车辆信息，需要手动输入）
             return {
@@ -762,19 +769,21 @@ async function fetchUserDetail(token, userId) {
 /**
  * 获取用户参与的项目列表
  * @param {string} token - 认证token
- * @param {number} userId - 用户ID
+ * @param {string} userIdStr - 用户ID字符串（如 USER_20251119_0229）
  * @returns {Promise<Array>} 项目列表
  */
-async function fetchUserProjects(token, userId) {
-    // 如果没有userId，直接返回空数组
-    if (!userId) {
-        console.warn('[项目列表] 缺少用户ID，将使用默认项目列表');
+async function fetchUserProjects(token, userIdStr) {
+    // 如果没有userIdStr，直接返回空数组
+    if (!userIdStr) {
+        console.warn('[项目列表] 缺少用户ID字符串，将使用默认项目列表');
         return [];
     }
 
+    console.log('[项目列表] 调用API，userIdStr:', userIdStr);
+
     try {
         // 第一步：获取用户关联的项目ID列表
-        const response = await fetch(`https://dmap.cscec3bxjy.cn/api/project/relations_users/${userId}/projects`, {
+        const response = await fetch(`https://dmap.cscec3bxjy.cn/api/project/relations_users/${userIdStr}/projects`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -784,30 +793,29 @@ async function fetchUserProjects(token, userId) {
 
         if (response.status === 404) {
             console.warn('[项目列表] 接口暂未实现(404)，将使用默认项目列表');
-            console.info('[项目列表] 提示：如需使用用户项目数据，请联系后端实现该接口');
             return [];
         }
 
         const data = await response.json();
+        console.log('[项目列表] API返回数据:', data);
+        console.log('[项目列表] data.data 内容:', JSON.stringify(data.data, null, 2));
 
         if (!response.ok || data.code !== 200) {
             console.error('[项目列表] 获取项目ID列表失败:', data.message);
             return [];
         }
 
-        // 获取项目ID列表（尝试多种可能的字段名）
+        // 获取项目ID列表
         const projectIds = data.data?.projects || data.data?.project_ids || data.data?.projectIds || [];
-        
-        // 如果data.data本身就是数组
         const projectIdsArray = Array.isArray(data.data) ? data.data : projectIds;
+        console.log('[项目列表] 解析的项目ID数组:', projectIdsArray);
         
         if (projectIdsArray.length === 0) {
-            console.warn('[项目列表] 用户没有关联的项目，data.data内容:', data.data);
+            console.warn('[项目列表] 用户没有关联的项目');
             return [];
         }
 
         // 第二步：根据每个项目编号获取项目详情
-        // API: /projects/code/{project_id} - 根据项目编号(如PJ_001)获取项目信息
         const projectDetailsPromises = projectIdsArray.map(async (projectId) => {
             try {
                 const detailResponse = await fetch(`https://dmap.cscec3bxjy.cn/api/project/projects/code/${projectId}`, {
@@ -827,12 +835,13 @@ async function fetchUserProjects(token, userId) {
                 
                 if (detailData.code === 200 && detailData.data) {
                     const project = detailData.data;
+                    // 打印完整的项目信息，便于调试省份ID
+                    console.log(`[项目详情] 项目 ${projectId} 完整数据:`, project);
                     return {
                         id: project.id,
                         projectCode: projectId,
-                        province: project.province || project.city || project.address || '',
-                        projectName: project.name || project.project_name || project.projectName || project.description || '',
-                        // 项目经纬度（用于地图中心定位）
+                        provinceId: project.province_id || null,  // 省份ID
+                        projectName: project.name || project.project_name || project.projectName || '',
                         longitude: project.longitude || project.lng || null,
                         latitude: project.latitude || project.lat || null
                     };
@@ -847,16 +856,123 @@ async function fetchUserProjects(token, userId) {
 
         // 等待所有项目详情获取完成
         const projectDetails = await Promise.all(projectDetailsPromises);
-        
-        // 过滤掉获取失败的项目
         const validProjects = projectDetails.filter(p => p !== null);
+
+        // 第三步：从API获取省份代码到名称的映射
+        const provinceCodeToName = await fetchAllProvinces(token);
         
+        // 将省份名称填充到项目中
+        validProjects.forEach(project => {
+            if (project.provinceId && provinceCodeToName[project.provinceId]) {
+                project.province = provinceCodeToName[project.provinceId];
+            } else {
+                project.province = '未知省份';
+                console.warn(`[省份匹配] 未找到省份代码 ${project.provinceId} 对应的名称`);
+            }
+        });
+        
+        console.log('[项目列表] 获取完成，项目数:', validProjects.length);
         return validProjects;
 
     } catch (error) {
         console.error('[项目列表] API调用失败:', error);
-        console.warn('[项目列表] 将使用默认项目列表');
         return [];
+    }
+}
+
+/**
+ * 获取所有省份列表，构建省份代码到名称的映射
+ * @param {string} token - 认证token
+ * @returns {Promise<Object>} 省份代码到名称的映射 { province_id: province_name }
+ */
+async function fetchAllProvinces(token) {
+    try {
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/project/provinces', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            console.error('[省份列表] 获取失败:', response.status);
+            return {};
+        }
+
+        const data = await response.json();
+        
+        if (data.code === 200 && Array.isArray(data.data)) {
+            // 构建省份代码到名称的映射
+            const provinceMap = {};
+            data.data.forEach(province => {
+                const code = province.province_id;  // 如 "BJ"
+                const name = province.province_name; // 如 "北京市"
+                if (code && name) {
+                    provinceMap[code] = name;
+                }
+            });
+            
+            console.log('[省份列表] 获取成功，共', Object.keys(provinceMap).length, '个省份');
+            return provinceMap;
+        }
+        
+        return {};
+    } catch (error) {
+        console.error('[省份列表] 获取异常:', error);
+        return {};
+    }
+}
+
+/**
+ * 批量获取省份名称
+ * @param {string} token - 认证token
+ * @param {Array} provinceIds - 省份ID数组
+ * @returns {Promise<Object>} 省份ID到名称的映射 { id: name }
+ */
+async function fetchProvinceNames(token, provinceIds) {
+    try {
+        // GET请求，province_ids作为query参数，逗号分隔
+        const idsParam = provinceIds.join(',');
+        const response = await fetch(`https://dmap.cscec3bxjy.cn/api/project/provinces/batch?province_ids=${idsParam}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            console.error('[省份信息] 批量获取省份失败:', response.status);
+            return {};
+        }
+
+        const data = await response.json();
+        
+        if (data.code === 200 && data.data) {
+            // 构建省份ID到名称的映射
+            const provinceMap = {};
+            const provinces = Array.isArray(data.data) ? data.data : [data.data];
+            
+            provinces.forEach(province => {
+                // 尝试多种可能的字段名
+                const id = province.id || province.province_id;
+                const name = province.province_name || province.name;
+                if (id && name) {
+                    // 同时存储数字和字符串类型的key，确保匹配
+                    provinceMap[id] = name;
+                    provinceMap[String(id)] = name;
+                }
+            });
+            
+            console.log('[省份信息] 获取成功:', provinceMap);
+            return provinceMap;
+        }
+        
+        return {};
+    } catch (error) {
+        console.error('[省份信息] 批量获取省份异常:', error);
+        return {};
     }
 }
 
