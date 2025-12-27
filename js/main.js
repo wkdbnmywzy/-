@@ -240,12 +240,13 @@ async function loadMapDataFromAPI() {
         let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000`;
         let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000`;
         
-        if (projectId) {
-            pointsUrl += `&project_id=${projectId}`;
-            polylinesUrl += `&project_id=${projectId}`;
-            polygonsUrl += `&project_id=${projectId}`;
-            console.log('[API加载] 按项目ID筛选:', projectId);
-        }
+        // 3. 构建请求URL（始终传project_id，没有时传undefined避免拉取所有数据）
+        const projectIdParam = projectId || 'undefined';
+        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectIdParam}`;
+        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectIdParam}`;
+        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectIdParam}`;
+        
+        console.log('[API加载] 项目ID:', projectIdParam);
 
         // 4. 并行请求点、线、面数据
         console.log('[API加载] 请求点线面数据...');

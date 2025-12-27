@@ -124,19 +124,13 @@ async function loadProjectMapData() {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // 3. 构建请求URL
-        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000`;
-        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000`;
-        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000`;
+        // 3. 构建请求URL（始终传project_id，没有时传undefined避免拉取所有数据）
+        const projectIdParam = projectId || 'undefined';
+        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectIdParam}`;
+        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectIdParam}`;
+        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectIdParam}`;
         
-        if (projectId) {
-            pointsUrl += `&project_id=${projectId}`;
-            polylinesUrl += `&project_id=${projectId}`;
-            polygonsUrl += `&project_id=${projectId}`;
-            console.log('[管理端] 按项目ID筛选:', projectId);
-        } else {
-            console.log('[管理端] 未指定项目ID，加载所有数据');
-        }
+        console.log('[管理端] 项目ID:', projectIdParam);
 
         // 4. 并行请求数据
         console.log('[管理端] 请求地图数据...');
