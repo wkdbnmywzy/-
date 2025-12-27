@@ -349,20 +349,83 @@ async function searchNearbyProjects(latitude, longitude) {
         });
 
         const data = await response.json();
+        console.log('[附近项目] API返回数据:', data);
         
         if (response.ok && data.code === 200) {
             const projects = data.data || [];
             
-            // 转换为统一格式
-            return projects.map(project => ({
-                id: project.id,
-                projectCode: project.project_code || project.projectCode,
-                province: project.province || project.city || project.address || '附近项目',
-                projectName: project.name || project.project_name || project.projectName || '',
-                longitude: project.longitude || project.lng,
-                latitude: project.latitude || project.lat,
-                distance: project.distance  // 距离（米）
-            }));
+            if (projects.length === 0) {
+                return [];
+            }
+            
+            // 附近项目API只返回基本信息，需要通过projectid获取详情（含province_id）
+            // 先获取省份映射表
+            const token = sessionStorage.getItem('authToken');
+            const provinceCodeToName = token ? await fetchAllProvinces(token) : {};
+            
+            // 并行获取每个项目的详情
+            const projectDetailsPromises = projects.map(async (project) => {
+                const projectId = project.projectid || project.project_code;
+                if (!projectId) {
+                    return {
+                        id: project.id,
+                        projectCode: projectId,
+                        province: project.address || '附近项目',
+                        projectName: project.project_name || '',
+                        longitude: project.longitude,
+                        latitude: project.latitude,
+                        distance: project.distance_meters
+                    };
+                }
+                
+                try {
+                    // 获取项目详情以获取province_id
+                    const detailResponse = await fetch(`https://dmap.cscec3bxjy.cn/api/project/projects/code/${projectId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (detailResponse.ok) {
+                        const detailData = await detailResponse.json();
+                        if (detailData.code === 200 && detailData.data) {
+                            const detail = detailData.data;
+                            const provinceId = detail.province_id;
+                            const provinceName = provinceId && provinceCodeToName[provinceId] 
+                                ? provinceCodeToName[provinceId] 
+                                : (project.address || '附近项目');
+                            
+                            return {
+                                id: detail.id || project.id,
+                                projectCode: projectId,
+                                provinceId: provinceId,
+                                province: provinceName,
+                                projectName: detail.name || project.project_name || '',
+                                longitude: detail.longitude || project.longitude,
+                                latitude: detail.latitude || project.latitude,
+                                distance: project.distance_meters
+                            };
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`[附近项目] 获取项目 ${projectId} 详情失败:`, e);
+                }
+                
+                // 获取详情失败，使用基本信息
+                return {
+                    id: project.id,
+                    projectCode: projectId,
+                    province: project.address || '附近项目',
+                    projectName: project.project_name || '',
+                    longitude: project.longitude,
+                    latitude: project.latitude,
+                    distance: project.distance_meters
+                };
+            });
+            
+            return await Promise.all(projectDetailsPromises);
         } else {
             console.warn('[附近项目] 搜索失败:', data.message);
             return [];
@@ -905,15 +968,27 @@ async function fetchAllProvinces(token) {
         if (data.code === 200 && Array.isArray(data.data)) {
             // 构建省份代码到名称的映射
             const provinceMap = {};
+            // 同时构建 省份代码 → 数字ID 的映射
+            const codeToNumericId = {};
+            
             data.data.forEach(province => {
-                const code = province.province_id;  // 如 "BJ"
-                const name = province.province_name; // 如 "北京市"
+                const numericId = province.id;        // 数字ID，如 1
+                const code = province.province_id;    // 省份代码，如 "BJ"
+                const name = province.province_name;  // 省份名称，如 "北京市"
                 if (code && name) {
                     provinceMap[code] = name;
+                    if (numericId) {
+                        codeToNumericId[code] = numericId;
+                    }
                 }
             });
             
             console.log('[省份列表] 获取成功，共', Object.keys(provinceMap).length, '个省份');
+            console.log('[省份列表] 省份代码到数字ID映射:', codeToNumericId);
+            
+            // 将映射存储到全局，供其他地方使用
+            window.provinceCodeToNumericId = codeToNumericId;
+            
             return provinceMap;
         }
         
