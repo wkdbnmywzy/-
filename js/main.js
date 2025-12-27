@@ -235,11 +235,6 @@ async function loadMapDataFromAPI() {
             console.warn('[API加载] 未找到Token，尝试无认证请求');
         }
 
-        // 3. 构建请求URL（如果有项目ID则按项目筛选）
-        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000`;
-        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000`;
-        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000`;
-        
         // 3. 构建请求URL（始终传project_id，没有时传undefined避免拉取所有数据）
         const projectIdParam = projectId || 'undefined';
         let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectIdParam}`;
