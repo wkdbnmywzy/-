@@ -10,6 +10,7 @@ const passwordInput = document.getElementById('password');
 const getCodeBtn = document.getElementById('get-code-btn');
 const errorMessage = document.getElementById('error-message');
 const accountErrorMessage = document.getElementById('account-error-message');
+const phoneErrorMessage = document.getElementById('phone-error-message'); // 手机号一键登录错误提示
 const tabBtns = document.querySelectorAll('.tab-btn');
 const loadingScreen = document.getElementById('loading-screen');
 const otherLoginBtn = document.querySelector('.other-login-btn');
@@ -262,7 +263,7 @@ async function handlePhoneLogin(e) {
         // 3. 检查是否有附近项目
         if (!nearbyProjects || nearbyProjects.length === 0) {
             hideLoadingScreen();
-            showError(errorMessage, '您附近没有项目，请使用账号密码登录');
+            showError(phoneErrorMessage, '您附近没有项目，请使用账号密码登录');
             console.warn('[一键登录] 附近没有项目');
             return;
         }
@@ -288,13 +289,13 @@ async function handlePhoneLogin(e) {
         
         // 根据错误类型显示不同提示
         if (error.code === 1) {
-            showError(errorMessage, '请允许获取位置权限');
+            showError(phoneErrorMessage, '请允许获取位置权限');
         } else if (error.code === 2) {
-            showError(errorMessage, '无法获取位置信息，请检查GPS');
+            showError(phoneErrorMessage, '无法获取位置信息，请检查GPS');
         } else if (error.code === 3) {
-            showError(errorMessage, '获取位置超时，请重试');
+            showError(phoneErrorMessage, '获取位置超时，请重试');
         } else {
-            showError(errorMessage, error.message || '登录失败，请稍后重试');
+            showError(phoneErrorMessage, error.message || '登录失败，请稍后重试');
         }
     }
 }
@@ -517,6 +518,14 @@ function handleAccountLogin(e) {
     loginWithAPI(username, password)
         .then(result => {
             if (result.success) {
+                // 检查是否有项目
+                const userProjects = result.user.projects || [];
+                if (userProjects.length === 0) {
+                    hideLoadingScreen();
+                    showError(accountErrorMessage, '您的账号没有关联项目，请联系管理员');
+                    console.warn('[账号登录] 用户没有关联项目');
+                    return;
+                }
                 handleLoginSuccess(result.user, 'account');
             } else {
                 hideLoadingScreen();
