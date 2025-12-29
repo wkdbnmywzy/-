@@ -220,20 +220,13 @@ async function loadMapDataFromAPI() {
             }
         }
 
-        // 2. 准备请求headers
+        // 2. 准备请求headers（地图API不需要token认证）
         const baseURL = 'https://dmap.cscec3bxjy.cn/api/map';
         const headers = {
             'Content-Type': 'application/json'
         };
-
-        // 如果有token则添加
-        const token = sessionStorage.getItem('authToken') || '';
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-            console.log('[API加载] 使用Token认证');
-        } else {
-            console.warn('[API加载] 未找到Token，尝试无认证请求');
-        }
+        
+        console.log('[API加载] 使用无认证请求');
 
         // 3. 构建请求URL（始终传project_id，没有时传undefined避免拉取所有数据）
         const projectIdParam = projectId || 'undefined';
