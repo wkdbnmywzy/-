@@ -265,13 +265,14 @@ body {
 
 .picker-container {
     display: flex;
-    gap: 5vw; /* 使用视口宽度，自适应间距 */
+    gap: 0; /* 移除列间距，让两列紧挨 */
     flex: 1;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     justify-content: center;
     align-items: center;
     position: relative;
-    padding: 0 5vw; /* 左右留白 */
+    padding: 0; /* 移除左右留白，充分利用空间 */
+    width: 100%; /* 占满整个宽度 */
 }
 
 /* 新增：统一的遮罩层 */
@@ -314,11 +315,19 @@ body {
 
 
 .picker-wrapper {
-    flex: 1;
+    flex: none; /* 不自动伸缩 */
     display: flex;
     flex-direction: column;
-    max-width: 42%; /* 固定最大宽度比例 */
-    min-width: 35%; /* 固定最小宽度比例 */
+}
+
+/* 左侧省份列：40% */
+.picker-wrapper:first-child {
+    width: 40%;
+}
+
+/* 右侧项目列：60% */
+.picker-wrapper:last-child {
+    width: 60%;
 }
 
 .picker-label {
@@ -339,9 +348,11 @@ body {
     color: #9CC2F5; /* 未选中项浅蓝色 */
     font-family: "OPPO Sans 4.0", "OPPO Sans", -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
     font-weight: 400; /* Regular */
-    font-size: 16px;
-    letter-spacing: 0.5px;
-    line-height: 24px;
+    font-size: 15px; /* 稍微减小字号 */
+    letter-spacing: 0.3px;
+    line-height: 1.3;
+    white-space: normal; /* 允许换行 */
+    text-align: center;
 }
 
 .project-selection .picker-item.selected {
@@ -388,18 +399,19 @@ body {
 }
 
 .picker-item {
-    height: 40px; /* 增加高度 */
+    min-height: 40px; /* 改为最小高度，允许内容撑开 */
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    color: #BDBDBD; /* 默认灰色 */
+    color: #BDBDBD;
     transition: all 0.3s;
     cursor: pointer;
-    padding: 0 8px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 4px 8px; /* 上下也加点内边距 */
+    white-space: normal; /* 允许换行 */
+    word-break: break-all; /* 长单词也换行 */
+    text-align: center; /* 居中显示 */
+    line-height: 1.3; /* 行高 */
 }
 
 .picker-item.selected {
@@ -775,9 +787,13 @@ body {
 
 /* 超小屏幕优化 */
 @media (max-width: 360px) {
-    .picker-container {
-        gap: 3vw;
-        padding: 0 3vw;
+    .picker-item {
+        font-size: 13px;
+        padding: 0 2px;
+    }
+    
+    .picker-item.selected {
+        font-size: 16px;
     }
 }
 
