@@ -124,15 +124,53 @@ async function loadProjectMapData() {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // 3. 构建请求URL（始终传project_id，没有时传undefined避免拉取所有数据）
-        const projectIdParam = projectId || 'undefined';
-        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectIdParam}`;
-        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectIdParam}`;
-        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectIdParam}`;
+        // 3. 获取当前启用的地图版本号
+        if (!projectId) {
+            console.warn('[管理端] 没有项目ID，无法获取地图');
+            alert('请先选择项目');
+            return;
+        }
         
-        console.log('[管理端] 项目ID:', projectIdParam);
+        let versionId = null;
+        try {
+            console.log('[管理端] 获取项目地图版本...');
+            const versionRes = await fetch(`${baseURL}/map-versions/project/${projectId}/active`, { headers });
+            
+            if (versionRes.ok) {
+                const versionData = await versionRes.json();
+                console.log('[管理端] 版本信息:', versionData);
+                
+                if (versionData.code === 200 && versionData.data) {
+                    versionId = versionData.data.id;
+                    console.log('[管理端] 当前启用版本ID:', versionId);
+                }
+            }
+        } catch (e) {
+            console.warn('[管理端] 获取版本信息失败:', e);
+        }
+        
+        // 如果没有版本号，提示无地图
+        if (!versionId) {
+            console.warn('[管理端] 该项目没有启用的地图版本');
+            alert('该项目暂无地图数据');
+            
+            // 即使没有地图数据，如果有项目中心也设置地图中心
+            if (projectCenter && map) {
+                map.setCenter(projectCenter);
+                map.setZoom(15);
+            }
+            return;
+        }
 
-        // 4. 并行请求数据
+        // 4. 构建请求URL（带project_id和version_id）
+        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
+        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
+        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
+        
+        console.log('[管理端] 项目ID:', projectId, '版本ID:', versionId);
+        console.log('[管理端] 请求URL:', { pointsUrl, polylinesUrl, polygonsUrl });
+
+        // 5. 并行请求数据
         console.log('[管理端] 请求地图数据...');
         const [pointsRes, polylinesRes, polygonsRes] = await Promise.all([
             fetch(pointsUrl, { headers }),
@@ -145,7 +183,7 @@ async function loadProjectMapData() {
             return;
         }
 
-        // 5. 解析数据
+        // 6. 解析数据
         const pointsData = await pointsRes.json();
         const polylinesData = await polylinesRes.json();
         const polygonsData = await polygonsRes.json();
@@ -160,7 +198,7 @@ async function loadProjectMapData() {
             面数量: polygons.length
         });
 
-        // 6. 使用 APIDataConverter 转换数据（与司机端相同）
+        // 7. 使用 APIDataConverter 转换数据（与司机端相同）
         let features = [];
         if (window.APIDataConverter) {
             features = APIDataConverter.convert(points, polylines, polygons);
@@ -171,7 +209,7 @@ async function loadProjectMapData() {
             return;
         }
 
-        // 7. 对线数据进行分割处理（与司机端相同）
+        // 8. 对线数据进行分割处理（与司机端相同）
         let processedFeatures = features;
         if (typeof processLineIntersections === 'function') {
             try {

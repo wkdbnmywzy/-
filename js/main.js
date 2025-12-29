@@ -228,15 +228,57 @@ async function loadMapDataFromAPI() {
         
         console.log('[API加载] 使用无认证请求');
 
-        // 3. 构建请求URL（始终传project_id，没有时传undefined避免拉取所有数据）
-        const projectIdParam = projectId || 'undefined';
-        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectIdParam}`;
-        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectIdParam}`;
-        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectIdParam}`;
+        // 3. 获取当前启用的地图版本号
+        if (!projectId) {
+            console.warn('[API加载] 没有项目ID，无法获取地图');
+            alert('请先选择项目');
+            return;
+        }
         
-        console.log('[API加载] 项目ID:', projectIdParam);
+        let versionId = null;
+        try {
+            console.log('[API加载] 获取项目地图版本...');
+            const versionRes = await fetch(`${baseURL}/map-versions/project/${projectId}/active`, { headers });
+            
+            if (versionRes.ok) {
+                const versionData = await versionRes.json();
+                console.log('[API加载] 版本信息:', versionData);
+                
+                if (versionData.code === 200 && versionData.data) {
+                    versionId = versionData.data.id;
+                    console.log('[API加载] 当前启用版本ID:', versionId);
+                }
+            }
+        } catch (e) {
+            console.warn('[API加载] 获取版本信息失败:', e);
+        }
+        
+        // 如果没有版本号，提示无地图
+        if (!versionId) {
+            console.warn('[API加载] 该项目没有启用的地图版本');
+            alert('该项目暂无地图数据');
+            
+            // 即使没有地图数据，如果有项目中心也设置地图中心
+            if (projectCenter && map) {
+                console.log('[API加载] 设置地图中心为项目位置:', projectCenter);
+                map.setCenter(projectCenter);
+                map.setZoom(15);
+            }
+            
+            // 启动定位
+            startLocationTracking();
+            return;
+        }
 
-        // 4. 并行请求点、线、面数据
+        // 4. 构建请求URL（带project_id和version_id）
+        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
+        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
+        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
+        
+        console.log('[API加载] 项目ID:', projectId, '版本ID:', versionId);
+        console.log('[API加载] 请求URL:', { pointsUrl, polylinesUrl, polygonsUrl });
+
+        // 5. 并行请求点、线、面数据
         console.log('[API加载] 请求点线面数据...');
         const [pointsRes, polylinesRes, polygonsRes] = await Promise.all([
             fetch(pointsUrl, { headers }),
@@ -244,7 +286,7 @@ async function loadMapDataFromAPI() {
             fetch(polygonsUrl, { headers })
         ]);
 
-        // 5. 检查响应
+        // 6. 检查响应
         if (!pointsRes.ok || !polylinesRes.ok || !polygonsRes.ok) {
             console.error('[API加载] API请求失败:', {
                 points: pointsRes.status,
@@ -254,7 +296,7 @@ async function loadMapDataFromAPI() {
             throw new Error('API请求失败');
         }
 
-        // 6. 解析数据
+        // 7. 解析数据
         const pointsData = await pointsRes.json();
         const polylinesData = await polylinesRes.json();
         const polygonsData = await polygonsRes.json();
@@ -348,21 +390,7 @@ async function loadMapDataFromAPI() {
         }
 
         // 12. 启动定位（无论是否有地图数据都要定位）
-        setTimeout(() => {
-            if (typeof startRealtimeLocationTracking === 'function') {
-                try {
-                    startRealtimeLocationTracking();
-                } catch (e) {
-                    console.warn('启动实时定位失败', e);
-                }
-            } else if (typeof getCurrentLocation === 'function') {
-                try {
-                    getCurrentLocation();
-                } catch (e) {
-                    console.warn('一次性定位失败', e);
-                }
-            }
-        }, 300);
+        startLocationTracking();
 
         console.log('[API加载] 地图数据加载完成');
 
@@ -371,6 +399,27 @@ async function loadMapDataFromAPI() {
         // alert('加载地图数据失败：' + error.message + '\n请检查网络连接或联系管理员');
         alert('您所在位置周边无项目现场');
     }
+}
+
+/**
+ * 启动定位追踪（辅助函数）
+ */
+function startLocationTracking() {
+    setTimeout(() => {
+        if (typeof startRealtimeLocationTracking === 'function') {
+            try {
+                startRealtimeLocationTracking();
+            } catch (e) {
+                console.warn('启动实时定位失败', e);
+            }
+        } else if (typeof getCurrentLocation === 'function') {
+            try {
+                getCurrentLocation();
+            } catch (e) {
+                console.warn('一次性定位失败', e);
+            }
+        }
+    }, 300);
 }
 
 /**

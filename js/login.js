@@ -20,21 +20,6 @@ const otherPhoneBackBtn = document.getElementById('other-phone-back-btn');
 let countdown = 60;
 let countdownTimer = null;
 
-// 测试账号数据
-const testAccounts = [
-    { username: 'admin', password: '123456', role: 'admin' },
-    { username: 'admin2', password: '123456', role: 'manager' },  // 管理员账号
-    { username: 'driver', password: '123456', role: 'driver' },
-    { username: 'test', password: '123456', role: 'user' }
-];
-
-// 测试手机号
-const testPhones = [
-    { phone: '13800138000', code: '123456' },
-    { phone: '13900139000', code: '123456' },
-    { phone: '13700137000', code: '123456' }
-];
-
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 页面加载完成后隐藏加载界面
@@ -1194,32 +1179,6 @@ async function fetchUserVehicle(token, userIdStr) {
 }
 
 
-// 验证手机号登录
-function validatePhoneLogin(phone, code) {
-    const testPhone = testPhones.find(p => p.phone === phone);
-
-    if (testPhone && testPhone.code === code) {
-        return { success: true };
-    } else if (!testPhone) {
-        return { success: false, message: '手机号未注册' };
-    } else {
-        return { success: false, message: '验证码错误' };
-    }
-}
-
-// 验证账号密码登录
-function validateAccountLogin(username, password) {
-    const user = testAccounts.find(account =>
-        account.username === username && account.password === password
-    );
-
-    if (user) {
-        return { success: true, user: user };
-    } else {
-        return { success: false, message: '用户名或密码错误' };
-    }
-}
-
 // 处理登录成功
 function handleLoginSuccess(user, loginType) {
     // 清除历史存储数据
@@ -1314,11 +1273,8 @@ function hideError(msgElement) {
 
 // 初始化项目选择
 function initProjectSelection() {
-    // 项目数据（默认数据，将被用户实际项目覆盖）
-    let projectsData = {
-        '江苏省': ['苏州丰隆项目','胥江一号项目',  '圆融国际广场项目', '汇川动力总部项目'],
-        '湖北省': ['汉韵公馆项目', '葛店试验场项目','测试项目']
-    };
+    // 项目数据（从API获取，不再使用默认数据）
+    let projectsData = {};
     let provincePicker = null;
     let projectPicker = null;
     let selectedProvince = null;
