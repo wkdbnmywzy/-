@@ -86,10 +86,16 @@ function setupPickerEventListeners() {
 
         // 焦点事件 - 切换输入框时恢复默认显示
         pickerStartInput.addEventListener('focus', function() {
+            // 【修复】如果输入类型被锁定，不要改变
+            if (inputTypeLocked) {
+                console.log('[起点焦点] 输入类型已锁定，跳过');
+                return;
+            }
             if (currentInputType !== 'start') {
                 restoreDefaultDisplay();
                 currentInputType = 'start';
                 currentActiveInput = 'start-location';
+                console.log('[起点焦点] 切换到起点输入');
             }
         });
 
@@ -127,10 +133,16 @@ function setupPickerEventListeners() {
 
         // 焦点事件 - 切换输入框时恢复默认显示
         pickerEndInput.addEventListener('focus', function() {
+            // 【修复】如果输入类型被锁定，不要改变
+            if (inputTypeLocked) {
+                console.log('[终点焦点] 输入类型已锁定，跳过');
+                return;
+            }
             if (currentInputType !== 'end') {
                 restoreDefaultDisplay();
                 currentInputType = 'end';
                 currentActiveInput = 'end-location';
+                console.log('[终点焦点] 切换到终点输入');
             }
         });
 
@@ -312,8 +324,14 @@ function addPickerWaypoint(waypointValue) {
 
         // 焦点事件
         inputEl.addEventListener('focus', function() {
+            // 【修复】如果输入类型被锁定，不要改变
+            if (inputTypeLocked) {
+                console.log('[途经点焦点] 输入类型已锁定，跳过');
+                return;
+            }
             currentInputType = 'waypoint';
             currentActiveInput = `${waypointId}-input`;
+            console.log('[途经点焦点] 切换到途经点输入:', currentActiveInput);
             if (!this.value.trim()) {
                 restoreDefaultDisplay();
             }
@@ -505,10 +523,39 @@ function createInlinePickerWaypointEditor() {
     }
 }
 
+// 【核心修复】用于锁定当前输入类型，防止点击过程中被 focus 事件改变
+let inputTypeLocked = false;
+let lockedInputType = '';
+let lockedActiveInput = '';
+
+// 锁定当前输入类型
+function lockCurrentInputType() {
+    if (!inputTypeLocked) {
+        lockedInputType = currentInputType;
+        lockedActiveInput = currentActiveInput;
+        inputTypeLocked = true;
+        console.log('[锁定] 输入类型:', lockedInputType, '活动输入框:', lockedActiveInput);
+    }
+}
+
+// 解锁并恢复输入类型
+function unlockAndRestoreInputType() {
+    if (inputTypeLocked) {
+        currentInputType = lockedInputType;
+        currentActiveInput = lockedActiveInput;
+        inputTypeLocked = false;
+        console.log('[解锁] 恢复输入类型:', currentInputType);
+    }
+}
+
 // 分类标签点击事件
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('picker-tag')) {
+        // 先锁定当前输入类型
+        lockCurrentInputType();
         const tagName = e.target.textContent;
+        // 恢复并使用锁定的输入类型
+        unlockAndRestoreInputType();
         selectTagLocation(tagName);
     }
 });
@@ -517,19 +564,20 @@ document.addEventListener('click', function(e) {
 document.addEventListener('click', function(e) {
     const locationItem = e.target.closest('.picker-location-item');
     if (locationItem) {
-        // 【修复】在处理点击之前，先保存当前的输入类型
+        // 【修复】在处理点击之前，先锁定当前的输入类型
         // 避免点击时触发其他元素的 focus 事件导致 currentInputType 被改变
-        const savedInputType = currentInputType;
-        const savedActiveInput = currentActiveInput;
+        lockCurrentInputType();
         
         const locationText = locationItem.querySelector('.picker-location-text')?.textContent ||
                            locationItem.querySelector('.picker-location-name')?.textContent;
         if (locationText) {
-            // 恢复保存的输入类型（防止被其他事件干扰）
-            currentInputType = savedInputType;
-            currentActiveInput = savedActiveInput;
-            console.log('[点击地点] 使用保存的输入类型:', savedInputType);
+            // 恢复锁定的输入类型
+            unlockAndRestoreInputType();
+            console.log('[点击地点] 使用输入类型:', currentInputType, '活动输入框:', currentActiveInput);
             selectLocationFromPicker(locationText, locationItem);
+        } else {
+            // 没有文本时也要解锁
+            inputTypeLocked = false;
         }
     }
 });
@@ -538,11 +586,18 @@ document.addEventListener('click', function(e) {
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('picker-add-icon')) {
         e.stopPropagation();
+        // 先锁定当前输入类型
+        lockCurrentInputType();
+        
         const locationItem = e.target.closest('.picker-location-item');
         const locationText = locationItem?.querySelector('.picker-location-text')?.textContent ||
                            locationItem?.querySelector('.picker-location-name')?.textContent;
         if (locationText) {
+            // 恢复锁定的输入类型
+            unlockAndRestoreInputType();
             addLocationToCurrent(locationText);
+        } else {
+            inputTypeLocked = false;
         }
     }
 });
@@ -694,7 +749,7 @@ function loadSearchHistory() {
 
 // 选择分类标签位置
 function selectTagLocation(tagName) {
-    console.log('选择标签位置:', tagName);
+    console.log('选择标签位置:', tagName, '当前输入类型:', currentInputType, '活动输入框:', currentActiveInput);
 
     // 根据当前活动的输入框设置值（兼容选择面板与首页）
     if (currentInputType === 'start') {
@@ -702,14 +757,24 @@ function selectTagLocation(tagName) {
         if (pickerStartInput) pickerStartInput.value = tagName;
         const startInput = document.getElementById('start-location');
         if (startInput) startInput.value = tagName;
+        console.log('已更新起点为:', tagName);
     } else if (currentInputType === 'end') {
         const pickerEndInput = document.getElementById('picker-end-location');
         if (pickerEndInput) pickerEndInput.value = tagName;
         const endInput = document.getElementById('end-location');
         if (endInput) endInput.value = tagName;
+        console.log('已更新终点为:', tagName);
     } else if (currentInputType === 'waypoint' && currentActiveInput) {
         const waypointInput = document.getElementById(currentActiveInput);
-        if (waypointInput) waypointInput.value = tagName;
+        if (waypointInput) {
+            waypointInput.value = tagName;
+            console.log('已更新途经点为:', tagName, '输入框ID:', currentActiveInput);
+        } else {
+            console.warn('[警告] 未找到途经点输入框:', currentActiveInput);
+        }
+    } else {
+        console.warn('[警告] 无效的输入类型:', currentInputType, '将不更新任何输入框');
+        return;
     }
 
     // 添加到搜索历史（标签选择）
@@ -732,7 +797,7 @@ function selectTagLocation(tagName) {
 // 从面板选择地点
 function selectLocationFromPicker(locationText, locationItem) {
     console.log('从面板选择地点:', locationText);
-    console.log('当前输入类型:', currentInputType);
+    console.log('当前输入类型:', currentInputType, '活动输入框:', currentActiveInput);
 
     // 【调试】打印更新前的值
     const pickerStartBefore = document.getElementById('picker-start-location')?.value;
@@ -752,6 +817,7 @@ function selectLocationFromPicker(locationText, locationItem) {
             pickerStartInput.value = locationText;
             console.log('已更新起点输入框(picker-start-location)值为:', locationText);
         }
+        // 【重要】只更新起点，不要动终点
     } else if (currentInputType === 'end') {
         const endInput = document.getElementById('end-location');
         const pickerEndInput = document.getElementById('picker-end-location');
@@ -764,15 +830,20 @@ function selectLocationFromPicker(locationText, locationItem) {
             pickerEndInput.value = locationText;
             console.log('已更新终点输入框(picker-end-location)值为:', locationText);
         }
+        // 【重要】只更新终点，不要动起点
     } else if (currentInputType === 'waypoint' && currentActiveInput) {
-        // 处理途径点选择
+        // 处理途径点选择 - 只更新指定的途经点输入框
         const waypointInput = document.getElementById(currentActiveInput);
         if (waypointInput) {
             waypointInput.value = locationText;
-            console.log('已更新途径点输入框值为:', locationText);
+            console.log('已更新途径点输入框值为:', locationText, '输入框ID:', currentActiveInput);
+        } else {
+            console.warn('[警告] 未找到途经点输入框:', currentActiveInput);
         }
+        // 【重要】只更新当前途经点，不要动其他输入框
     } else {
-        console.warn('[警告] currentInputType 无效:', currentInputType);
+        console.warn('[警告] currentInputType 无效:', currentInputType, '将不更新任何输入框');
+        return; // 不更新任何输入框
     }
 
     // 【调试】打印更新后的值
@@ -828,7 +899,7 @@ function selectLocationFromPicker(locationText, locationItem) {
 
 // 添加地点到当前输入框
 function addLocationToCurrent(locationText) {
-    console.log('添加地点到当前输入框:', locationText);
+    console.log('添加地点到当前输入框:', locationText, '当前输入类型:', currentInputType, '活动输入框:', currentActiveInput);
 
     // 根据当前活动的输入框设置值
     if (currentInputType === 'start') {
@@ -837,18 +908,26 @@ function addLocationToCurrent(locationText) {
         if (pickerStartInput) {
             pickerStartInput.value = locationText;
         }
+        console.log('已添加到起点:', locationText);
     } else if (currentInputType === 'end') {
         document.getElementById('end-location').value = locationText;
         const pickerEndInput = document.getElementById('picker-end-location');
         if (pickerEndInput) {
             pickerEndInput.value = locationText;
         }
+        console.log('已添加到终点:', locationText);
     } else if (currentInputType === 'waypoint' && currentActiveInput) {
         // 处理途径点选择
         const waypointInput = document.getElementById(currentActiveInput);
         if (waypointInput) {
             waypointInput.value = locationText;
+            console.log('已添加到途经点:', locationText, '输入框ID:', currentActiveInput);
+        } else {
+            console.warn('[警告] 未找到途经点输入框:', currentActiveInput);
         }
+    } else {
+        console.warn('[警告] 无效的输入类型:', currentInputType, '将不添加');
+        return;
     }
 
     // 如果不是"我的位置"，添加到历史

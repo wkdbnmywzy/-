@@ -309,7 +309,14 @@
     // 恢复路线数据
     function restoreRouteData() {
         const routeData = sessionStorage.getItem('routePlanningData');
+        
+        // 【新增】如果没有路线数据，起点默认填充"我的位置"
         if (!routeData) {
+            const pickerStartInput = document.getElementById('picker-start-location');
+            if (pickerStartInput && !pickerStartInput.value) {
+                pickerStartInput.value = '我的位置';
+                console.log('起点默认填充: 我的位置');
+            }
             return;
         }
 
@@ -317,9 +324,14 @@
             const data = JSON.parse(routeData);
             console.log('恢复路线规划数据:', data);
 
+            // 【修改】如果起点为空，默认填充"我的位置"
             if (data.startLocation) {
                 document.getElementById('picker-start-location').value = data.startLocation;
+            } else {
+                document.getElementById('picker-start-location').value = '我的位置';
+                console.log('起点为空，默认填充: 我的位置');
             }
+            
             if (data.endLocation) {
                 document.getElementById('picker-end-location').value = data.endLocation;
             }
