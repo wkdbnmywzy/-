@@ -331,12 +331,15 @@ function getCurrentPosition() {
 
 /**
  * 根据GPS位置搜索附近5KM内的项目
+ * 流程：GPS定位 → 获取附近项目列表（含projectid）→ 用projectid获取项目详情 → 获取省份信息
+ * 与账号密码登录的 fetchUserProjects 处理方式一致
  * @param {number} latitude - 纬度
  * @param {number} longitude - 经度
  * @returns {Promise<Array>} 项目列表
  */
 async function searchNearbyProjects(latitude, longitude) {
     try {
+        // 第一步：根据GPS获取附近项目列表
         const response = await fetch('https://dmap.cscec3bxjy.cn/api/project/projects/search/nearby', {
             method: 'POST',
             headers: {
@@ -351,89 +354,147 @@ async function searchNearbyProjects(latitude, longitude) {
         const data = await response.json();
         console.log('[附近项目] API返回数据:', data);
         
-        if (response.ok && data.code === 200) {
-            const projects = data.data || [];
-            
-            if (projects.length === 0) {
-                return [];
-            }
-            
-            // 附近项目API只返回基本信息，需要通过projectid获取详情（含province_id）
-            // 先获取省份映射表
-            const token = sessionStorage.getItem('authToken');
-            const provinceCodeToName = token ? await fetchAllProvinces(token) : {};
-            
-            // 并行获取每个项目的详情
-            const projectDetailsPromises = projects.map(async (project) => {
-                const projectId = project.projectid || project.project_code;
-                if (!projectId) {
-                    return {
-                        id: project.id,
-                        projectCode: projectId,
-                        province: project.address || '附近项目',
-                        projectName: project.project_name || '',
-                        longitude: project.longitude,
-                        latitude: project.latitude,
-                        distance: project.distance_meters
-                    };
-                }
-                
-                try {
-                    // 获取项目详情以获取province_id
-                    const detailResponse = await fetch(`https://dmap.cscec3bxjy.cn/api/project/projects/code/${projectId}`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (detailResponse.ok) {
-                        const detailData = await detailResponse.json();
-                        if (detailData.code === 200 && detailData.data) {
-                            const detail = detailData.data;
-                            const provinceId = detail.province_id;
-                            const provinceName = provinceId && provinceCodeToName[provinceId] 
-                                ? provinceCodeToName[provinceId] 
-                                : (project.address || '附近项目');
-                            
-                            return {
-                                id: detail.id || project.id,
-                                projectCode: projectId,
-                                provinceId: provinceId,
-                                province: provinceName,
-                                projectName: detail.name || project.project_name || '',
-                                longitude: detail.longitude || project.longitude,
-                                latitude: detail.latitude || project.latitude,
-                                distance: project.distance_meters
-                            };
-                        }
-                    }
-                } catch (e) {
-                    console.warn(`[附近项目] 获取项目 ${projectId} 详情失败:`, e);
-                }
-                
-                // 获取详情失败，使用基本信息
-                return {
-                    id: project.id,
-                    projectCode: projectId,
-                    province: project.address || '附近项目',
-                    projectName: project.project_name || '',
-                    longitude: project.longitude,
-                    latitude: project.latitude,
-                    distance: project.distance_meters
-                };
-            });
-            
-            return await Promise.all(projectDetailsPromises);
-        } else {
+        if (!response.ok || data.code !== 200) {
             console.warn('[附近项目] 搜索失败:', data.message);
             return [];
         }
+        
+        const projects = data.data || [];
+        
+        if (projects.length === 0) {
+            console.log('[附近项目] 附近没有项目');
+            return [];
+        }
+        
+        // 第二步：提取项目ID列表（与账号密码登录一样的处理方式）
+        const projectIds = projects.map(p => p.projectid).filter(id => id);
+        console.log('[附近项目] 项目ID列表:', projectIds);
+        
+        if (projectIds.length === 0) {
+            console.warn('[附近项目] 没有有效的项目ID');
+            return [];
+        }
+        
+        // 第三步：根据每个项目ID获取项目详情（与 fetchUserProjects 一致）
+        const token = sessionStorage.getItem('authToken') || '';
+        
+        const projectDetailsPromises = projectIds.map(async (projectId) => {
+            try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const detailResponse = await fetch(`https://dmap.cscec3bxjy.cn/api/project/projects/code/${projectId}`, {
+                    method: 'GET',
+                    headers: headers
+                });
+
+                if (!detailResponse.ok) {
+                    console.error(`[附近项目] 获取项目 ${projectId} 详情失败:`, detailResponse.status);
+                    return null;
+                }
+
+                const detailData = await detailResponse.json();
+                console.log(`[附近项目] 项目 ${projectId} 完整数据:`, detailData);
+                
+                if (detailData.code === 200 && detailData.data) {
+                    const project = detailData.data;
+                    return {
+                        id: project.id,
+                        projectCode: projectId,
+                        provinceId: project.province_id || null,  // 省份ID，后续填充省份名称
+                        projectName: project.name || project.project_name || project.projectName || '',
+                        longitude: project.longitude || project.lng || null,
+                        latitude: project.latitude || project.lat || null
+                    };
+                }
+                
+                return null;
+            } catch (error) {
+                console.error(`[附近项目] 获取项目 ${projectId} 详情异常:`, error);
+                return null;
+            }
+        });
+
+        // 等待所有项目详情获取完成
+        const projectDetails = await Promise.all(projectDetailsPromises);
+        const validProjects = projectDetails.filter(p => p !== null);
+
+        // 第四步：获取省份映射表并填充省份名称（与 fetchUserProjects 一致）
+        const provinceCodeToName = await fetchAllProvincesWithoutToken();
+        
+        // 将省份名称填充到项目中
+        validProjects.forEach(project => {
+            if (project.provinceId && provinceCodeToName[project.provinceId]) {
+                project.province = provinceCodeToName[project.provinceId];
+            } else {
+                project.province = '未知省份';
+                console.warn(`[省份匹配] 未找到省份代码 ${project.provinceId} 对应的名称`);
+            }
+        });
+        
+        console.log('[附近项目] 获取完成，项目数:', validProjects.length, '项目列表:', validProjects);
+        return validProjects;
     } catch (error) {
         console.error('[附近项目] API调用失败:', error);
         return [];
     }
+}
+
+/**
+ * 获取所有省份列表（无需token版本，用于一键登录）
+ */
+async function fetchAllProvincesWithoutToken() {
+    try {
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/project/provinces', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            console.warn('[省份列表] 无token获取失败，使用本地映射');
+            return getLocalProvinceMap();
+        }
+
+        const data = await response.json();
+        
+        if (data.code === 200 && Array.isArray(data.data)) {
+            const provinceMap = {};
+            data.data.forEach(province => {
+                const code = province.province_id;
+                const name = province.province_name;
+                if (code && name) {
+                    provinceMap[code] = name;
+                }
+            });
+            
+            console.log('[省份列表] 获取成功，共', Object.keys(provinceMap).length, '个省份');
+            return provinceMap;
+        }
+        
+        return getLocalProvinceMap();
+    } catch (error) {
+        console.warn('[省份列表] 获取异常，使用本地映射:', error);
+        return getLocalProvinceMap();
+    }
+}
+
+/**
+ * 本地省份映射表（备用）
+ */
+function getLocalProvinceMap() {
+    return {
+        'BJ': '北京市', 'TJ': '天津市', 'HE': '河北省', 'SX': '山西省', 'NM': '内蒙古',
+        'LN': '辽宁省', 'JL': '吉林省', 'HL': '黑龙江省', 'SH': '上海市', 'JS': '江苏省',
+        'ZJ': '浙江省', 'AH': '安徽省', 'FJ': '福建省', 'JX': '江西省', 'SD': '山东省',
+        'HA': '河南省', 'HB': '湖北省', 'HN': '湖南省', 'GD': '广东省', 'GX': '广西',
+        'HI': '海南省', 'CQ': '重庆市', 'SC': '四川省', 'GZ': '贵州省', 'YN': '云南省',
+        'XZ': '西藏', 'SN': '陕西省', 'GS': '甘肃省', 'QH': '青海省', 'NX': '宁夏',
+        'XJ': '新疆', 'TW': '台湾省', 'HK': '香港', 'MO': '澳门'
+    };
 }
 
 // 处理账号密码登录
