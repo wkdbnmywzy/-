@@ -259,7 +259,15 @@ async function handlePhoneLogin(e) {
         const nearbyProjects = await searchNearbyProjects(latitude, longitude);
         console.log('[一键登录] 附近项目:', nearbyProjects);
         
-        // 3. 构建用户信息（手机号登录不需要真正的认证，直接进入项目选择）
+        // 3. 检查是否有附近项目
+        if (!nearbyProjects || nearbyProjects.length === 0) {
+            hideLoadingScreen();
+            showError(errorMessage, '您附近没有项目，请使用账号密码登录');
+            console.warn('[一键登录] 附近没有项目');
+            return;
+        }
+        
+        // 4. 构建用户信息（手机号登录不需要真正的认证，直接进入项目选择）
         const phoneUser = {
             username: '手机用户',
             phone: '',  // 一键登录暂时没有手机号
@@ -271,7 +279,7 @@ async function handlePhoneLogin(e) {
             gpsLocation: { latitude, longitude }
         };
         
-        // 4. 保存用户信息并进入项目选择
+        // 5. 保存用户信息并进入项目选择
         handleLoginSuccess(phoneUser, 'phone');
         
     } catch (error) {
