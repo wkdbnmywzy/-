@@ -1,16 +1,21 @@
 // 登录页面 JavaScript - 基于设计图
 
 // DOM元素
-const phoneLoginForm = document.getElementById('phone-login-form');
-const accountLoginForm = document.getElementById('account-login-form');
-const phoneInput = document.getElementById('phone');
-const codeInput = document.getElementById('code');
+const driverLoginForm = document.getElementById('driver-login-form');
+const adminLoginForm = document.getElementById('admin-login-form');
+const driverNameInput = document.getElementById('driver-name-input');
+const driverPhoneInput = document.getElementById('driver-phone-input');
+const driverPlateInput = document.getElementById('driver-plate-input');
+const driverHintMessage = document.getElementById('driver-hint-message');
+const driverErrorMessage = document.getElementById('driver-error-message');
+const rememberDriverCheckbox = document.getElementById('remember-driver');
+const nameRequiredMark = document.getElementById('name-required');
+const phoneRequiredMark = document.getElementById('phone-required');
+const plateRequiredMark = document.getElementById('plate-required');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
-const getCodeBtn = document.getElementById('get-code-btn');
-const errorMessage = document.getElementById('error-message');
+const rememberAdminCheckbox = document.getElementById('remember-admin');
 const accountErrorMessage = document.getElementById('account-error-message');
-const phoneErrorMessage = document.getElementById('phone-error-message'); // 手机号一键登录错误提示
 const tabBtns = document.querySelectorAll('.tab-btn');
 const loadingScreen = document.getElementById('loading-screen');
 const otherLoginBtn = document.querySelector('.other-login-btn');
@@ -28,6 +33,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initEventListeners();
     initProjectSelection();
+
+    // 加载记住的登录信息
+    loadRememberedCredentials();
+
+    // 初始化红色星号状态（页面加载完成后立即检查）
+    console.log('[初始化] 检查红色星号状态');
+    setTimeout(() => {
+        updateRequiredMarks();
+    }, 100);
 });
 
 // 隐藏加载界面
@@ -61,52 +75,42 @@ function initEventListeners() {
         });
     });
 
-    // 获取验证码（当前界面已不展示，做存在性判断）
-    if (getCodeBtn) {
-        getCodeBtn.addEventListener('click', handleGetCode);
-    }
-
     // 表单提交
-    phoneLoginForm.addEventListener('submit', handlePhoneLogin);
-    accountLoginForm.addEventListener('submit', handleAccountLogin);
-    if (otherPhoneForm) {
-        otherPhoneForm.addEventListener('submit', handleOtherPhoneSubmit);
-    }
-
-    // 其他手机号登录入口
-    if (otherLoginBtn) {
-        otherLoginBtn.addEventListener('click', () => {
-            hideError(errorMessage);
-            slideTo('other-phone-card');
-        });
-    }
-
-    // 其他手机号登录返回
-    if (otherPhoneBackBtn) {
-        otherPhoneBackBtn.addEventListener('click', () => {
-            slideToByElement(document.querySelector('.login-card'));
-        });
-    }
+    driverLoginForm.addEventListener('submit', handleDriverLogin);
+    adminLoginForm.addEventListener('submit', handleAdminLogin);
 
     // 输入框获得焦点时隐藏错误消息
-    phoneInput?.addEventListener('focus', () => hideError(errorMessage));
-    codeInput?.addEventListener('focus', () => hideError(errorMessage));
+    driverNameInput?.addEventListener('focus', () => {
+        hideError(driverErrorMessage);
+        hideHint();
+    });
+    driverPhoneInput?.addEventListener('focus', () => {
+        hideError(driverErrorMessage);
+        hideHint();
+    });
+    driverPlateInput?.addEventListener('focus', () => {
+        hideError(driverErrorMessage);
+        hideHint();
+    });
     usernameInput?.addEventListener('focus', () => hideError(accountErrorMessage));
     passwordInput?.addEventListener('focus', () => hideError(accountErrorMessage));
 
     // 手机号输入验证
-    if (phoneInput) {
-        phoneInput.addEventListener('input', function() {
+    if (driverPhoneInput) {
+        driverPhoneInput.addEventListener('input', function() {
             this.value = this.value.replace(/\D/g, '');
+            updateRequiredMarks();
         });
     }
 
-    // 验证码输入验证
-    if (codeInput) {
-        codeInput.addEventListener('input', function() {
-            this.value = this.value.replace(/\D/g, '');
-        });
-    }
+    // 监听司机登录输入框的输入事件，动态更新红色星号
+    driverNameInput?.addEventListener('input', updateRequiredMarks);
+    driverPlateInput?.addEventListener('input', updateRequiredMarks);
+
+    // 输入框失焦时显示提示
+    driverNameInput?.addEventListener('blur', updateDriverHint);
+    driverPhoneInput?.addEventListener('blur', updateDriverHint);
+    driverPlateInput?.addEventListener('blur', updateDriverHint);
 }
 
 // 切换登录方式标签
@@ -121,181 +125,185 @@ function switchTab(tab) {
     });
 
     // 切换表单显示
-    if (tab === 'phone') {
-        phoneLoginForm.classList.remove('hidden');
-        accountLoginForm.classList.add('hidden');
-        hideError(errorMessage);
+    if (tab === 'driver') {
+        driverLoginForm.classList.remove('hidden');
+        adminLoginForm.classList.add('hidden');
+        hideError(driverErrorMessage);
         hideError(accountErrorMessage);
+        hideHint();
     } else {
-        phoneLoginForm.classList.add('hidden');
-        accountLoginForm.classList.remove('hidden');
-        hideError(errorMessage);
+        driverLoginForm.classList.add('hidden');
+        adminLoginForm.classList.remove('hidden');
+        hideError(driverErrorMessage);
         hideError(accountErrorMessage);
     }
 }
 
-// 获取验证码
-function handleGetCode() {
-    if (!phoneInput) return; // 当前布局不显示
-    const phone = phoneInput.value.trim();
+// 更新必填标记的显示状态
+function updateRequiredMarks() {
+    const name = driverNameInput?.value.trim() || '';
+    const phone = driverPhoneInput?.value.trim() || '';
+    const plate = driverPlateInput?.value.trim() || '';
 
-    // 验证手机号
-    if (!phone) {
-        showError(errorMessage, '请输入手机号');
-        phoneInput.focus();
-        return;
-    }
+    console.log('[星号更新] 姓名:', name, '手机号:', phone, '车牌号:', plate);
+    console.log('[星号更新] DOM元素:', {
+        nameRequiredMark: !!nameRequiredMark,
+        phoneRequiredMark: !!phoneRequiredMark,
+        plateRequiredMark: !!plateRequiredMark
+    });
 
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-        showError(errorMessage, '手机号格式不正确');
-        phoneInput.focus();
-        return;
-    }
-
-    // 开始倒计时
-    startCountdown();
-
-    // 模拟发送验证码
-    setTimeout(() => {
-        console.log(`验证码已发送到 ${phone}，测试验证码: 123456`);
-    }, 500);
-}
-
-// 开始倒计时
-function startCountdown() {
-    countdown = 60;
-    if (getCodeBtn) {
-        getCodeBtn.disabled = true;
-        updateCountdownText();
-    }
-
-    countdownTimer = setInterval(() => {
-        countdown--;
-        if (countdown <= 0) {
-            stopCountdown();
-        } else if (getCodeBtn) {
-            updateCountdownText();
-        }
-    }, 1000);
-}
-
-// 停止倒计时
-function stopCountdown() {
-    if (countdownTimer) {
-        clearInterval(countdownTimer);
-        countdownTimer = null;
-    }
-    if (getCodeBtn) {
-        getCodeBtn.disabled = false;
-        getCodeBtn.textContent = '获取验证码';
-    }
-}
-
-// 更新倒计时文本
-function updateCountdownText() {
-    if (getCodeBtn) {
-        getCodeBtn.textContent = `${countdown}秒后重试`;
-    }
-}
-
-// 处理“其他手机号登录”提交
-async function handleOtherPhoneSubmit(e) {
-    e.preventDefault();
-
-    const phone = phoneInput?.value.trim() || '';
-    const code = codeInput?.value.trim() || '';
-
-    if (!phone) {
-        showError(errorMessage, '请输入手机号');
-        phoneInput?.focus();
-        return;
-    }
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-        showError(errorMessage, '手机号格式不正确');
-        phoneInput?.focus();
-        return;
-    }
-    if (!code) {
-        showError(errorMessage, '请输入验证码');
-        codeInput?.focus();
-        return;
-    }
-
-    // 显示加载
-    showLoadingScreen();
-
-    // 调用手机号登录API（暂时使用与账号密码相同的方式，后续替换为真实手机号登录接口）
-    try {
-        const result = await loginWithPhoneAPI(phone, code);
-        if (result.success) {
-            handleLoginSuccess(result.user, 'phone');
+    // 根据输入框是否有值来显示/隐藏红色星号
+    if (nameRequiredMark) {
+        if (name) {
+            nameRequiredMark.classList.add('hidden');
+            console.log('[星号更新] 姓名星号已隐藏');
         } else {
-            hideLoadingScreen();
-            showError(errorMessage, result.message || '验证码错误');
+            nameRequiredMark.classList.remove('hidden');
+            console.log('[星号更新] 姓名星号已显示');
         }
-    } catch (error) {
-        hideLoadingScreen();
-        console.error('手机号登录失败:', error);
-        showError(errorMessage, '登录失败，请稍后重试');
+    }
+    if (phoneRequiredMark) {
+        if (phone) {
+            phoneRequiredMark.classList.add('hidden');
+            console.log('[星号更新] 手机号星号已隐藏');
+        } else {
+            phoneRequiredMark.classList.remove('hidden');
+            console.log('[星号更新] 手机号星号已显示');
+        }
+    }
+    if (plateRequiredMark) {
+        if (plate) {
+            plateRequiredMark.classList.add('hidden');
+            console.log('[星号更新] 车牌号星号已隐藏');
+        } else {
+            plateRequiredMark.classList.remove('hidden');
+            console.log('[星号更新] 车牌号星号已显示');
+        }
     }
 }
 
-// 处理手机号登录（一键登录）
-async function handlePhoneLogin(e) {
+// 更新司机登录提示信息
+function updateDriverHint() {
+    const name = driverNameInput?.value.trim() || '';
+    const phone = driverPhoneInput?.value.trim() || '';
+    const plate = driverPlateInput?.value.trim() || '';
+
+    const missing = [];
+    if (!name) missing.push('姓名');
+    if (!phone) missing.push('手机号');
+    if (!plate) missing.push('车牌号');
+
+    if (missing.length > 0 && driverHintMessage) {
+        driverHintMessage.textContent = `请填入${missing.join('、')}`;
+        driverHintMessage.classList.add('show');
+    } else {
+        hideHint();
+    }
+}
+
+// 隐藏提示消息
+function hideHint() {
+    if (driverHintMessage) {
+        driverHintMessage.classList.remove('show');
+    }
+}
+
+// 处理司机登录
+async function handleDriverLogin(e) {
     e.preventDefault();
-    
+
+    const name = driverNameInput?.value.trim() || '';
+    const phone = driverPhoneInput?.value.trim() || '';
+    const plate = driverPlateInput?.value.trim() || '';
+
+    // 验证输入
+    if (!name) {
+        showError(driverErrorMessage, '请输入姓名');
+        updateDriverHint();
+        driverNameInput?.focus();
+        return;
+    }
+
+    if (!phone) {
+        showError(driverErrorMessage, '请输入手机号');
+        updateDriverHint();
+        driverPhoneInput?.focus();
+        return;
+    }
+
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+        showError(driverErrorMessage, '手机号格式不正确');
+        driverPhoneInput?.focus();
+        return;
+    }
+
+    if (!plate) {
+        showError(driverErrorMessage, '请输入车牌号');
+        updateDriverHint();
+        driverPlateInput?.focus();
+        return;
+    }
+
     // 显示加载
     showLoadingScreen();
-    
+
     try {
-        // 1. 获取当前GPS位置
-        console.log('[一键登录] 获取GPS位置...');
+        // 使用手机号登录（暂时使用GPS方式构建用户数据，后续可接入真实API）
+        // 这里先获取GPS位置，然后搜索附近项目
+        console.log('[司机登录] 获取GPS位置...');
         const position = await getCurrentPosition();
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
-        console.log('[一键登录] GPS位置:', { latitude, longitude });
-        
-        // 2. 根据GPS获取附近项目
-        console.log('[一键登录] 搜索附近项目...');
+        console.log('[司机登录] GPS位置:', { latitude, longitude });
+
+        // 根据GPS获取附近项目
+        console.log('[司机登录] 搜索附近项目...');
         const nearbyProjects = await searchNearbyProjects(latitude, longitude);
-        console.log('[一键登录] 附近项目:', nearbyProjects);
-        
-        // 3. 检查是否有附近项目
+        console.log('[司机登录] 附近项目:', nearbyProjects);
+
+        // 检查是否有附近项目
         if (!nearbyProjects || nearbyProjects.length === 0) {
             hideLoadingScreen();
-            showError(phoneErrorMessage, '您附近没有项目，请使用账号密码登录');
-            console.warn('[一键登录] 附近没有项目');
+            showError(driverErrorMessage, '您附近没有项目，请联系管理员');
+            console.warn('[司机登录] 附近没有项目');
             return;
         }
-        
-        // 4. 构建用户信息（手机号登录不需要真正的认证，直接进入项目选择）
-        const phoneUser = {
-            username: '手机用户',
-            phone: '',  // 一键登录暂时没有手机号
+
+        // 构建司机用户信息
+        const driverUser = {
+            username: name,
+            phone: phone,
             role: 'driver',
             isDriver: true,
             isAdmin: false,
-            projects: nearbyProjects,  // 使用GPS获取的附近项目
-            licensePlate: '',  // 需要手动输入
+            projects: nearbyProjects,
+            licensePlate: plate,
             gpsLocation: { latitude, longitude }
         };
-        
-        // 5. 保存用户信息并进入项目选择
-        handleLoginSuccess(phoneUser, 'phone');
-        
+
+        // 保存记住的登录信息
+        if (rememberDriverCheckbox?.checked) {
+            saveDriverCredentials(name, phone, plate);
+        } else {
+            clearDriverCredentials();
+        }
+
+        // 保存用户信息并进入项目选择
+        handleLoginSuccess(driverUser, 'driver');
+
     } catch (error) {
         hideLoadingScreen();
-        console.error('[一键登录] 失败:', error);
-        
+        console.error('[司机登录] 失败:', error);
+
         // 根据错误类型显示不同提示
         if (error.code === 1) {
-            showError(phoneErrorMessage, '请允许获取位置权限');
+            showError(driverErrorMessage, '请允许获取位置权限');
         } else if (error.code === 2) {
-            showError(phoneErrorMessage, '无法获取位置信息，请检查GPS');
+            showError(driverErrorMessage, '无法获取位置信息，请检查GPS');
         } else if (error.code === 3) {
-            showError(phoneErrorMessage, '获取位置超时，请重试');
+            showError(driverErrorMessage, '获取位置超时，请重试');
         } else {
-            showError(phoneErrorMessage, error.message || '登录失败，请稍后重试');
+            showError(driverErrorMessage, error.message || '登录失败，请稍后重试');
         }
     }
 }
@@ -491,8 +499,8 @@ function getLocalProvinceMap() {
     };
 }
 
-// 处理账号密码登录
-function handleAccountLogin(e) {
+// 处理管理员登录
+function handleAdminLogin(e) {
     e.preventDefault();
 
     const username = usernameInput.value.trim();
@@ -523,9 +531,17 @@ function handleAccountLogin(e) {
                 if (userProjects.length === 0) {
                     hideLoadingScreen();
                     showError(accountErrorMessage, '您的账号没有关联项目，请联系管理员');
-                    console.warn('[账号登录] 用户没有关联项目');
+                    console.warn('[管理员登录] 用户没有关联项目');
                     return;
                 }
+
+                // 保存记住的密码
+                if (rememberAdminCheckbox?.checked) {
+                    saveAdminCredentials(username, password);
+                } else {
+                    clearAdminCredentials();
+                }
+
                 handleLoginSuccess(result.user, 'account');
             } else {
                 hideLoadingScreen();
@@ -1315,11 +1331,16 @@ function initProjectSelection() {
         const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
         const userProjects = currentUser.projects || [];
 
+        console.log('[项目选择器] 当前用户:', currentUser);
+        console.log('[项目选择器] 用户项目数量:', userProjects.length);
+        console.log('[项目选择器] 用户项目列表:', userProjects);
+
         // 如果用户有项目列表，使用用户的项目
         if (userProjects.length > 0) {
             projectsData = {};
             userProjects.forEach(project => {
                 const province = project.province || '未知省份';
+                console.log('[项目选择器] 处理项目:', project.projectName, '省份:', province);
                 if (!projectsData[province]) {
                     projectsData[province] = [];
                 }
@@ -1327,9 +1348,16 @@ function initProjectSelection() {
                     projectsData[province].push(project.projectName);
                 }
             });
+            console.log('[项目选择器] 分组后的项目数据:', projectsData);
         }
 
         const provinces = Object.keys(projectsData);
+        console.log('[项目选择器] 省份列表:', provinces);
+
+        if (provinces.length === 0) {
+            console.warn('[项目选择器] 没有可用的省份！');
+            return;
+        }
 
         // 创建省份选择器
         provincePicker = new WheelPicker(
@@ -1518,11 +1546,21 @@ function initProjectSelection() {
 
 // 显示项目选择（替换登录卡片）
 function showProjectSelection() {
+    console.log('[项目选择] 开始显示项目选择界面');
+
+    // 先验证用户信息和项目列表是否已保存
+    const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+    console.log('[项目选择] 当前用户:', currentUser);
+    console.log('[项目选择] 项目数量:', (currentUser.projects || []).length);
+
     slideTo('project-card');
 
     // 初始化轮盘选择器（等待动画开始后执行）
     if (window.initProjectPickers) {
-        setTimeout(() => window.initProjectPickers(), 50);
+        setTimeout(() => {
+            console.log('[项目选择] 准备初始化选择器');
+            window.initProjectPickers();
+        }, 50);
     }
 }
 
@@ -1672,3 +1710,95 @@ function handleVehicleSubmit(e) {
         window.location.href = 'index.html';
     }, 300);
 }
+
+// ==================== 记住登录信息功能 ====================
+
+/**
+ * 加载记住的登录信息
+ */
+function loadRememberedCredentials() {
+    // 加载司机登录信息
+    const driverData = localStorage.getItem('rememberedDriver');
+    if (driverData) {
+        try {
+            const data = JSON.parse(driverData);
+            if (data.remember && driverNameInput && driverPhoneInput && driverPlateInput) {
+                driverNameInput.value = data.name || '';
+                driverPhoneInput.value = data.phone || '';
+                driverPlateInput.value = data.plate || '';
+                if (rememberDriverCheckbox) {
+                    rememberDriverCheckbox.checked = true;
+                }
+                // 更新红色星号显示状态
+                updateRequiredMarks();
+                console.log('[自动填写] 司机登录信息已加载');
+            }
+        } catch (e) {
+            console.error('[自动填写] 加载司机信息失败:', e);
+        }
+    }
+
+    // 加载管理员登录信息
+    const adminData = localStorage.getItem('rememberedAdmin');
+    if (adminData) {
+        try {
+            const data = JSON.parse(adminData);
+            if (data.remember && usernameInput && passwordInput) {
+                usernameInput.value = data.username || '';
+                passwordInput.value = data.password || '';
+                if (rememberAdminCheckbox) {
+                    rememberAdminCheckbox.checked = true;
+                }
+                console.log('[记住密码] 管理员登录信息已加载');
+            }
+        } catch (e) {
+            console.error('[记住密码] 加载管理员信息失败:', e);
+        }
+    }
+}
+
+/**
+ * 保存司机登录信息
+ */
+function saveDriverCredentials(name, phone, plate) {
+    const data = {
+        name: name,
+        phone: phone,
+        plate: plate,
+        remember: true,
+        timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('rememberedDriver', JSON.stringify(data));
+    console.log('[自动填写] 司机登录信息已保存');
+}
+
+/**
+ * 清除司机登录信息
+ */
+function clearDriverCredentials() {
+    localStorage.removeItem('rememberedDriver');
+    console.log('[自动填写] 司机登录信息已清除');
+}
+
+/**
+ * 保存管理员登录信息
+ */
+function saveAdminCredentials(username, password) {
+    const data = {
+        username: username,
+        password: password,
+        remember: true,
+        timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('rememberedAdmin', JSON.stringify(data));
+    console.log('[记住密码] 管理员登录信息已保存');
+}
+
+/**
+ * 清除管理员登录信息
+ */
+function clearAdminCredentials() {
+    localStorage.removeItem('rememberedAdmin');
+    console.log('[记住密码] 管理员登录信息已清除');
+}
+

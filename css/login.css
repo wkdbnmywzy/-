@@ -804,3 +804,123 @@ body {
 .account-form-group .account-input:focus {
     border-bottom-color: #237CF3 !important;
 }
+
+/* ==================== 司机登录新增样式 ==================== */
+
+/* 必填标记（红色星号） */
+.required-mark {
+    color: #FF4444;
+    font-size: 16px;
+    margin-left: 4px;
+    flex: 0 0 auto;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+    visibility: visible;
+}
+
+.required-mark.hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none;
+}
+
+/* 提示消息（显示未填写的字段） */
+.hint-message {
+    font-size: 13px;
+    color: #FF9800;
+    text-align: center;
+    margin-top: -10px;
+    margin-bottom: 20px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.hint-message::before {
+    content: '⚠';
+    font-size: 14px;
+}
+
+.hint-message.show {
+    opacity: 1;
+}
+
+/* 记住选项（下次登录自动填写 / 记住密码） */
+.remember-option {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+/* 管理员登录的记住密码选项组 */
+.remember-form-group {
+    margin-bottom: 20px;
+}
+
+.remember-form-group .remember-option {
+    flex: 0 0 220px;
+    max-width: 60%;
+}
+
+/* 圆形复选框样式 */
+.remember-checkbox {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #2E89FF;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+    background-color: white;
+}
+
+.remember-checkbox:checked {
+    background-color: #2E89FF;
+    border-color: #2E89FF;
+}
+
+.remember-checkbox:checked::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: white;
+}
+
+.remember-option label {
+    font-size: 14px;
+    color: #666;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* 调整司机登录表单的布局 */
+#driver-login-form .form-group {
+    margin-bottom: 28px;
+}
+
+#driver-login-form .login-btn {
+    margin-top: 20px;
+}
+
+#driver-login-form .remember-option {
+    justify-content: center;
+    margin-top: 16px;
+}
+
+/* 调整管理员登录表单的按钮位置 */
+#admin-login-form .login-btn {
+    margin-top: 0;
+}
+
