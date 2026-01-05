@@ -18,13 +18,6 @@ const rememberAdminCheckbox = document.getElementById('remember-admin');
 const accountErrorMessage = document.getElementById('account-error-message');
 const tabBtns = document.querySelectorAll('.tab-btn');
 const loadingScreen = document.getElementById('loading-screen');
-const otherLoginBtn = document.querySelector('.other-login-btn');
-const otherPhoneForm = document.getElementById('other-phone-form');
-const otherPhoneBackBtn = document.getElementById('other-phone-back-btn');
-
-// 状态变量
-let countdown = 60;
-let countdownTimer = null;
 
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -248,8 +241,7 @@ async function handleDriverLogin(e) {
     showLoadingScreen();
 
     try {
-        // 使用手机号登录（暂时使用GPS方式构建用户数据，后续可接入真实API）
-        // 这里先获取GPS位置，然后搜索附近项目
+        // 获取GPS位置
         console.log('[司机登录] 获取GPS位置...');
         const position = await getCurrentPosition();
         const latitude = position.coords.latitude;
@@ -1198,7 +1190,7 @@ function handleLoginSuccess(user, loginType) {
 // 清除历史存储数据
 function clearHistoryStorage() {
     try {
-        // 清除sessionStorage中的历史数据（但保留项目选择）
+        // 清除sessionStorage中的历史数据（包括项目选择）
         const keysToRemove = [
             'kmlData',              // KML数据
             'kmlRawData',           // KML原始数据
@@ -1206,10 +1198,10 @@ function clearHistoryStorage() {
             'navigationRoute',      // 导航路线数据
             'searchHistory',        // 搜索历史
             'vehicleInfo',          // 车辆信息
-            'mapState',             // ⭐ 地图状态（重要：清除旧的地图状态）
-            'selectedLocation'      // 选中的位置
+            'mapState',             // 地图状态
+            'selectedLocation',     // 选中的位置
+            'projectSelection'      // ⭐ 项目选择（每次登录都要重新选择）
         ];
-        // 注意：不清除 projectSelection，因为马上要用
 
         keysToRemove.forEach(key => {
             sessionStorage.removeItem(key);
@@ -1297,27 +1289,24 @@ function initProjectSelection() {
                         window.location.href = 'admin_index.html';
                     }, 300);
                 } else {
-                    // 普通用户/司机显示车辆信息登记界面
-                    showVehicleCard();
+                    // 司机：已有车牌号，保存车辆信息后直接跳转
+                    const vehicleInfo = {
+                        licensePlate: currentUser.licensePlate,
+                        driverName: currentUser.username,
+                        type: 'driver',
+                        timestamp: new Date().toISOString()
+                    };
+                    sessionStorage.setItem('vehicleInfo', JSON.stringify(vehicleInfo));
+
+                    showLoadingScreen();
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 300);
                 }
             } else {
                 alert('请选择省份和项目');
             }
         });
-    }
-
-    // 车辆信息返回按钮
-    const vehicleBackBtn = document.getElementById('vehicle-back-btn');
-    if (vehicleBackBtn) {
-        vehicleBackBtn.addEventListener('click', function() {
-            hideVehicleCard();
-        });
-    }
-
-    // 车辆信息表单提交
-    const vehicleForm = document.getElementById('vehicle-form');
-    if (vehicleForm) {
-        vehicleForm.addEventListener('submit', handleVehicleSubmit);
     }
 
     // 初始化轮盘选择器的函数
@@ -1569,52 +1558,6 @@ function showLoginForm() {
     slideToByElement(document.querySelector('.login-card'));
 }
 
-// 显示车辆信息登记（替换当前卡片）
-function showVehicleCard() {
-    const vehicleCard = document.getElementById('vehicle-card');
-    const vehicleTitle = document.getElementById('vehicle-title');
-    const driverNameGroup = document.getElementById('driver-name-group');
-    const licensePlateInput = document.getElementById('license-plate');
-    const loginType = sessionStorage.getItem('loginType');
-
-    // 根据登录类型设置标题和显示字段
-    if (loginType === 'phone') {
-        // 手机号登录 - 临时车辆
-        if (vehicleTitle) {
-            vehicleTitle.textContent = '临时车辆信息登记';
-        }
-        if (driverNameGroup) {
-            driverNameGroup.style.display = 'flex';
-        }
-        vehicleCard?.classList.remove('fixed');
-        vehicleCard?.classList.add('temporary');
-    } else {
-        // 账号密码登录 - 固定车辆
-        if (vehicleTitle) {
-            vehicleTitle.textContent = '固定车辆信息登记';
-        }
-        if (driverNameGroup) {
-            driverNameGroup.style.display = 'none';
-        }
-        vehicleCard?.classList.add('fixed');
-        vehicleCard?.classList.remove('temporary');
-
-        // 从用户信息中获取车牌号并自动填充
-        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-        if (currentUser.licensePlate && licensePlateInput) {
-            licensePlateInput.value = currentUser.licensePlate;
-        }
-    }
-
-    // 滑动到车辆卡片
-    slideTo('vehicle-card');
-}
-
-// 隐藏车辆信息登记，回到项目选择
-function hideVehicleCard() {
-    slideTo('project-card');
-}
-
 // 通用滑动切换：将当前可见卡片向左滑出，新卡片从右滑入
 function slideTo(targetId) {
     const target = document.getElementById(targetId);
@@ -1660,55 +1603,6 @@ function slideToByElement(target) {
 
         setTimeout(onDone, 300); // 与 CSS 过渡时长匹配
     });
-}
-
-// 处理车辆信息提交
-function handleVehicleSubmit(e) {
-    e.preventDefault();
-
-    const driverNameInput = document.getElementById('driver-name');
-    const licensePlateInput = document.getElementById('license-plate');
-    const loginType = sessionStorage.getItem('loginType');
-
-    let vehicleInfo = {
-        licensePlate: licensePlateInput.value.trim(),
-        timestamp: new Date().toISOString()
-    };
-
-    // 验证车牌号
-    if (!vehicleInfo.licensePlate) {
-        alert('请输入车牌号');
-        licensePlateInput.focus();
-        return;
-    }
-
-    // 如果是临时车辆，验证姓名
-    if (loginType === 'phone') {
-        const driverName = driverNameInput.value.trim();
-        if (!driverName) {
-            alert('请输入姓名');
-            driverNameInput.focus();
-            return;
-        }
-        vehicleInfo.driverName = driverName;
-        vehicleInfo.type = 'temporary';
-    } else {
-        vehicleInfo.type = 'fixed';
-        // 从当前用户获取司机姓名
-        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-        vehicleInfo.driverName = currentUser.username || '';
-    }
-
-    // 显示加载界面
-    showLoadingScreen();
-
-    // 保存车辆信息
-    sessionStorage.setItem('vehicleInfo', JSON.stringify(vehicleInfo));
-
-    // 延迟后跳转到主页面
-    setTimeout(() => {
-        window.location.href = 'index.html';
-    }, 300);
 }
 
 // ==================== 记住登录信息功能 ====================
