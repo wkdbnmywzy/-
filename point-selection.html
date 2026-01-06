@@ -59,26 +59,38 @@
             <!-- 完成按钮 -->
             <button class="picker-complete-btn" id="picker-complete-btn">完成</button>
 
-            <!-- 分类标签 -->
-            <div class="picker-categories">
-                <div class="picker-category-section">
-                    <div class="picker-category-title">建筑</div>
-                    <div class="picker-category-tags" id="building-tags"></div>
+            <!-- 白色内容区域 -->
+            <div class="picker-white-content">
+                <!-- 顶部标签切换 -->
+                <div class="picker-location-tabs">
+                    <div class="picker-location-tab active" data-action="my-location">
+                        <img src="images/工地数字导航小程序切图/小程序更新切图/地图选点/我的位置.png" alt="我的位置" class="tab-icon">
+                        <span>我的位置</span>
+                    </div>
+                    <div class="picker-location-tab" data-action="map-selection">
+                        <img src="images/工地数字导航小程序切图/小程序更新切图/地图选点/地图选点.png" alt="地图选点" class="tab-icon">
+                        <span>地图选点</span>
+                    </div>
                 </div>
-                <div class="picker-category-section">
-                    <div class="picker-category-title">区域</div>
-                    <div class="picker-category-tags" id="area-tags"></div>
-                </div>
-            </div>
 
-            <!-- 地点列表 -->
-            <div class="picker-location-list" id="picker-location-list">
-                <div class="picker-location-item">
-                    <img class="icon-my-location" src="images/工地数字导航小程序切图/司机/2X/导航/我的位置.png" alt="我的位置" />
-                    <div class="picker-location-text">我的位置</div>
-                    <button class="picker-add-icon" aria-label="添加地点"></button>
+                <!-- 分类标签 -->
+                <div class="picker-categories">
+                    <div class="picker-category-section">
+                        <div class="picker-category-title">建筑</div>
+                        <div class="picker-category-tags" id="building-tags"></div>
+                    </div>
+                    <div class="picker-category-section">
+                        <div class="picker-category-title">区域</div>
+                        <div class="picker-category-tags" id="area-tags"></div>
+                    </div>
                 </div>
-                <!-- 历史搜索将动态插入此处 -->
+
+                <!-- 历史搜索地点 -->
+                <div class="picker-history-section">
+                    <div class="picker-location-list" id="picker-location-list">
+                        <!-- 历史搜索将动态插入此处 -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -145,14 +157,93 @@
             return;
         }
 
-        // 清空现有内容（保留"我的位置"）
-        const myLocationItem = listContainer.querySelector('.picker-location-item');
+        // 清空现有内容
         listContainer.innerHTML = '';
-        if (myLocationItem) {
-            listContainer.appendChild(myLocationItem);
-        }
 
-        // 渲染KML点位
+        // 先渲染历史搜索（如果有）
+        renderHistoryItems(listContainer);
+
+        // 如果没有历史记录，渲染KML点位
+        if (listContainer.children.length === 0 && points.length > 0) {
+            renderKMLPoints(listContainer, points);
+        }
+    }
+
+    // 渲染历史搜索项
+    function renderHistoryItems(container) {
+        try {
+            const stored = localStorage.getItem('searchHistory');
+            if (!stored || stored === 'null' || stored === 'undefined') {
+                return;
+            }
+
+            const searchHistory = JSON.parse(stored);
+            if (!Array.isArray(searchHistory) || searchHistory.length === 0) {
+                return;
+            }
+
+            // 最多显示10条历史
+            const maxHistory = 10;
+            const historyToShow = searchHistory.slice(0, maxHistory);
+
+            // 去重：使用Set记录已经显示的地点名称
+            const displayedNames = new Set();
+
+            historyToShow.forEach(historyItem => {
+                if (historyItem.name === '我的位置') {
+                    return; // 跳过"我的位置"，因为它在顶部标签中
+                }
+
+                // 去重检查
+                if (displayedNames.has(historyItem.name)) {
+                    return; // 跳过重复的地点
+                }
+                displayedNames.add(historyItem.name);
+
+                const item = document.createElement('div');
+                item.className = 'picker-location-item';
+
+                // 统一使用历史位置图标
+                const iconHTML = '<img class="icon-history-location" src="images/工地数字导航小程序切图/司机/2X/导航/历史位置.png" alt="历史位置" />';
+                const nameText = historyItem.name || '未知地点';
+                const addressText = historyItem.address || '';
+
+                item.innerHTML = `
+                    ${iconHTML}
+                    <div class="picker-location-info">
+                        <div class="picker-location-name">${nameText}</div>
+                        ${addressText ? `<div class="picker-location-desc">${addressText}</div>` : ''}
+                    </div>
+                    <button class="picker-add-icon" aria-label="添加地点"></button>
+                `;
+
+                // 点击整个项目或加号按钮都可以选择
+                const addLocation = () => {
+                    const activeInput = getCurrentActiveInput();
+                    if (activeInput) {
+                        activeInput.value = historyItem.name;
+                        console.log('选择历史地点:', historyItem.name);
+                    }
+                };
+
+                item.addEventListener('click', addLocation);
+                const addBtn = item.querySelector('.picker-add-icon');
+                addBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    addLocation();
+                });
+
+                container.appendChild(item);
+            });
+
+            console.log(`已渲染 ${displayedNames.size} 条历史搜索（去重后）`);
+        } catch (e) {
+            console.error('渲染历史搜索失败:', e);
+        }
+    }
+
+    // 渲染KML点位
+    function renderKMLPoints(container, points) {
         points.forEach(point => {
             const item = document.createElement('div');
             item.className = 'picker-location-item';
@@ -181,7 +272,7 @@
                 addLocation();
             });
 
-            listContainer.appendChild(item);
+            container.appendChild(item);
         });
     }
 
@@ -277,6 +368,19 @@
         return startInput;
     }
 
+    // 【覆盖】恢复默认显示 - 只使用本页面的渲染逻辑，避免重复渲染
+    function restoreDefaultDisplay() {
+        const pickerCategories = document.querySelector('.picker-categories');
+
+        // 显示分类标签
+        if (pickerCategories) {
+            pickerCategories.style.display = 'flex';
+        }
+
+        // 使用本页面的渲染函数，避免重复渲染
+        renderPointsList();
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         console.log('点位选择页面加载完成');
 
@@ -302,9 +406,53 @@
         // 渲染分类标签（建筑/区域）
         renderCategoryTags();
 
+        // 初始化标签切换
+        initTabSwitching();
+
         // 【已移除】"我的位置"点击事件由 point-selection.js 统一处理
         // 避免重复绑定导致起点终点同时被更新
     });
+
+    // 初始化标签切换功能
+    function initTabSwitching() {
+        const tabs = document.querySelectorAll('.picker-location-tab');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                const action = this.dataset.action;
+
+                // 移除所有标签的active状态
+                tabs.forEach(t => t.classList.remove('active'));
+
+                // 添加当前标签的active状态
+                this.classList.add('active');
+
+                // 处理不同的操作
+                if (action === 'my-location') {
+                    // 点击"我的位置"，填充当前输入框为"我的位置"
+                    const activeInput = getCurrentActiveInput();
+                    if (activeInput) {
+                        activeInput.value = '我的位置';
+                        console.log('已填充输入框为: 我的位置');
+
+                        // 【修改】不将"我的位置"添加到搜索历史，因为它在顶部标签中固定显示
+                        // "我的位置"不需要在历史记录中显示
+
+                        // 显示成功提示
+                        if (typeof showSuccessMessage === 'function') {
+                            showSuccessMessage('已选择: 我的位置');
+                        }
+                    }
+                } else if (action === 'map-selection') {
+                    // 地图选点功能 - 跳转到地图选点页面
+                    console.log('跳转到地图选点页面');
+                    window.location.href = 'map-point-selection.html';
+                }
+
+                console.log('点击标签:', action);
+            });
+        });
+    }
 
     // 恢复路线数据
     function restoreRouteData() {

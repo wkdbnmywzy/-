@@ -139,9 +139,10 @@ async function loadProjectMapData() {
             if (versionRes.ok) {
                 const versionData = await versionRes.json();
                 console.log('[管理端] 版本信息:', versionData);
-                
+
                 if (versionData.code === 200 && versionData.data) {
-                    versionId = versionData.data.id;
+                    // 使用 MapVersion_Id 字段（bigint类型）
+                    versionId = versionData.data.MapVersion_Id || versionData.data.id;
                     console.log('[管理端] 当前启用版本ID:', versionId);
                 }
             }
@@ -162,11 +163,11 @@ async function loadProjectMapData() {
             return;
         }
 
-        // 4. 构建请求URL（带project_id和version_id）
-        let pointsUrl = `${baseURL}/points-with-icons?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
-        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
-        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectId}&version_id=${versionId}`;
-        
+        // 4. 构建请求URL（点使用 /points 接口，线面使用原接口）
+        let pointsUrl = `${baseURL}/points?page=1&page_size=1000&project_id=${projectId}&map_version_id=${versionId}`;
+        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectId}&map_version_id=${versionId}`;
+        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectId}&map_version_id=${versionId}`;
+
         console.log('[管理端] 项目ID:', projectId, '版本ID:', versionId);
         console.log('[管理端] 请求URL:', { pointsUrl, polylinesUrl, polygonsUrl });
 
@@ -188,9 +189,82 @@ async function loadProjectMapData() {
         const polylinesData = await polylinesRes.json();
         const polygonsData = await polygonsRes.json();
 
-        const points = pointsData.data?.list || pointsData.data || [];
-        const polylines = polylinesData.data?.list || polylinesData.data || [];
-        const polygons = polygonsData.data?.list || polygonsData.data || [];
+        let points = pointsData.data?.list || pointsData.data || [];
+        let polylines = polylinesData.data?.list || polylinesData.data || [];
+        let polygons = polygonsData.data?.list || polygonsData.data || [];
+
+        // 【新增】过滤数据：只保留当前版本的数据，去除其他版本的重复数据
+        console.log('[管理端] ========== 数据版本过滤 ==========');
+        console.log('[管理端] 当前请求的版本ID:', versionId);
+        console.log('[管理端] 过滤前数据量 - 点:', points.length, '线:', polylines.length, '面:', polygons.length);
+
+        // 【新增】打印点数据示例，查看字段
+        if (points.length > 0) {
+            console.log('[管理端] ========== 点数据字段检查 ==========');
+            console.log('[管理端] 点数据示例 (完整对象):', points[0]);
+            console.log('[管理端] 点数据所有字段名:', Object.keys(points[0]));
+            console.log('[管理端] 检查版本字段:');
+            console.log('  - map_version_id:', points[0].map_version_id);
+            console.log('  - MapVersion_Id:', points[0].MapVersion_Id);
+            console.log('  - version_id:', points[0].version_id);
+            console.log('  - mapVersionId:', points[0].mapVersionId);
+            console.log('[管理端] ==========================================');
+        }
+
+        // 统计点数据的版本分布（尝试多个可能的字段名）
+        const pointVersions = {};
+        points.forEach(point => {
+            const v = point.map_version_id || point.MapVersion_Id || point.version_id || '无版本字段';
+            pointVersions[v] = (pointVersions[v] || 0) + 1;
+        });
+        console.log('[管理端] 点数据版本分布:', pointVersions);
+
+        // 统计线数据的版本分布
+        const lineVersions = {};
+        polylines.forEach(line => {
+            const v = line.map_version_id || '无版本字段';
+            lineVersions[v] = (lineVersions[v] || 0) + 1;
+        });
+        console.log('[管理端] 线数据版本分布:', lineVersions);
+
+        // 统计面数据的版本分布
+        const polygonVersions = {};
+        polygons.forEach(polygon => {
+            const v = polygon.map_version_id || '无版本字段';
+            polygonVersions[v] = (polygonVersions[v] || 0) + 1;
+        });
+        console.log('[管理端] 面数据版本分布:', polygonVersions);
+
+        // 过滤点数据（新的 /points 接口返回的数据包含 map_version_id 字段）
+        const pointsBeforeFilter = points.length;
+        points = points.filter(point => {
+            const versionField = point.map_version_id || point.MapVersion_Id || point.version_id;
+            // 如果没有版本字段，保留该数据
+            if (!versionField) return true;
+            // 只保留匹配当前版本的数据
+            return versionField == versionId;
+        });
+        const pointsFiltered = pointsBeforeFilter - points.length;
+
+        // 过滤线数据
+        const linesBeforeFilter = polylines.length;
+        polylines = polylines.filter(line => {
+            if (!line.map_version_id) return true;
+            return line.map_version_id == versionId;
+        });
+        const linesFiltered = linesBeforeFilter - polylines.length;
+
+        // 过滤面数据
+        const polygonsBeforeFilter = polygons.length;
+        polygons = polygons.filter(polygon => {
+            if (!polygon.map_version_id) return true;
+            return polygon.map_version_id == versionId;
+        });
+        const polygonsFiltered = polygonsBeforeFilter - polygons.length;
+
+        console.log('[管理端] 过滤后数据量 - 点:', points.length, '线:', polylines.length, '面:', polygons.length);
+        console.log('[管理端] 已过滤 - 点:', pointsFiltered, '个, 线:', linesFiltered, '条, 面:', polygonsFiltered, '个');
+        console.log('[管理端] =====================================');
 
         console.log('[管理端] 数据加载成功:', {
             点数量: points.length,

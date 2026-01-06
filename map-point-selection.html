@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>地图选点</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- 高德地图API -->
+    <script src="https://webapi.amap.com/maps?v=2.0&key=02e4976e38eb8bc8bcf71a9c485cc2ae"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部搜索栏 -->
+        <div class="map-selection-header">
+            <button class="map-selection-back-btn" id="map-selection-back-btn">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="map-selection-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="搜索地点或区域" id="map-selection-search-input">
+            </div>
+        </div>
+
+        <!-- 全屏地图容器 -->
+        <div id="map-container" class="map-selection-map"></div>
+
+        <!-- 底部信息面板（默认隐藏） -->
+        <div class="map-selection-panel" id="map-selection-panel">
+            <!-- 点信息面板 -->
+            <div class="panel-point-info" id="panel-point-info" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title-row">
+                        <h3 class="panel-title" id="point-name">点位名称</h3>
+                        <button class="panel-close-btn" id="panel-close-btn">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <p class="panel-subtitle" id="point-distance">距离 125 米</p>
+                </div>
+                <div class="panel-actions">
+                    <button class="panel-btn panel-btn-outline" id="point-route-btn">
+                        <i class="fas fa-map-marked-alt"></i>
+                        路线
+                    </button>
+                    <button class="panel-btn panel-btn-primary" id="point-nav-btn">
+                        <i class="fas fa-location-arrow"></i>
+                        导航
+                    </button>
+                </div>
+            </div>
+
+            <!-- 面信息面板 -->
+            <div class="panel-polygon-info" id="panel-polygon-info" style="display: none;">
+                <div class="panel-header">
+                    <div class="panel-title-row">
+                        <h3 class="panel-title" id="polygon-name">区域名称</h3>
+                        <button class="panel-close-btn" id="panel-polygon-close-btn">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <p class="panel-subtitle" id="polygon-area">距离 125 米</p>
+                </div>
+
+                <!-- 区域内点位列表 -->
+                <div class="panel-points-list" id="panel-points-list">
+                    <!-- 点位列表将动态插入 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="js/config.js"></script>
+    <script src="js/coordinate-convert.js"></script>
+    <script src="js/segment-splitter.js"></script>
+    <script src="js/map-core.js"></script>
+    <script src="js/kml-handler.js"></script>
+    <script src="js/ui-utils.js"></script>
+    <script src="js/api-data-converter.js"></script>
+    <script src="js/map-point-selection.js"></script>
+</body>
+</html>

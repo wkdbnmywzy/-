@@ -701,6 +701,12 @@ function addToSearchHistory(item) {
         return;
     }
 
+    // 【修改】跳过"我的位置"，因为它在顶部标签中固定显示，不需要在历史记录中
+    if (item.name === '我的位置') {
+        console.log('跳过添加"我的位置"到历史记录');
+        return;
+    }
+
     // 检查是否已存在相同的地点
     const existingIndex = searchHistory.findIndex(h => h.name === item.name);
 
@@ -731,8 +737,15 @@ function loadSearchHistory() {
         if (stored && stored !== 'null' && stored !== 'undefined') {
             const parsed = JSON.parse(stored);
             if (Array.isArray(parsed)) {
-                searchHistory = parsed;
+                // 【修改】过滤掉"我的位置"，确保历史记录干净
+                searchHistory = parsed.filter(item => item.name !== '我的位置');
                 console.log('成功加载搜索历史，条目数:', searchHistory.length);
+
+                // 如果过滤后数量变化了，重新保存一次
+                if (searchHistory.length !== parsed.length) {
+                    console.log('已过滤掉"我的位置"，重新保存历史记录');
+                    saveSearchHistory();
+                }
             } else {
                 console.warn('localStorage中的搜索历史数据格式不正确');
                 searchHistory = [];

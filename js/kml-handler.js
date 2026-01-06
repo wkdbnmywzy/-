@@ -757,7 +757,16 @@ function displayKMLFeatures(features, fileName) {
         });
 
         marker.on('click', function() {
-            showFeatureInfo(feature);
+            // 检查是否在地图选点页面
+            if (window.location.pathname.includes('map-point-selection.html')) {
+                // 地图选点页面：触发选面处理
+                if (typeof window.handleMapPolygonClick === 'function') {
+                    window.handleMapPolygonClick(feature, marker);
+                }
+            } else {
+                // 其他页面：显示要素信息
+                showFeatureInfo(feature);
+            }
         });
 
         layerMarkers.push(marker);
@@ -883,14 +892,23 @@ function displayKMLFeatures(features, fileName) {
                         console.log('DOM点击事件触发，点位名称:', feature.name);
                         e.stopPropagation(); // 阻止冒泡
 
-                        // 标记这是marker点击事件
-                        window._markerClicked = true;
+                        // 检查是否在地图选点页面
+                        if (window.location.pathname.includes('map-point-selection.html')) {
+                            // 地图选点页面：触发选点处理
+                            if (typeof window.handleMapPointClick === 'function') {
+                                window.handleMapPointClick(feature, marker);
+                            }
+                        } else {
+                            // 其他页面：正常的marker状态切换
+                            // 标记这是marker点击事件
+                            window._markerClicked = true;
 
-                        toggleIconState(marker);
+                            toggleIconState(marker);
 
-                        setTimeout(function() {
-                            window._markerClicked = false;
-                        }, 10);
+                            setTimeout(function() {
+                                window._markerClicked = false;
+                            }, 10);
+                        }
                     });
                     console.log('已为点位绑定DOM点击事件:', feature.name);
                 }

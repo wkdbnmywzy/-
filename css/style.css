@@ -5,7 +5,7 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* 隐藏高德地图logo和版权信�?*/
+/* 隐藏高德地图logo和版权信�?*/
 .amap-logo {
     display: none !important;
     opacity: 0 !important;
@@ -37,7 +37,7 @@ body {
     position: relative;
     max-width: 480px;
     margin: 0 auto;
-    background: linear-gradient(to bottom, #FFFFFF 0%, #DBE9FC 100%);
+    background: white;
     overflow: hidden;
 }
 
@@ -97,7 +97,7 @@ body {
     top: 20px;
     left: 20px;
     right: 20px;
-    z-index: 80; /* 调整到底部卡片下一�?*/
+    z-index: 80; /* 调整到底部卡片下一�?*/
     /* 容器本身透明，只负责定位 */
 }
 
@@ -109,7 +109,7 @@ body {
     background: rgba(255, 255, 255, 0.8);
     border-radius: 12px;
     padding: 12px 15px;
-    /* 更小、更柔和的阴�?*/
+    /* 更小、更柔和的阴�?*/
     box-shadow: 0 2px 8px rgba(44, 136, 255, 0.5);
 }
 
@@ -275,7 +275,7 @@ body {
     text-overflow: ellipsis;
 }
 
-/* 空状态样�?*/
+/* 空状态样�?*/
 .search-result-item:only-child {
     text-align: center;
     color: #999;
@@ -292,20 +292,20 @@ body {
 /* 底部卡片 */
 .bottom-card {
     position: absolute;
-    bottom: 60px; /* 紧贴导航栏上�?*/
+    bottom: 60px; /* 紧贴导航栏上�?*/
     left: 0;
     right: 0;
     z-index: 110;
     background: linear-gradient(to bottom, #FFFFFF 0%, #DBE9FC 100%);
     border-radius: 20px 20px 0 0;
-    padding: 20px 0 0 0; /* 只保留顶部内边距，底部无内边距与导航栏无缝连�?*/
+    padding: 20px 0 0 0; /* 只保留顶部内边距，底部无内边距与导航栏无缝连�?*/
     box-shadow: none;
     max-width: 480px;
     margin: 0 auto;
     min-height: 120px; /* 设置最小高度，避免内容少时离导航栏太远 */
 }
 
-/* 导航页面底部卡片：与底部卡片保持一致的渐变与圆角样�?*/
+/* 导航页面底部卡片：与底部卡片保持一致的渐变与圆角样�?*/
 .navigation-card {
     position: absolute;
     bottom: 60px;
@@ -318,7 +318,7 @@ body {
     box-shadow: none;
 }
 
-/* 导航页起点输入占位符蓝色，与其它页面保持一�?*/
+/* 导航页起点输入占位符蓝色，与其它页面保持一�?*/
 #nav-start-location::placeholder {
     color: #2A86FF;
 }
@@ -468,12 +468,12 @@ body {
     display: block;
     position: static;
     padding-left: 4%; /* 改用padding，让背景色延伸到边缘 */
-    padding-right: 15%; /* 右侧给途径点按钮区�?*/
+    padding-right: 15%; /* 右侧给途径点按钮区�?*/
     padding-bottom: 20px; /* 底部内边距，与导航栏保持间距 */
 }
 
 .location-inputs-wrapper {
-    width: 100%; /* 占满 route-selector 的宽�?(76%) */
+    width: 100%; /* 占满 route-selector 的宽�?(76%) */
     border: 1px solid #e6e9ef;
     border-radius: 12px;
     background: #fff;
@@ -543,8 +543,8 @@ body {
     background: #e6e9ef;
 }
 
-/* 让途径点的下划线与“我的位置”分隔线等长�?
-   使用与分隔线相同的左右内边距�?6px 左，12px 右）绘制伪元素下划线 */
+/* 让途径点的下划线与“我的位置”分隔线等长�?
+   使用与分隔线相同的左右内边距�?6px 左，12px 右）绘制伪元素下划线 */
 .waypoint-row::after {
     content: '';
     position: absolute;
@@ -572,7 +572,7 @@ body {
     background: #e6e9ef;
 }
 
-/* 切换按钮 - 在横线右�?*/
+/* 切换按钮 - 在横线右�?*/
 .swap-btn {
     width: 38px;
     height: 38px;
@@ -586,7 +586,7 @@ body {
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
-    position: absolute; /* 固定在输入盒子右侧中�?*/
+    position: absolute; /* 固定在输入盒子右侧中�?*/
     right: 12px;
     top: 50%;
     transform: translateY(-50%);
@@ -615,7 +615,7 @@ body {
 
 .add-waypoint {
     position: absolute;
-    right: 0; /* 贴着右边�?*/
+    right: 0; /* 贴着右边�?*/
     width: 12%; /* 途径点按钮区域占 12% */
     top: 20px;
     bottom: 20px;
@@ -654,7 +654,7 @@ body {
 }
 
 .add-btn img {
-    width: 80%; /* 相对于按钮大�?*/
+    width: 80%; /* 相对于按钮大�?*/
     height: 80%;
     object-fit: contain;
 }
@@ -665,12 +665,12 @@ body {
     white-space: nowrap;
 }
 
-/* 途经点容�?*/
+/* 途经点容�?*/
 .waypoints-container {
     margin-top: 0;
     display: flex;
     flex-direction: column;
-    gap: 0; /* 与起�?终点行保持一致的紧凑间距 */
+    gap: 0; /* 与起�?终点行保持一致的紧凑间距 */
 }
 
 .waypoint-row {
@@ -682,11 +682,11 @@ body {
 
 .waypoint-row .location-item {
     flex: 1;
-    padding: 14px 12px 14px 16px; /* 与起�?终点一�?*/
+    padding: 14px 12px 14px 16px; /* 与起�?终点一�?*/
     border-bottom: none; /* 由父级控制下划线 */
 }
 
-/* 删除途径点按�?*/
+/* 删除途径点按�?*/
 .remove-waypoint-btn {
     width: 28px;
     height: 28px;
@@ -730,17 +730,17 @@ body {
     display: flex;
 }
 
-/* 面板内容�?*/
+/* 面板内容�?*/
 .picker-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 20px;
+    padding: 20px 20px 0 20px;
     overflow-y: auto;
-    gap: 20px;
-    /* 隐藏滚动�?*/
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    gap: 16px;
+    background: white;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 /* 右侧悬浮“添加途径点”不再侵占内容宽度，保持内容满行展示 */
@@ -749,7 +749,7 @@ body {
     padding-right: 120px; /* 预留右侧悬浮控件宽度 */
 }
 
-/* has-right-add 状态下，交换按钮左移，避免与右侧悬浮控件重�?*/
+/* has-right-add 状态下，交换按钮左移，避免与右侧悬浮控件重�?*/
 .picker-content.has-right-add .picker-swap-btn {
     right: 64px;
 }
@@ -780,9 +780,9 @@ body {
     border: 1px solid #e6e9ef;
     border-radius: 12px;
     background: #fff;
-    position: relative; /* 让切换按钮以整个盒子为参照居中定�?*/
+    position: relative; /* 让切换按钮以整个盒子为参照居中定�?*/
     padding-right: 56px; /* 预留按钮空间 */
-    margin-bottom: 8px; /* 移除最外层卡片后，增加与下方元素间�?*/
+    margin-bottom: 8px; /* 移除最外层卡片后，增加与下方元素间�?*/
 }
 
 .picker-location-inputs {
@@ -855,7 +855,7 @@ body {
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
-    position: absolute; /* 固定在输入盒子右侧中�?*/
+    position: absolute; /* 固定在输入盒子右侧中�?*/
     right: 12px;
     top: 50%;
     transform: translateY(-50%);
@@ -877,32 +877,32 @@ body {
 }
 
 .picker-add-waypoint {
-    position: static;            /* 不再悬浮在右�?*/
+    position: static;            /* 不再悬浮在右�?*/
     right: auto;
     top: auto;
     transform: none;
-    display: flex;               /* 左侧“添加途径点�?+ 右侧“完成�?*/
+    display: flex;               /* 左侧“添加途径点�?+ 右侧“完成�?*/
     flex-direction: row;
     align-items: center;
     justify-content: space-between; /* 右侧完成按钮在最右边 */
     gap: 8px;
-    padding-left: 4px;           /* 与输入内容轻微对�?*/
-    margin-top: 8px;             /* 与输入卡片保持间�?*/
+    padding-left: 4px;           /* 与输入内容轻微对�?*/
+    margin-top: 8px;             /* 与输入卡片保持间�?*/
 }
 
-.picker-add-left { /* 左侧（图�?文案�?*/
+.picker-add-left { /* 左侧（图�?文案�?*/
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 8px;
 }
 
-/* 右侧的完成按钮（要求的配色与圆角�?*/
+/* 右侧的完成按钮（要求的配色与圆角�?*/
 .picker-add-complete-btn {
     background: #2A86FF;
     color: #fff;
     border: none;
-    border-radius: 999px; /* 等同�?999px 999px 999px 999px */
+    border-radius: 999px; /* 等同�?999px 999px 999px 999px */
     width: 103px;
     height: 30px;
     padding: 0;
@@ -957,7 +957,7 @@ body {
     color: #143662;
 }
 
-/* 下方“添加途径点”文案（两行�?*/
+/* 下方“添加途径点”文案（两行�?*/
 .picker-labels {
     display: flex;
     flex-direction: column;
@@ -988,7 +988,7 @@ body {
     font-style: normal;
     text-transform: none;
     font-weight: 400;
-    white-space: nowrap; /* 一行显�?*/
+    white-space: nowrap; /* 一行显�?*/
 }
 
 /* 路线规划页右侧悬浮的添加途径点控件（当从首页点击起点/终点进入时显示） */
@@ -1011,7 +1011,7 @@ body {
     color: #666;
 }
 
-/* 途经点容�?*/
+/* 途经点容�?*/
 .picker-waypoints-container {
     display: flex;
     flex-direction: column;
@@ -1022,7 +1022,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 0; /* 与其他输入行一�?*/
+    margin-top: 0; /* 与其他输入行一�?*/
     position: relative; /* 用伪元素绘制与分隔线等长的下划线 */
 }
 
@@ -1032,7 +1032,7 @@ body {
     background: transparent;
     border: none;
     border-radius: 0;
-    padding: 14px 12px 14px 16px; /* �?.picker-location-row 一�?*/
+    padding: 14px 12px 14px 16px; /* �?.picker-location-row 一�?*/
     box-shadow: none;
 }
 
@@ -1078,6 +1078,114 @@ body {
     box-shadow: 0 4px 12px rgba(42, 134, 255, 0.25);
     transition: all 0.3s ease;
     flex-shrink: 0;
+    margin-bottom: 16px;
+}
+
+/* 白色内容区域 */
+.picker-white-content {
+    background: white;
+    border-radius: 0; /* 移除圆角，让它与页面边界对齐 */
+    padding: 0;
+    box-shadow: none; /* 移除阴影 */
+    overflow: hidden;
+    flex: 1; /* 充满剩余空间 */
+    margin: 0 -20px; /* 负边距，让它延伸到页面边界 */
+}
+
+/* 顶部标签切换（无蓝色横条，紧密排列） */
+.picker-location-tabs {
+    display: flex;
+    gap: 0;
+    padding: 16px 0 8px 0;
+}
+
+.picker-location-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid #E0E0E0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #666;
+    font-size: 14px;
+}
+
+.picker-location-tab:first-child {
+    border-radius: 8px 0 0 8px;
+    border-right: none;
+}
+
+.picker-location-tab:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+.picker-location-tab .tab-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.picker-location-tab span {
+    font-weight: 500;
+}
+
+.picker-location-tab.active {
+    background: #fff;
+    color: #333;
+    font-weight: 600;
+    border-color: #E0E0E0;
+    position: relative;
+    z-index: 1;
+}
+
+.picker-location-tab:hover:not(.active) {
+    background: #F5F5F5;
+}
+
+/* 历史搜索区域 */
+.picker-history-section {
+    padding: 0;
+    margin-top: 16px;
+}
+
+/* 分类标签区域 - 添加内边距 */
+.picker-categories {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* 地点列表 - 移除外部样式，让它融入白色背景 */
+.picker-location-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: white;
+    border-radius: 0;
+    overflow: visible;
+    max-height: none;
+}
+
+.picker-location-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    background: white;
+    cursor: pointer;
+    gap: 12px;
+    transition: background-color 0.2s ease;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.picker-location-item:last-child {
+    border-bottom: none;
 }
 
 /* 路线规划页：目的地下方的内联完成按钮（蓝色） */
@@ -1100,7 +1208,7 @@ body {
     box-shadow: 0 2px 8px rgba(42,134,255,0.25);
 }
 
-/* 内联编辑行容器（与其他行对齐�?*/
+/* 内联编辑行容器（与其他行对齐�?*/
 .picker-inline-waypoint-row {
     display: flex;
     align-items: center;
@@ -1142,7 +1250,7 @@ body {
 
 .picker-category-tags {
     display: flex;
-    flex-wrap: wrap; /* 标签自动换行以占满一�?*/
+    flex-wrap: wrap; /* 标签自动换行以占满一�?*/
     gap: 8px;
     overflow-x: visible; /* 不使用横向滚动，保持满行布局 */
 }
@@ -1181,23 +1289,13 @@ body {
     overflow: hidden;
     max-height: 400px;
     overflow-y: auto;
-    /* 隐藏滚动�?*/
+    /* 隐藏滚动�?*/
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
 }
 
 .picker-location-list::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Opera */
-}
-
-.picker-location-item {
-    display: flex;
-    align-items: center;
-    padding: 14px 16px;
-    background: white;
-    cursor: pointer;
-    gap: 12px;
-    transition: background-color 0.2s ease;
 }
 
 .picker-location-item:hover {
@@ -1216,7 +1314,7 @@ body {
     color: #007bff;
 }
 
-/* 使用图片替换“我的位置”图�?*/
+/* 使用图片替换“我的位置”图�?*/
 .picker-location-item .icon-my-location {
     width: 18px;
     height: 18px;
@@ -1233,8 +1331,8 @@ body {
 
 /* 历史记录项图标（替换时钟为图片） */
 .picker-location-item .icon-history-location {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     object-fit: contain;
     flex-shrink: 0;
     display: inline-block;
@@ -1270,7 +1368,7 @@ body {
     height: 18px;
     border: none;
     background-color: transparent;
-    background-image: url('../images/工地数字导航小程序切�?司机/2X/导航/添加地点.png');
+    background-image: url('../images/工地数字导航小程序切图/司机/2X/导航/添加地点.png');
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -1280,7 +1378,7 @@ body {
     flex-shrink: 0;
     transition: transform 0.2s ease;
     padding: 0;
-    font-size: 0; /* 隐藏可能的文本内�?*/
+    font-size: 0; /* 隐藏可能的文本内�?*/
 }
 
 .picker-add-icon:hover { transform: scale(1.1); }
@@ -1290,7 +1388,7 @@ body {
 .waypoint-row {
     display: flex;
     align-items: center;
-    padding: 0; /* �?location-item 行一致，由子项控制内边距 */
+    padding: 0; /* �?location-item 行一致，由子项控制内边距 */
     gap: 8px;
     position: relative; /* 用伪元素绘制与分隔线等长的下划线 */
 }
@@ -1379,7 +1477,7 @@ body {
     height: 60px;
     pointer-events: auto;
     width: 100%;
-    max-width: 480px; /* 限制最大宽�?*/
+    max-width: 480px; /* 限制最大宽�?*/
     margin: 0 auto; /* 居中 */
 }
 
@@ -1416,7 +1514,7 @@ body {
     margin-bottom: 4px;
 }
 
-/* 地图控制按钮�?*/
+/* 地图控制按钮�?*/
 .map-controls {
     position: absolute;
     bottom: 240px;
@@ -1455,7 +1553,7 @@ body {
 }
 
 
-/* 响应式调�?- 保持一致的视觉效果 */
+/* 响应式调�?- 保持一致的视觉效果 */
 /* 针对小高度设备（如横屏手机、小屏手机） */
 @media (max-height: 700px) {
     .map-controls {
@@ -1463,7 +1561,7 @@ body {
     }
 }
 
-/* 针对超小高度设备（如横屏模式�?*/
+/* 针对超小高度设备（如横屏模式�?*/
 @media (max-height: 500px) {
     .search-container {
         top: 10px;
@@ -1538,11 +1636,11 @@ body {
         padding: 10px 20px; /* 保持左右 20px */
         max-height: 40vh;
         overflow-y: auto;
-        max-width: 480px; /* 限制最大宽�?*/
+        max-width: 480px; /* 限制最大宽�?*/
         margin: 0 auto; /* 居中 */
     }
 
-    /* 保持默认�?60px 高度 */
+    /* 保持默认�?60px 高度 */
 }
 
 /* 针对带刘海或打孔屏的手机 */
@@ -1570,9 +1668,9 @@ body {
     }
 }
 
-/* 大屏设备导航栏优�?- 已移除，保持 480px 手机样式 */
+/* 大屏设备导航栏优�?- 已移除，保持 480px 手机样式 */
 
-/* 适配超长屏设备（如全面屏手机�?*/
+/* 适配超长屏设备（如全面屏手机�?*/
 @media (aspect-ratio: 2/3) {
     .map-controls {
         bottom: 220px;
@@ -1738,4 +1836,266 @@ body {
     color: #666;
     cursor: pointer;
     font-size: 14px;
+}
+
+/* ============================================
+   地图选点页面样式
+   ============================================ */
+
+/* 顶部搜索栏 */
+.map-selection-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    padding: 8px 20px;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.map-selection-back-btn {
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 18px;
+    color: #333;
+}
+
+.map-selection-back-btn:hover {
+    background: #f5f5f5;
+}
+
+.map-selection-search {
+    flex: 1;
+    height: 40px;
+    background: #F5F5F5;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 8px;
+}
+
+.map-selection-search i {
+    color: #999;
+    font-size: 14px;
+}
+
+.map-selection-search input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 14px;
+    color: #333;
+}
+
+.map-selection-search input::placeholder {
+    color: #999;
+}
+
+/* 全屏地图容器 */
+.map-selection-map {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+
+/* 底部信息面板 */
+.map-selection-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 1001;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.map-selection-panel.active {
+    transform: translateY(0);
+}
+
+/* 面板头部 */
+.panel-header {
+    padding: 20px 20px 12px 20px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.panel-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.panel-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.panel-close-btn {
+    width: 32px;
+    height: 32px;
+    background: #f5f5f5;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    color: #666;
+}
+
+.panel-close-btn:hover {
+    background: #e8e8e8;
+}
+
+.panel-subtitle {
+    font-size: 14px;
+    color: #999;
+    margin: 0;
+}
+
+/* 面板操作按钮 */
+.panel-actions {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px 20px 20px;
+}
+
+.panel-btn {
+    flex: 1;
+    height: 44px;
+    border-radius: 8px;
+    border: none;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.panel-btn i {
+    font-size: 14px;
+}
+
+.panel-btn-outline {
+    background: #fff;
+    color: #2A86FF;
+    border: 1.5px solid #2A86FF;
+}
+
+.panel-btn-outline:hover {
+    background: #f0f7ff;
+}
+
+.panel-btn-primary {
+    background: #2A86FF;
+    color: #fff;
+}
+
+.panel-btn-primary:hover {
+    background: #1976e6;
+}
+
+/* 区域内点位列表 */
+.panel-points-list {
+    padding: 8px 20px 20px 20px;
+}
+
+.panel-point-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: #F8F9FA;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: background 0.2s;
+}
+
+.panel-point-item:hover {
+    background: #f0f2f5;
+}
+
+.panel-point-info {
+    flex: 1;
+}
+
+.panel-point-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.panel-point-distance {
+    font-size: 13px;
+    color: #999;
+}
+
+.panel-point-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.panel-point-btn {
+    padding: 6px 16px;
+    border-radius: 6px;
+    border: none;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.panel-point-btn i {
+    font-size: 12px;
+}
+
+.panel-point-btn-route {
+    background: #fff;
+    color: #2A86FF;
+    border: 1px solid #2A86FF;
+}
+
+.panel-point-btn-route:hover {
+    background: #f0f7ff;
+}
+
+.panel-point-btn-nav {
+    background: #2A86FF;
+    color: #fff;
+}
+
+.panel-point-btn-nav:hover {
+    background: #1976e6;
 }
