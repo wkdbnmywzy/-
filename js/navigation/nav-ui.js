@@ -236,13 +236,15 @@ const NavUI = (function() {
 
             const waypoints = [];
             if (waypointsContainer) {
-                const waypointInputs = waypointsContainer.querySelectorAll('.waypoint-input');
-                waypointInputs.forEach(input => {
-                    if (input.value) {
-                        waypoints.push(input.value);
+                const waypointTexts = waypointsContainer.querySelectorAll('.waypoint-text');
+                waypointTexts.forEach(textEl => {
+                    const text = textEl.textContent.trim();
+                    if (text) {
+                        waypoints.push(text);
                     }
                 });
             }
+            console.log('[NavUI] 收集到的途径点:', waypoints);
 
             // 构建路线数据
             const data = {
@@ -257,6 +259,8 @@ const NavUI = (function() {
             } else {
                 data.activeInput = type === 'start' ? 'nav-start-location' : 'nav-end-location';
             }
+
+            console.log('[NavUI] 保存路线规划数据:', data);
 
             // 保存到 sessionStorage
             NavDataStore.setRoutePlanningData(data);
@@ -868,26 +872,9 @@ const NavUI = (function() {
             const waypointRow = document.createElement('div');
             waypointRow.className = 'waypoint-row';
             waypointRow.id = waypointId;
-            waypointRow.innerHTML = `
-                <div class="location-item" style="flex: 1;">
-                    <i class="fas fa-dot-circle" style="color: #FF9800;"></i>
-                    <input type="text" placeholder="添加途经点" class="waypoint-input" readonly value="${waypointName}">
-                </div>
-                <div class="waypoint-actions">
-                    <button class="remove-waypoint-btn" data-id="${waypointId}">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            `;
+            waypointRow.innerHTML = `<span class="waypoint-text">${waypointName}</span>`;
 
             waypointsContainer.appendChild(waypointRow);
-
-            // 绑定删除按钮
-            const removeBtn = waypointRow.querySelector('.remove-waypoint-btn');
-            removeBtn.addEventListener('click', function() {
-                waypointRow.remove();
-                console.log('[NavUI] 途经点已删除:', waypointId);
-            });
 
             console.log('[NavUI] 途经点已添加:', waypointName);
         } catch (e) {

@@ -587,6 +587,13 @@ const NavCore = (function() {
 
             for (let i = 0; i < waypoints.length; i++) {
                 const waypoint = waypoints[i];
+
+                // 检查途径点是否有位置信息
+                if (!waypoint.position) {
+                    console.warn(`[分段] 途径点${i + 1} (${waypoint.name}) 没有位置信息，跳过`);
+                    continue;
+                }
+
                 const wpLng = Array.isArray(waypoint.position) ? waypoint.position[0] : waypoint.position.lng;
                 const wpLat = Array.isArray(waypoint.position) ? waypoint.position[1] : waypoint.position.lat;
 

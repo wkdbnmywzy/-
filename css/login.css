@@ -769,6 +769,30 @@ body {
     .picker-column {
         padding: 60px 0; /* (160px - 40px) / 2 = 60px */
     }
+
+    /* 登录卡片优化 */
+    .login-card {
+        padding: 20px 20px;
+        overflow-y: auto; /* 允许滚动 */
+    }
+
+    #driver-login-form .form-group {
+        margin-bottom: 20px;
+    }
+
+    #driver-login-form .login-btn {
+        margin-top: 16px;
+        height: 48px;
+    }
+
+    #account-login-form .login-btn {
+        margin-top: 20px;
+        height: 48px;
+    }
+
+    .tab-buttons {
+        margin-bottom: 20px;
+    }
 }
 
 @media (max-height: 600px) {
@@ -782,6 +806,94 @@ body {
 
     .picker-column {
         padding: 50px 0; /* (140px - 40px) / 2 = 50px */
+    }
+
+    /* 登录卡片进一步压缩 */
+    .login-card {
+        padding: 15px 20px;
+        overflow-y: auto; /* 允许滚动 */
+    }
+
+    #driver-login-form .form-group {
+        margin-bottom: 16px;
+    }
+
+    #driver-login-form .login-btn {
+        margin-top: 12px;
+        height: 44px;
+        font-size: 15px;
+    }
+
+    #account-login-form .login-btn {
+        margin-top: 16px;
+        height: 44px;
+        font-size: 15px;
+    }
+
+    .tab-buttons {
+        margin-bottom: 16px;
+    }
+
+    .tab-btn {
+        height: 40px;
+        font-size: 14px;
+    }
+
+    .form-input {
+        height: 44px;
+        font-size: 14px;
+    }
+}
+
+/* 极小屏幕高度优化 */
+@media (max-height: 500px) {
+    .map-background {
+        height: 140px;
+    }
+
+    .login-card {
+        padding: 10px 20px;
+        overflow-y: auto;
+    }
+
+    #driver-login-form .form-group {
+        margin-bottom: 12px;
+    }
+
+    #driver-login-form .login-btn {
+        margin-top: 10px;
+        height: 40px;
+        font-size: 14px;
+    }
+
+    #account-login-form .login-btn {
+        margin-top: 12px;
+        height: 40px;
+        font-size: 14px;
+    }
+
+    .tab-buttons {
+        margin-bottom: 12px;
+    }
+
+    .tab-btn {
+        height: 36px;
+        font-size: 13px;
+        padding: 0 16px;
+    }
+
+    .form-input {
+        height: 40px;
+        font-size: 13px;
+    }
+
+    .form-label {
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+
+    .remember-option {
+        margin-top: 10px;
     }
 }
 
@@ -917,6 +1029,82 @@ body {
 #driver-login-form .remember-option {
     justify-content: center;
     margin-top: 16px;
+}
+
+/* iPhone SE 及类似小屏幕优化（375x667等） */
+@media (max-width: 400px) and (max-height: 700px) {
+    .map-background {
+        height: 160px; /* 减少地图高度，给表单更多空间 */
+    }
+
+    .login-card {
+        padding: 16px 20px;
+        overflow-y: auto;
+    }
+
+    /* 标签栏 */
+    .tab-buttons {
+        margin-bottom: 16px;
+        gap: 16px;
+    }
+
+    .tab-btn {
+        height: 38px;
+        font-size: 14px;
+        padding: 0 20px;
+    }
+
+    /* 司机登录表单紧凑布局 */
+    #driver-login-form .form-group {
+        margin-bottom: 18px; /* 从28px减到18px */
+    }
+
+    #driver-login-form .input-row {
+        padding: 10px 0;
+        gap: 10px;
+    }
+
+    #driver-login-form .form-label {
+        font-size: 14px;
+        min-width: 60px;
+    }
+
+    #driver-login-form .form-input {
+        height: 40px;
+        font-size: 14px;
+    }
+
+    #driver-login-form .login-btn {
+        margin-top: 14px; /* 从20px减到14px */
+        height: 46px;
+        font-size: 15px;
+    }
+
+    #driver-login-form .remember-option {
+        margin-top: 12px; /* 从16px减到12px */
+        font-size: 13px;
+    }
+
+    #driver-login-form .hint-message {
+        font-size: 12px;
+        margin-top: 8px; /* 改为正值，避免被覆盖 */
+        margin-bottom: 14px;
+    }
+
+    #driver-login-form .error-message {
+        font-size: 12px;
+        margin-top: 10px;
+    }
+
+    /* 账号密码登录也优化 */
+    #account-login-form .account-form-group {
+        margin-bottom: 18px;
+    }
+
+    #account-login-form .login-btn {
+        height: 46px;
+        font-size: 15px;
+    }
 }
 
 /* 调整管理员登录表单的按钮位置 */

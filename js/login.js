@@ -948,18 +948,27 @@ async function fetchUserProjects(token, userIdStr) {
         // 从API获取省份代码到名称的映射
         const provinceCodeToName = await fetchAllProvinces(token);
 
-        // 直接解析返回的项目详情
-        const validProjects = projectList.map(item => {
-            const provinceId = item.province_id || null;
-            return {
-                id: item.id,
-                projectCode: item.project_id || '',
-                provinceId: provinceId,
-                projectName: item.project_name || '',
-                province: (provinceId && provinceCodeToName[provinceId]) ? provinceCodeToName[provinceId] : '未知省份'
-            };
-        });
-        
+        // 直接解析返回的项目详情，并过滤掉数据不完整的项目
+        const validProjects = projectList
+            .map(item => {
+                const provinceId = item.province_id || null;
+                return {
+                    id: item.id,
+                    projectCode: item.project_id || '',
+                    provinceId: provinceId,
+                    projectName: item.project_name || '',
+                    province: (provinceId && provinceCodeToName[provinceId]) ? provinceCodeToName[provinceId] : '未知省份'
+                };
+            })
+            .filter(project => {
+                // 过滤掉省份ID为空或项目名称为空的项目
+                const isValid = project.provinceId && project.projectName.trim();
+                if (!isValid) {
+                    console.warn('[项目列表] 过滤掉数据不完整的项目:', project);
+                }
+                return isValid;
+            });
+
         console.log('[项目列表] 获取完成，项目数:', validProjects.length, '项目列表:', validProjects);
         return validProjects;
 

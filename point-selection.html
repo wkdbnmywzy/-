@@ -484,7 +484,7 @@
                 document.getElementById('picker-end-location').value = data.endLocation;
             }
 
-            // 恢复途经点
+            // 恢复途经点（无论是否autoAddWaypoint都要恢复）
             if (data.waypoints && data.waypoints.length > 0) {
                 data.waypoints.forEach(waypoint => {
                     if (typeof addPickerWaypoint === 'function') {
@@ -500,6 +500,11 @@
                     // 延迟一点添加，确保页面已完全加载
                     setTimeout(() => {
                         addPickerWaypoint();  // 添加空的新途径点
+                        // 自动聚焦到新添加的途径点
+                        const waypointInputs = document.querySelectorAll('.picker-waypoint-input');
+                        if (waypointInputs.length > 0) {
+                            waypointInputs[waypointInputs.length - 1].focus();
+                        }
                     }, 100);
                 }
             } else {

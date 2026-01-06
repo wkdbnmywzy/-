@@ -100,16 +100,6 @@
     background: #e6e9ef;
 }
 
-/* 让导航页途径点下划线与“我的位置”分隔线等长 */
-.waypoint-row::after {
-    content: '';
-    position: absolute;
-    left: 16px;
-    right: 12px;
-    bottom: 0;
-    height: 1px;
-    background: #e6e9ef;
-}
 
 .swap-btn {
     width: 38px;
@@ -196,37 +186,34 @@
     text-align: center;
 }
 
-/* 途径点容器 - 垂直排列，高度自适应 */
+/* 途径点容器 - 横向排列，一行显示 */
 .waypoints-container {
     display: flex;
-    flex-direction: column;
-    gap: 0;
-    /* 超过3个途径点时显示滚动条 */
-    /* 每个途径点约64px高度，3个=192px */
-    max-height: 192px;
-    overflow-x: hidden; /* 隐藏横向滚动条 */
-    overflow-y: auto;
-    /* 美化滚动条：细滚动条，不突兀 */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 12px 14px 16px;
+    overflow-x: auto; /* 横向滚动 */
+    overflow-y: hidden;
+    /* 隐藏滚动条 */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
 }
 
+/* 途径点容器图标 */
+.waypoints-container::before {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #FF9800;
+    flex-shrink: 0;
+}
+
+/* 隐藏滚动条 - Webkit浏览器 */
 .waypoints-container::-webkit-scrollbar {
-    width: 4px;
-}
-
-.waypoints-container::-webkit-scrollbar-track {
-    background: transparent;
-    margin: 4px 0;
-}
-
-.waypoints-container::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 2px;
-}
-
-.waypoints-container::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.3);
+    display: none;
 }
 
 /* 路线信息 */
@@ -286,54 +273,25 @@
     box-shadow: 0 2px 12px rgba(30, 111, 255, 0.3);
 }
 
-/* 途径点输入与搜索结果 */
+/* 途径点 - 横向一行显示 */
 .waypoint-row {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    margin-top: 0;
-    position: relative;
+    white-space: nowrap;
 }
 
-.waypoint-row .location-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    padding: 14px 12px 14px 16px;
-    position: relative;
-    flex: 1;
+.waypoint-row .waypoint-text {
+    font-size: 15px;
+    color: #333;
+    display: inline;
 }
 
-/* 途径点下划线 */
-.waypoint-row::after {
-    content: '';
-    position: absolute;
-    left: 16px;
-    right: 12px;
-    bottom: 0;
-    height: 1px;
-    background: #e6e9ef;
-}
-
-.waypoint-row .location-item .waypoint-input {
-    flex: 1;
-    height: 32px;
-    border: none;
-    outline: none;
-    font-size: 14px;
-    background: transparent;
-}
-
-.waypoint-row .waypoint-actions button {
-    width: 28px;
-    height: 28px;
-    border: none;
-    background: transparent;
+/* 分号分隔符 */
+.waypoint-row + .waypoint-row::before {
+    content: '; ';
     color: #999;
-    cursor: pointer;
+    font-size: 15px;
+    margin: 0 4px;
 }
 
 .waypoint-search-results {
@@ -626,7 +584,7 @@
     }
 }
 
-/* 小屏幕宽度适配 - 针对途径点显示问题 */
+/* 小屏幕宽度适配 */
 @media (max-width: 375px) {
     /* 减少底部卡片padding */
     .navigation-card {
@@ -644,14 +602,13 @@
         gap: 10px;
     }
 
-    /* 缩小途径点行的padding */
-    .waypoint-row .location-item {
-        padding: 10px 8px 10px 12px;
-        gap: 8px;
+    /* 途径点容器padding */
+    .waypoints-container {
+        padding: 10px 10px 10px 12px;
     }
 
-    /* 调整输入框字体大小 */
-    .waypoint-row .location-item .waypoint-input {
+    /* 途径点文字大小 */
+    .waypoint-row .waypoint-text {
         font-size: 13px;
     }
 
@@ -659,20 +616,8 @@
         font-size: 14px;
     }
 
-    /* 缩小图标尺寸 */
-    .waypoint-row .location-item i {
-        font-size: 12px;
-    }
-
     .location-item i {
         font-size: 13px;
-    }
-
-    /* 缩小删除按钮 */
-    .waypoint-row .waypoint-actions button {
-        width: 24px;
-        height: 24px;
-        font-size: 12px;
     }
 
     /* 调整交换按钮位置 */
@@ -724,12 +669,11 @@
         padding: 12px 10px 12px 14px;
     }
 
-    .waypoint-row .location-item {
+    .waypoints-container {
         padding: 11px 10px 11px 14px;
-        gap: 10px;
     }
 
-    .waypoint-row .location-item .waypoint-input {
+    .waypoint-row .waypoint-text {
         font-size: 14px;
     }
 
@@ -762,12 +706,11 @@
         gap: 8px;
     }
 
-    .waypoint-row .location-item {
+    .waypoints-container {
         padding: 8px 6px 8px 10px;
-        gap: 6px;
     }
 
-    .waypoint-row .location-item .waypoint-input {
+    .waypoint-row .waypoint-text {
         font-size: 12px;
     }
 

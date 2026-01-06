@@ -489,20 +489,17 @@ function selectPointForRoute(point) {
         newRouteData.endLocation = point.name;
         newRouteData.endPosition = point.geometry.coordinates;
     } else if (inputType === 'waypoint') {
-        // 添加途径点
+        // 添加途径点（保存为字符串，位置信息在完成路线选择时解析）
         if (!newRouteData.waypoints) {
             newRouteData.waypoints = [];
         }
-        newRouteData.waypoints.push({
-            name: point.name,
-            position: point.geometry.coordinates
-        });
+        newRouteData.waypoints.push(point.name);
     }
 
     sessionStorage.setItem('routePlanningData', JSON.stringify(newRouteData));
 
-    // 返回首页
-    window.location.href = 'index.html';
+    // 跳转到点位选择界面
+    window.location.href = 'point-selection.html';
 }
 
 // 导航到点
@@ -523,48 +520,74 @@ function navigateToPoint(point) {
         }
     }
 
-    // 先保存点位到路线规划数据（填入当前输入框）
-    const routeData = sessionStorage.getItem('routePlanningData');
+    // 从sessionStorage获取当前路线数据
+    const routeDataStr = sessionStorage.getItem('routePlanningData');
+    let routeData = {};
     let inputType = 'end';  // 默认填充到终点
 
-    if (routeData) {
+    if (routeDataStr) {
         try {
-            const data = JSON.parse(routeData);
-            inputType = data.inputType || 'end';
+            routeData = JSON.parse(routeDataStr);
+            inputType = routeData.inputType || 'end';
         } catch (e) {
             console.error('解析路线数据失败:', e);
         }
     }
 
-    // 保存选择的点到sessionStorage
-    const newRouteData = JSON.parse(sessionStorage.getItem('routePlanningData') || '{}');
-
+    // 根据输入类型和当前路线状态填充数据
     if (inputType === 'start') {
-        newRouteData.startLocation = point.name;
-        newRouteData.startPosition = point.geometry.coordinates;
+        routeData.startLocation = point.name;
+        routeData.startPosition = point.geometry.coordinates;
+    } else if (inputType === 'waypoint') {
+        // 添加途径点（保存为字符串，在构建navigationData时再添加位置）
+        if (!routeData.waypoints) {
+            routeData.waypoints = [];
+        }
+        routeData.waypoints.push(point.name);
+
+        // 保存当前点的位置信息，用于后续构建navigationData
+        if (!routeData.waypointPositions) {
+            routeData.waypointPositions = {};
+        }
+        routeData.waypointPositions[point.name] = point.geometry.coordinates;
     } else {
         // 默认填充到终点
-        newRouteData.endLocation = point.name;
-        newRouteData.endPosition = point.geometry.coordinates;
+        routeData.endLocation = point.name;
+        routeData.endPosition = point.geometry.coordinates;
     }
 
-    sessionStorage.setItem('routePlanningData', JSON.stringify(newRouteData));
+    // 如果没有起点，设置为"我的位置"
+    if (!routeData.startLocation) {
+        routeData.startLocation = '我的位置';
+        routeData.startPosition = currentPos;
+    }
 
-    // 准备导航路线数据
+    // 如果没有终点，把选中的点作为终点
+    if (!routeData.endLocation) {
+        routeData.endLocation = point.name;
+        routeData.endPosition = point.geometry.coordinates;
+    }
+
+    // 保存路线规划数据
+    sessionStorage.setItem('routePlanningData', JSON.stringify(routeData));
+
+    // 准备完整的导航路线数据
     const navigationData = {
         start: {
-            name: '我的位置',
-            position: currentPos
+            name: routeData.startLocation,
+            position: routeData.startPosition || currentPos
         },
         end: {
-            name: point.name,
-            position: point.geometry.coordinates
+            name: routeData.endLocation,
+            position: routeData.endPosition || point.geometry.coordinates
         },
-        waypoints: []
+        waypoints: routeData.waypoints || []
     };
 
     // 保存到sessionStorage
     sessionStorage.setItem('navigationRoute', JSON.stringify(navigationData));
+
+    console.log('导航数据已准备:', navigationData);
 
     // 直接跳转到导航页面
     window.location.href = 'navigation.html';
