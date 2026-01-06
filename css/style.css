@@ -97,7 +97,7 @@ body {
     top: 20px;
     left: 20px;
     right: 20px;
-    z-index: 80; /* 调整到底部卡片下一�?*/
+    z-index: 80;
     /* 容器本身透明，只负责定位 */
 }
 
@@ -105,11 +105,10 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    /* 改为半透明背景 */
-    background: rgba(255, 255, 255, 0.8);
+    background: white;  /* 改为纯白色背景 */
     border-radius: 12px;
     padding: 12px 15px;
-    /* 更小、更柔和的阴�?*/
+    /* 蓝色阴影，和首页一致 */
     box-shadow: 0 2px 8px rgba(44, 136, 255, 0.5);
 }
 
@@ -137,6 +136,48 @@ body {
     color: #999;
 }
 
+/* 搜索框清除按钮 */
+.search-clear-btn {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.search-clear-btn:hover {
+    color: #666;
+}
+
+/* 搜索框提交按钮 */
+.search-submit-btn {
+    background: #2A86FF;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.search-submit-btn:hover {
+    background: #1976e6;
+}
+
+.search-submit-btn:active {
+    transform: scale(0.95);
+}
+
 /* 搜索结果 */
 .search-results {
     position: absolute;
@@ -146,11 +187,11 @@ body {
     background: white;
     border-radius: 0 0 12px 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 1000;
-    max-height: 300px;
+    z-index: 999;  /* 比搜索框低一层 */
+    max-height: 400px;
     overflow-y: auto;
     display: none;
-    margin-top: 5px;
+    margin-top: 8px;  /* 与搜索框保持一点距离 */
 }
 
 .search-results.active {
@@ -196,27 +237,31 @@ body {
 /* 搜索结果操作按钮 */
 .result-actions {
     display: flex;
-    gap: 8px;
+    gap: 12px;
     margin-left: auto;
+    flex-shrink: 0;
 }
 
 .result-action-btn {
-    width: 36px;
-    height: 36px;
-    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 0;
     border: none;
-    border-radius: 8px;
+    background: none;
+    font-size: 11px;
+    font-weight: 400;
+    color: #666;
+    cursor: pointer;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    padding: 0;
+    gap: 2px;
+    transition: all 0.2s;
+    white-space: nowrap;
 }
 
 .result-action-btn:hover {
-    background: #e0e0e0;
-    transform: scale(1.05);
+    opacity: 0.7;
 }
 
 .result-action-btn:active {
@@ -224,8 +269,8 @@ body {
 }
 
 .result-action-btn img {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     object-fit: contain;
 }
 
@@ -245,34 +290,26 @@ body {
     background-color: #f0f8ff;
 }
 
-.result-icon {
-    font-size: 16px;
-    width: 24px;
-    text-align: center;
-    flex-shrink: 0;
-}
-
-.result-content {
+.result-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .result-name {
     font-weight: 500;
     color: #333;
-    font-size: 14px;
+    font-size: 15px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.result-address {
-    font-size: 12px;
-    color: #666;
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.result-distance {
+    font-size: 13px;
+    color: #999;
 }
 
 /* 空状态样�?*/
@@ -1920,43 +1957,60 @@ body {
 .map-selection-panel {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: 50%;  /* 居中定位 */
+    transform: translateX(-50%) translateY(100%);  /* 居中并默认隐藏 */
+    width: 100%;  /* 宽度与容器相同 */
+    max-width: 480px;  /* 最大宽度与容器相同 */
     background: #fff;
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
     z-index: 1001;
-    transform: translateY(100%);
     transition: transform 0.3s ease;
     max-height: 60vh;
     overflow-y: auto;
+    overflow-x: hidden; /* 禁止左右滚动 */
 }
 
 .map-selection-panel.active {
-    transform: translateY(0);
+    transform: translateX(-50%) translateY(0);  /* 激活时显示，保持居中 */
 }
 
-/* 面板头部 */
-.panel-header {
-    padding: 20px 20px 12px 20px;
+/* 点信息面板和面信息面板容器 */
+#panel-point-info,
+#panel-polygon-info {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 地图选点页面的面板头部 */
+.map-selection-panel .panel-header {
+    padding: 20px 20px 12px 20px;  /* 恢复正常的内边距 */
     border-bottom: 1px solid #f0f0f0;
+    box-sizing: border-box;
+    width: 100%;
 }
 
-.panel-title-row {
+.map-selection-panel .panel-title-row {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 8px;
+    gap: 12px;
 }
 
-.panel-title {
+.map-selection-panel .panel-title {
     font-size: 18px;
     font-weight: 600;
     color: #333;
     margin: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.panel-close-btn {
+.map-selection-panel .panel-close-btn {
     width: 32px;
     height: 32px;
     background: #f5f5f5;
@@ -1968,84 +2022,118 @@ body {
     cursor: pointer;
     transition: background 0.2s;
     color: #666;
+    flex-shrink: 0;
 }
 
-.panel-close-btn:hover {
+.map-selection-panel .panel-close-btn:hover {
     background: #e8e8e8;
 }
 
-.panel-subtitle {
+.map-selection-panel .panel-subtitle {
     font-size: 14px;
     color: #999;
     margin: 0;
 }
 
-/* 面板操作按钮 */
-.panel-actions {
+/* 地图选点页面的面板操作按钮 */
+.map-selection-panel .panel-actions {
     display: flex;
     gap: 12px;
-    padding: 16px 20px 20px 20px;
+    padding: 16px 20px 20px 20px;  /* 恢复正常的内边距 */
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .panel-btn {
     flex: 1;
-    height: 44px;
-    border-radius: 8px;
+    height: auto;
+    border-radius: 0;
     border: none;
-    font-size: 15px;
-    font-weight: 500;
+    background: none;
+    font-size: 12px;
+    font-weight: 400;
+    color: #666;
     cursor: pointer;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
     transition: all 0.2s;
+    white-space: nowrap;
+    min-width: 0;
+    padding: 8px;
 }
 
-.panel-btn i {
-    font-size: 14px;
+.panel-btn i,
+.panel-btn img {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
 }
 
 .panel-btn-outline {
-    background: #fff;
-    color: #2A86FF;
-    border: 1.5px solid #2A86FF;
+    background: none;
+    color: #666;
+    border: none;
 }
 
 .panel-btn-outline:hover {
-    background: #f0f7ff;
+    background: none;
+    opacity: 0.7;
 }
 
 .panel-btn-primary {
-    background: #2A86FF;
-    color: #fff;
+    background: none;
+    color: #666;
 }
 
 .panel-btn-primary:hover {
-    background: #1976e6;
+    background: none;
+    opacity: 0.7;
 }
 
 /* 区域内点位列表 */
 .panel-points-list {
-    padding: 8px 20px 20px 20px;
+    padding: 12px 20px 20px 20px;  /* 恢复正常的内边距，与标题和按钮一致 */
+    box-sizing: border-box;
+    width: 100%;
+    max-height: 220px;  /* 限制最多显示3条记录的高度 */
+    overflow-y: auto;  /* 超出时显示滚动条 */
+    /* 隐藏滚动条，保持美观 */
+    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+}
+
+.panel-points-list::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
 }
 
 .panel-point-item {
     display: flex;
     align-items: center;
-    padding: 12px;
-    background: #F8F9FA;
+    padding: 12px 16px;
+    /* 使用点位背景图片 */
+    background: url('../images/工地数字导航小程序切图/小程序更新切图/区域选点/点位背景.png') no-repeat center;
+    background-size: 100% 100%; /* 拉伸填充整个容器 */
     border-radius: 8px;
     margin-bottom: 8px;
-    transition: background 0.2s;
+    transition: all 0.2s;
+    box-sizing: border-box; /* 确保 padding 不会增加宽度 */
+    width: 100%; /* 宽度为父容器的100% */
+    max-width: 100%; /* 最大宽度不超过父容器 */
 }
 
 .panel-point-item:hover {
-    background: #f0f2f5;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .panel-point-info {
     flex: 1;
+    min-width: 0; /* 允许flex子元素收缩到小于内容宽度 */
+    overflow: hidden; /* 隐藏溢出内容 */
 }
 
 .panel-point-name {
@@ -2053,6 +2141,9 @@ body {
     font-weight: 500;
     color: #333;
     margin-bottom: 4px;
+    white-space: nowrap; /* 不换行 */
+    overflow: hidden; /* 隐藏溢出 */
+    text-overflow: ellipsis; /* 显示省略号 */
 }
 
 .panel-point-distance {
@@ -2063,39 +2154,52 @@ body {
 .panel-point-actions {
     display: flex;
     gap: 8px;
+    flex-shrink: 0; /* 防止按钮被压缩 */
 }
 
 .panel-point-btn {
-    padding: 6px 16px;
-    border-radius: 6px;
+    padding: 4px 8px;
+    border-radius: 0;
     border: none;
-    font-size: 13px;
+    background: none;
+    font-size: 11px;
+    font-weight: 400;
+    color: #666;
     cursor: pointer;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    gap: 2px;
     transition: all 0.2s;
+    white-space: nowrap;
 }
 
-.panel-point-btn i {
-    font-size: 12px;
+.panel-point-btn i,
+.panel-point-btn img {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
 }
 
 .panel-point-btn-route {
-    background: #fff;
-    color: #2A86FF;
-    border: 1px solid #2A86FF;
+    background: none;
+    color: #666;
+    border: none;
 }
 
 .panel-point-btn-route:hover {
-    background: #f0f7ff;
+    background: none;
+    opacity: 0.7;
 }
 
 .panel-point-btn-nav {
-    background: #2A86FF;
-    color: #fff;
+    background: none;
+    color: #666;
 }
 
 .panel-point-btn-nav:hover {
-    background: #1976e6;
+    background: none;
+    opacity: 0.7;
 }

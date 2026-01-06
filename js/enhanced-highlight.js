@@ -388,8 +388,57 @@ function clearPointHighlight() {
 
 // 重新定义selectKMLPointFromSearch函数以使用增强效果
 function selectKMLPointFromSearchEnhanced(kmlPoint) {
-    // 创建突显效果（内部已经会清除之前的高亮）
-    createEnhancedHighlight(kmlPoint);
+    console.log('[首页搜索] 选中点位:', kmlPoint.name);
+
+    // 恢复之前选中的marker（如果有）
+    if (window.activeMarker && typeof resetMarkerToDown === 'function') {
+        resetMarkerToDown(window.activeMarker);
+    }
+
+    // 切换当前marker的图标状态（从down到up）
+    if (kmlPoint.marker) {
+        const markerDom = kmlPoint.marker.getContentDom();
+        if (markerDom) {
+            const iconDiv = markerDom.querySelector('.kml-icon-marker');
+            if (iconDiv) {
+                const currentState = iconDiv.dataset.state;
+                const iconType = iconDiv.dataset.iconType || 'building';
+                const upIconPath = iconDiv.dataset.upIcon;
+
+                console.log('[首页搜索] 切换图标状态:', currentState, '->', 'up');
+
+                if (currentState === 'down') {
+                    // 获取up状态的图标路径
+                    let newIconPath;
+                    if (upIconPath && upIconPath.startsWith('images/')) {
+                        newIconPath = upIconPath;
+                    } else {
+                        // 使用getIconPath函数
+                        if (typeof getIconPath === 'function') {
+                            newIconPath = getIconPath(iconType, 'up');
+                        } else {
+                            // 备用方案：直接构建路径
+                            const iconMap = { 'entrance': '出入口', 'yard': '堆场', 'workshop': '加工区', 'building': '建筑' };
+                            const iconName = iconMap[iconType] || iconMap['building'];
+                            newIconPath = `images/工地数字导航小程序切图/图标/${iconName}-down.png`; // 注意：up/down交换
+                        }
+                    }
+
+                    const img = iconDiv.querySelector('img');
+                    if (img) {
+                        img.src = newIconPath;
+                        iconDiv.dataset.state = 'up';
+                        iconDiv.style.width = '40px';
+                        iconDiv.style.height = '40px';
+                        console.log('[首页搜索] 图标已切换为up状态');
+                    }
+                }
+            }
+        }
+        // 保存当前激活的marker
+        window.activeMarker = kmlPoint.marker;
+        window.activeMarkerName = kmlPoint.name;
+    }
 
     // 添加到搜索历史
     if (typeof addToSearchHistory === 'function') {
@@ -401,9 +450,11 @@ function selectKMLPointFromSearchEnhanced(kmlPoint) {
         });
     }
 
-    // 移动地图中心到选中位置
+    // 移动地图中心到选中位置，并放大两级
     map.setCenter(kmlPoint.position);
-    map.setZoom(17);
+    const currentZoom = map.getZoom();
+    map.setZoom(currentZoom + 2);
+    console.log('[首页搜索] 地图放大两级:', currentZoom, '->', currentZoom + 2);
 
     // 隐藏搜索结果面板
     document.getElementById('search-results').classList.remove('active');
@@ -420,7 +471,4 @@ function selectKMLPointFromSearchEnhanced(kmlPoint) {
         bottomCard.style.transform = 'translateY(0)';
         bottomCard.classList.remove('expanded'); // 确保只显示一段
     }
-
-    // 显示选择信息
-    showSelectionInfo(kmlPoint);
 }

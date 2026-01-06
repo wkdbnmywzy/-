@@ -34,7 +34,7 @@ function checkLoginStatus() {
 function initMap() {
     // 获取项目中心点（如果有）
     const projectCenter = getProjectCenter();
-    
+
     // 创建地图实例
     map = new AMap.Map('map-container', {
         zoom: 15,
@@ -46,8 +46,30 @@ function initMap() {
         showLabel: true,
         features: ['bg', 'road', 'building', 'point']
     });
-    
+
     console.log('管理员地图初始化完成，中心点:', projectCenter || '默认');
+
+    // 监听地图加载完成事件
+    map.on('complete', function() {
+        console.log('[管理员首页] 地图加载完成');
+
+        // 检查是否从搜索页返回并选择了位置
+        const selectedLocationStr = sessionStorage.getItem('selectedLocation');
+        if (selectedLocationStr) {
+            try {
+                const selectedLocation = JSON.parse(selectedLocationStr);
+                console.log('[管理员首页] 从搜索页返回，选中的位置:', selectedLocation);
+
+                // 清除标记，避免重复处理
+                sessionStorage.removeItem('selectedLocation');
+
+                // 保存待处理的位置，等待KML数据加载完成后处理
+                window.pendingSelectedLocation = selectedLocation;
+            } catch (e) {
+                console.error('[管理员首页] 处理选中位置失败:', e);
+            }
+        }
+    });
 }
 
 // 获取项目中心点
@@ -305,9 +327,16 @@ async function loadProjectMapData() {
         if (processedFeatures.length > 0 && typeof displayKMLFeatures === 'function') {
             window.isFirstKMLImport = true;
             window.kmlData = kmlData;
-            
+
             console.log('[管理端] 调用displayKMLFeatures显示地图数据');
             displayKMLFeatures(processedFeatures, kmlData.fileName);
+
+            // 地图数据加载完成后，处理待选中的位置（如果有）
+            if (typeof handlePendingSelectedLocation === 'function') {
+                setTimeout(() => {
+                    handlePendingSelectedLocation();
+                }, 300);
+            }
         } else {
             console.warn('[管理端] 无地图数据或displayKMLFeatures不可用');
         }
@@ -429,12 +458,14 @@ function initEventListeners() {
         });
     });
     
-    // 搜索框点击
+    // 搜索框点击 - 跳转到搜索页面（与普通用户首页一致）
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.addEventListener('click', function() {
-            console.log('搜索功能待实现');
-            // TODO: 跳转到搜索页面
+            console.log('跳转到搜索页面');
+            // 保存来源页面
+            sessionStorage.setItem('searchReferrer', 'admin_index.html');
+            window.location.href = 'search.html';
         });
     }
     

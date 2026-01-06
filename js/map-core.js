@@ -140,6 +140,12 @@ function initMap() {
 }
 
 function getCurrentLocation() {
+    // 如果禁用了定位追踪，直接返回
+    if (window.disableLocationTracking === true) {
+        console.log('定位追踪已被禁用（点位选择页面）');
+        return;
+    }
+
     console.log('开始获取位置...');
 
     // 使用浏览器原生定位
@@ -281,6 +287,12 @@ function applyHeadingToMarker(rawHeading) {
 
 // ====== 首页地图：实时定位与箭头随手机方向旋转 ======
 function startRealtimeLocationTracking() {
+    // 如果禁用了定位追踪，直接返回
+    if (window.disableLocationTracking === true) {
+        console.log('定位追踪已被禁用（点位选择页面）');
+        return;
+    }
+
     if (isRealtimeLocating) return;
 
     console.log('启动浏览器原生实时定位');

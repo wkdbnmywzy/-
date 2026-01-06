@@ -35,12 +35,22 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         loadDefaultKMLFile();
     }
-    
+
     // 等待地图加载完成后，尝试从sessionStorage恢复KML数据
     setTimeout(function() {
         if (typeof loadKMLFromSession === 'function') {
             loadKMLFromSession();
         }
+
+        // 延迟检查：如果API加载失败且没有恢复到数据，才提示用户
+        setTimeout(function() {
+            if (window.apiLoadFailed && (!window.kmlLayers || window.kmlLayers.length === 0)) {
+                console.warn('[数据加载检查] API加载失败且无缓存数据');
+                alert('您所在位置周边无项目现场');
+            } else if (window.apiLoadFailed && window.kmlLayers && window.kmlLayers.length > 0) {
+                console.log('[数据加载检查] API加载失败，但已从缓存恢复数据');
+            }
+        }, 1000);
     }, 500);
 
     // 初始化点选择面板
@@ -471,11 +481,16 @@ async function loadMapDataFromAPI() {
         startLocationTracking();
 
         console.log('[API加载] 地图数据加载完成');
+        window.apiLoadFailed = false; // 标记API加载成功
 
     } catch (error) {
         console.error('[API加载] 加载地图数据失败:', error);
-        // alert('加载地图数据失败：' + error.message + '\n请检查网络连接或联系管理员');
-        alert('您所在位置周边无项目现场');
+        // 不立即弹出alert，因为可能还有sessionStorage中的数据
+        console.warn('[API加载] API加载失败，将尝试从sessionStorage恢复数据');
+        window.apiLoadFailed = true; // 标记API加载失败
+
+        // 启动定位
+        startLocationTracking();
     }
 }
 

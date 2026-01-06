@@ -115,6 +115,7 @@ const APIDataConverter = {
 
         const feature = {
             name: name,
+            type: '点',  // 添加中文type字段，用于marker匹配
             description: point.description || '',
             geometry: {
                 type: 'point',
@@ -179,6 +180,7 @@ const APIDataConverter = {
 
         const feature = {
             name: name,
+            type: '线',  // 添加中文type字段
             description: line.description || '',
             geometry: {
                 type: 'line',
@@ -247,6 +249,7 @@ const APIDataConverter = {
 
         const feature = {
             name: name,
+            type: '面',  // 添加中文type字段
             description: polygon.description || '',
             geometry: {
                 type: 'polygon',

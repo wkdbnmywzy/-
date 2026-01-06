@@ -18,7 +18,7 @@
         body {
             margin: 0 !important;
             padding: 0 !important;
-            background: #f5f5f5 !important;
+            background: white !important;  /* 纯白色背景 */
             overflow: visible !important;
             height: 100vh !important;
         }
@@ -31,7 +31,7 @@
         /* 搜索界面特定样式 */
         .search-page-container {
             height: 100vh;
-            background: #f5f5f5;
+            background: white;  /* 纯白色背景 */
             max-width: 480px;
             margin: 0 auto;
             display: flex;
@@ -71,20 +71,18 @@
         .search-input-container {
             background: white;
             padding: 15px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .search-input-wrapper {
-            flex: 1;
-            background: #F5F5F5;
-            border-radius: 8px;
-            padding: 10px 15px;
             display: flex;
             align-items: center;
             gap: 8px;
+            background: rgba(255, 255, 255, 0.8);  /* 白色80%透明度 */
+            border-radius: 10px;  /* 10px圆角 */
+            padding: 10px 15px;
+            /* 蓝色外阴影: 6px blur, #2C88FF 60% */
+            box-shadow: 0px 0px 6px 0px rgba(44, 136, 255, 0.6);
         }
 
         .search-input-field {
@@ -134,31 +132,32 @@
         }
 
         .search-btn {
-            background: #007AFF;
+            background: #2A86FF;  /* 深蓝色，100%不透明度 */
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 15px;
+            padding: 8px 16px;
+            border-radius: 10px;  /* 10px圆角 */
+            font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             white-space: nowrap;
+            flex-shrink: 0;  /* 防止按钮被压缩 */
         }
 
         .search-btn:active {
-            opacity: 0.8;
+            opacity: 0.9;
         }
 
         .search-content {
             padding: 0;
             flex: 1;
             overflow-y: auto;
-            background: #f5f5f5;
+            background: white;  /* 纯白色背景 */
             min-height: 0;
         }
 
         .search-results {
-            background: transparent;
+            background: white;  /* 纯白色背景 */
             display: block;
             min-height: 100%;
         }
@@ -167,7 +166,7 @@
             padding: 12px 20px;
             font-size: 13px;
             color: #999;
-            background: #f5f5f5;
+            background: white;  /* 纯白色背景 */
             font-weight: 500;
             display: block !important;
             visibility: visible !important;
@@ -216,7 +215,7 @@
 
         .search-result-name {
             font-size: 16px;
-            color: #333;
+            color: #2A86FF;  /* 蓝色名称，匹配设计稿 */
             margin-bottom: 4px;
             font-weight: 500;
         }
@@ -296,8 +295,8 @@
                        id="search-input"
                        autocomplete="off">
                 <button type="button" class="clear-input-btn" id="clear-input-btn" aria-label="清空输入" title="清空"></button>
+                <button class="search-btn" id="search-btn">搜索</button>
             </div>
-            <button class="search-btn" id="search-btn">搜索</button>
         </div>
 
         <!-- 搜索内容 -->
@@ -481,19 +480,19 @@
 
         // 显示KML点位结果
         if (kmlPoints.length > 0) {
-            html += '<div class="search-section-title">KML导入点位</div>';
+            html += '<div class="search-section-title">搜索结果</div>';
             kmlPoints.forEach(point => {
                 const highlightedName = highlightText(point.name, keyword);
-                const highlightedDesc = highlightText(point.description || 'KML导入点位', keyword);
+                const highlightedDesc = highlightText(point.description || '', keyword);
 
                 html += `
-                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.description || 'KML导入点位'}" data-type="kml">
+                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.description || ''}" data-type="kml">
                         <div class="search-result-icon">
-                            <img src="images/工地数字导航小程序切图/司机/2X/地图icon/工地-down.png" alt="KML">
+                            <img src="images/工地数字导航小程序切图/司机/2X/导航/定位-1.png" alt="点位">
                         </div>
                         <div class="search-result-info">
                             <div class="search-result-name">${highlightedName}</div>
-                            <div class="search-result-desc">${highlightedDesc}</div>
+                            ${highlightedDesc ? `<div class="search-result-desc">${highlightedDesc}</div>` : ''}
                         </div>
                         <div class="search-result-actions">
                             <button class="action-btn route-btn" title="路线">
@@ -556,16 +555,16 @@
         // 显示所有KML点位
         if (kmlPoints.length > 0) {
             console.log('准备显示KML点位，数量:', kmlPoints.length);
-            html += '<div class="search-section-title">KML导入点位</div>';
+            html += '<div class="search-section-title">地图点位</div>';
             kmlPoints.forEach(point => {
                 html += `
-                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.description || 'KML导入点位'}" data-type="kml">
+                    <div class="search-result-item" data-name="${point.name}" data-position="${JSON.stringify(point.position || []).replace(/"/g, '&quot;')}" data-address="${point.description || ''}" data-type="kml">
                         <div class="search-result-icon">
-                            <img src="images/工地数字导航小程序切图/司机/2X/地图icon/工地-down.png" alt="KML">
+                            <img src="images/工地数字导航小程序切图/司机/2X/导航/定位-1.png" alt="点位">
                         </div>
                         <div class="search-result-info">
                             <div class="search-result-name">${point.name}</div>
-                            <div class="search-result-desc">${point.description || 'KML导入点位'}</div>
+                            ${point.description ? `<div class="search-result-desc">${point.description}</div>` : ''}
                         </div>
                         <div class="search-result-actions">
                             <button class="action-btn route-btn" title="路线">
@@ -634,7 +633,10 @@
 
         // 返回按钮点击事件
         backBtn.addEventListener('click', function() {
-            window.location.href = 'index.html';
+            // 读取来源页面，默认返回普通首页
+            const referrer = sessionStorage.getItem('searchReferrer') || 'index.html';
+            console.log('返回到来源页面:', referrer);
+            window.location.href = referrer;
         });
 
         // 搜索按钮点击事件
@@ -767,14 +769,17 @@
                     address: address
                 });
 
-                // 保存到sessionStorage并返回首页
+                // 保存到sessionStorage并返回来源页面
                 sessionStorage.setItem('selectedLocation', JSON.stringify({
                     name: name,
                     position: position,
                     address: address
                 }));
 
-                window.location.href = 'index.html';
+                // 读取来源页面，默认返回普通首页
+                const referrer = sessionStorage.getItem('searchReferrer') || 'index.html';
+                console.log('选择地点后返回到:', referrer);
+                window.location.href = referrer;
             }
         });
     });

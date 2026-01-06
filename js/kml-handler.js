@@ -943,7 +943,9 @@ function displayKMLFeatures(features, fileName) {
     }
 
     // 显示导入成功消息（仅在首次导入时显示，从其他界面返回重新加载时不显示）
-    if (window.isFirstKMLImport && !window.pendingSelectedLocation) {
+    // 地图选点页面不显示此提示
+    const isMapSelectionPage = window.location.pathname.includes('map-point-selection.html');
+    if (window.isFirstKMLImport && !window.pendingSelectedLocation && !isMapSelectionPage) {
         const pointCount = points.length;
         const lineCount = lines.length;
         const polygonCount = polygons.length;
@@ -1527,9 +1529,6 @@ function handlePendingSelectedLocation() {
 
     // 定位到选中的位置
     if (selectedLocation.position && Array.isArray(selectedLocation.position) && selectedLocation.position.length >= 2) {
-        map.setCenter(selectedLocation.position);
-        map.setZoom(17);
-
         // 在KML图层中查找对应的点并高亮显示
         let foundInKML = false;
         if (kmlLayers && kmlLayers.length > 0) {
@@ -1543,23 +1542,50 @@ function handlePendingSelectedLocation() {
 
                     const extData = marker.getExtData();
                     if (extData && extData.name === selectedLocation.name) {
-                        // 找到了对应的KML点，使用增强高亮
-                        console.log('★★★ 在KML中找到对应点，使用高亮显示:', selectedLocation.name);
+                        // 找到了对应的KML点，切换图标状态
+                        console.log('★★★ 在KML中找到对应点，切换图标状态:', selectedLocation.name);
 
-                        const kmlPoint = {
-                            name: selectedLocation.name,
-                            position: selectedLocation.position,
-                            marker: marker,
-                            extData: extData,
-                            description: selectedLocation.address || extData.description
-                        };
-
-                        if (typeof createEnhancedHighlight === 'function') {
-                            console.log('调用createEnhancedHighlight');
-                            createEnhancedHighlight(kmlPoint);
-                        } else {
-                            console.error('createEnhancedHighlight函数不存在！');
+                        // 恢复之前选中的marker（如果有）
+                        if (window.activeMarker && typeof resetMarkerToDown === 'function') {
+                            resetMarkerToDown(window.activeMarker);
                         }
+
+                        // 切换图标状态（从down到up）
+                        const markerDom = marker.getContentDom();
+                        if (markerDom) {
+                            const iconDiv = markerDom.querySelector('.kml-icon-marker');
+                            if (iconDiv) {
+                                const currentState = iconDiv.dataset.state;
+                                const iconType = iconDiv.dataset.iconType || 'building';
+                                const upIconPath = iconDiv.dataset.upIcon;
+
+                                console.log('[首页-搜索返回] 切换图标状态:', currentState, '->', 'up');
+
+                                if (currentState === 'down') {
+                                    let newIconPath;
+                                    if (upIconPath && upIconPath.startsWith('images/')) {
+                                        newIconPath = upIconPath;
+                                    } else {
+                                        const iconMap = { 'entrance': '出入口', 'yard': '堆场', 'workshop': '加工区', 'building': '建筑' };
+                                        const iconName = iconMap[iconType] || iconMap['building'];
+                                        newIconPath = `images/工地数字导航小程序切图/图标/${iconName}-down.png`; // 注意：up/down交换
+                                    }
+
+                                    const img = iconDiv.querySelector('img');
+                                    if (img) {
+                                        img.src = newIconPath;
+                                        iconDiv.dataset.state = 'up';
+                                        iconDiv.style.width = '40px';
+                                        iconDiv.style.height = '40px';
+                                        console.log('[首页-搜索返回] 图标已切换为up状态');
+                                    }
+                                }
+                            }
+                        }
+
+                        // 保存当前激活的marker
+                        window.activeMarker = marker;
+                        window.activeMarkerName = selectedLocation.name;
 
                         foundInKML = true;
                         break;
@@ -1571,6 +1597,19 @@ function handlePendingSelectedLocation() {
         }
 
         console.log('是否在KML中找到:', foundInKML);
+
+        // 延迟设置地图中心和放大（确保图标切换完成）
+        setTimeout(() => {
+            const currentZoom = map.getZoom();
+            const newZoom = currentZoom + 5;  // 放大5级，更加突出
+            console.log('[首页-搜索返回] 准备放大地图5级:', currentZoom, '->', newZoom, '中心:', selectedLocation.position);
+
+            // 使用setZoom和setCenter分开调用，更稳定
+            map.setZoom(newZoom);
+            map.setCenter(selectedLocation.position);
+
+            console.log('[首页-搜索返回] 地图zoom和center已设置');
+        }, 100);
 
         // 如果不是KML点（比如历史搜索的非KML点），才创建标记
         if (!foundInKML) {

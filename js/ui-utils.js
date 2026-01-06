@@ -39,6 +39,8 @@ function setupEventListeners() {
         // 点击搜索框时跳转到搜索界面
         searchInput.addEventListener('click', function() {
             console.log('搜索框被点击，跳转到搜索界面');
+            // 保存来源页面
+            sessionStorage.setItem('searchReferrer', 'index.html');
             window.location.href = 'search.html';
         });
 

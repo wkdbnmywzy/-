@@ -1,12 +1,15 @@
 // map-point-selection.js
 // 地图选点页面逻辑
 
+// 禁用自动定位追踪（点位选择页面不需要持续追踪）
+window.disableLocationTracking = true;
+
 // 全局变量
 let selectedPoint = null;  // 当前选中的点
 let selectedPolygon = null;  // 当前选中的面
 let mapSelectionCurrentPosition = null;  // 当前位置（使用不同的变量名避免冲突）
 let highlightedMarker = null;  // 高亮的marker
-let originalPolygonStyle = null;  // 原始面样式
+let highlightedPolygonOverlay = null;  // 当前高亮的面overlay
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -23,11 +26,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化事件监听
     initEventListeners();
 
-    // 加载地图数据（复用main.js的逻辑）
-    loadMapDataFromAPI();
+    // 加载地图数据（从API加载）
+    loadMapDataFromAPIForSelection();
 
-    // 获取当前位置
-    getCurrentLocation();
+    // 获取一次位置用于距离计算（不持续追踪）
+    getOnceLocation();
 });
 
 // 检查登录状态
@@ -44,29 +47,69 @@ function checkLoginStatus() {
 
 // 初始化事件监听
 function initEventListeners() {
-    // 返回按钮
-    const backBtn = document.getElementById('map-selection-back-btn');
-    if (backBtn) {
-        backBtn.addEventListener('click', function() {
-            // 返回点位选择页面
-            window.location.href = 'point-selection.html';
-        });
-    }
-
     // 搜索框
     const searchInput = document.getElementById('map-selection-search-input');
+    const searchResults = document.getElementById('map-selection-search-results');
+    const clearBtn = document.getElementById('map-selection-clear-btn');
+
     if (searchInput) {
         let searchTimer;
+
+        // 输入时实时搜索
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimer);
             const keyword = this.value.trim();
+
+            // 显示/隐藏清除按钮
+            if (clearBtn) {
+                clearBtn.style.display = keyword ? 'flex' : 'none';
+            }
+
             searchTimer = setTimeout(() => {
-                if (keyword) {
-                    searchPointsAndPolygons(keyword);
-                }
+                searchPointsAndPolygons(keyword);
             }, 300);
         });
+
+        // 获得焦点时，如果有值则显示搜索结果
+        searchInput.addEventListener('focus', function() {
+            const keyword = this.value.trim();
+            if (keyword) {
+                searchPointsAndPolygons(keyword);
+            }
+        });
+
+        // 回车搜索
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const keyword = this.value.trim();
+                searchPointsAndPolygons(keyword);
+            }
+        });
     }
+
+    // 清除按钮
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            if (searchInput) {
+                searchInput.value = '';
+                clearBtn.style.display = 'none';
+            }
+            if (searchResults) {
+                searchResults.style.display = 'none';
+                searchResults.innerHTML = '';
+            }
+        });
+    }
+
+    // 点击页面其他地方隐藏搜索结果
+    document.addEventListener('click', function(e) {
+        const searchContainer = document.querySelector('.search-container');
+        if (searchContainer && !searchContainer.contains(e.target)) {
+            if (searchResults) {
+                searchResults.style.display = 'none';
+            }
+        }
+    });
 
     // 点信息面板 - 关闭按钮
     const pointCloseBtn = document.getElementById('panel-close-btn');
@@ -105,6 +148,19 @@ function initEventListeners() {
 function handlePointClick(point, marker) {
     console.log('点击点:', point.name);
 
+    // 恢复之前高亮的面（如果有）
+    if (highlightedPolygonOverlay && highlightedPolygonOverlay._originalStyle) {
+        console.log('[点击点] 恢复之前高亮的面');
+        highlightedPolygonOverlay.setOptions({
+            fillColor: highlightedPolygonOverlay._originalStyle.fillColor,
+            fillOpacity: highlightedPolygonOverlay._originalStyle.fillOpacity,
+            strokeColor: highlightedPolygonOverlay._originalStyle.strokeColor,
+            strokeWeight: highlightedPolygonOverlay._originalStyle.strokeWeight,
+            strokeOpacity: highlightedPolygonOverlay._originalStyle.strokeOpacity
+        });
+        highlightedPolygonOverlay = null;
+    }
+
     // 保存选中的点
     selectedPoint = point;
     selectedPolygon = null;
@@ -123,8 +179,16 @@ function handlePointClick(point, marker) {
 function handlePolygonClick(polygon, polygonOverlay) {
     console.log('点击面:', polygon.name);
 
-    // 保存选中的面
+    // 恢复之前高亮的marker（如果有）
+    if (highlightedMarker) {
+        console.log('[点击面] 恢复之前高亮的点');
+        restoreMarkerState(highlightedMarker);
+        highlightedMarker = null;
+    }
+
+    // 保存选中的面和它的overlay
     selectedPolygon = polygon;
+    selectedPolygon.overlay = polygonOverlay;
     selectedPoint = null;
 
     // 高亮面
@@ -137,52 +201,152 @@ function handlePolygonClick(polygon, polygonOverlay) {
     showPolygonPanel(polygon, pointsInPolygon);
 }
 
-// 高亮marker
+// 高亮marker（使用DOM操作切换图标状态）
 function highlightMarker(marker) {
+    console.log('[高亮marker] 开始高亮点位');
+
     // 恢复之前高亮的marker
     if (highlightedMarker && highlightedMarker !== marker) {
-        // 恢复原始图标
-        if (highlightedMarker.originalIcon) {
-            highlightedMarker.setIcon(highlightedMarker.originalIcon);
+        console.log('[高亮marker] 恢复之前的高亮点位');
+        restoreMarkerState(highlightedMarker);
+    }
+
+    // 切换当前marker为up状态
+    const markerDom = marker.getContentDom();
+    if (markerDom) {
+        const iconDiv = markerDom.querySelector('.kml-icon-marker');
+
+        if (iconDiv) {
+            const currentState = iconDiv.dataset.state;
+            const iconType = iconDiv.dataset.iconType || 'building';
+            const upIconPath = iconDiv.dataset.upIcon;
+
+            console.log('[高亮marker] 当前状态:', currentState, '图标类型:', iconType, 'upIconPath:', upIconPath);
+
+            // 强制切换为up状态（无论当前状态是什么）
+            const newIconPath = (upIconPath && upIconPath.startsWith('images/'))
+                ? upIconPath
+                : getIconPath(iconType, 'up');
+
+            const img = iconDiv.querySelector('img');
+            if (img) {
+                img.src = newIconPath;
+                iconDiv.dataset.state = 'up';
+                // 放大为选中大小：40px
+                iconDiv.style.width = '40px';
+                iconDiv.style.height = '40px';
+                console.log('[高亮marker] 已切换为up状态:', newIconPath);
+            } else {
+                console.error('[高亮marker] 未找到img元素');
+            }
+        } else {
+            console.error('[高亮marker] 未找到.kml-icon-marker元素');
         }
-    }
-
-    // 保存原始图标
-    if (!marker.originalIcon) {
-        marker.originalIcon = marker.getIcon();
-    }
-
-    // 设置高亮图标（使用up图标）
-    if (marker.upIcon) {
-        marker.setIcon(marker.upIcon);
+    } else {
+        console.error('[高亮marker] markerDom为空');
     }
 
     highlightedMarker = marker;
 }
 
+// 恢复marker为默认状态
+function restoreMarkerState(marker) {
+    if (!marker) return;
+
+    console.log('[恢复marker] 恢复点位为默认状态');
+
+    const markerDom = marker.getContentDom();
+    if (markerDom) {
+        const iconDiv = markerDom.querySelector('.kml-icon-marker');
+
+        if (iconDiv) {
+            const currentState = iconDiv.dataset.state;
+            const iconType = iconDiv.dataset.iconType || 'building';
+            const downIconPath = iconDiv.dataset.downIcon;
+
+            if (currentState === 'up') {
+                // 恢复为down状态
+                const newIconPath = (downIconPath && downIconPath.startsWith('images/'))
+                    ? downIconPath
+                    : getIconPath(iconType, 'down');
+
+                const img = iconDiv.querySelector('img');
+                if (img) {
+                    img.src = newIconPath;
+                    iconDiv.dataset.state = 'down';
+                    // 恢复为默认大小：24px
+                    iconDiv.style.width = '24px';
+                    iconDiv.style.height = '24px';
+                    console.log('[恢复marker] 已恢复为down状态:', newIconPath);
+                }
+            }
+        }
+    }
+}
+
+// 获取图标路径（与kml-handler.js保持一致）
+function getIconPath(iconType, state = 'down') {
+    const iconMap = {
+        'entrance': '出入口',
+        'yard': '堆场',
+        'workshop': '加工区',
+        'building': '建筑'
+    };
+
+    const iconName = iconMap[iconType] || iconMap['building'];
+    // 交换状态：原来的up现在作为默认状态，原来的down现在作为选中状态
+    const actualState = state === 'up' ? 'down' : 'up';
+    return `images/工地数字导航小程序切图/图标/${iconName}-${actualState}.png`;
+}
+
 // 高亮面
 function highlightPolygon(polygonOverlay) {
-    // 恢复之前高亮的面
-    if (selectedPolygon && selectedPolygon.overlay && selectedPolygon.overlay !== polygonOverlay) {
-        if (originalPolygonStyle) {
-            selectedPolygon.overlay.setOptions({
-                fillColor: originalPolygonStyle.fillColor,
-                fillOpacity: originalPolygonStyle.fillOpacity
+    console.log('[高亮面] 开始高亮:', polygonOverlay);
+
+    // 先恢复之前高亮的面（如果存在且不是当前要高亮的面）
+    if (highlightedPolygonOverlay && highlightedPolygonOverlay !== polygonOverlay) {
+        console.log('[高亮面] 恢复之前的高亮面');
+        // 从overlay对象本身获取保存的原始样式
+        if (highlightedPolygonOverlay._originalStyle) {
+            highlightedPolygonOverlay.setOptions({
+                fillColor: highlightedPolygonOverlay._originalStyle.fillColor,
+                fillOpacity: highlightedPolygonOverlay._originalStyle.fillOpacity,
+                strokeColor: highlightedPolygonOverlay._originalStyle.strokeColor,
+                strokeWeight: highlightedPolygonOverlay._originalStyle.strokeWeight,
+                strokeOpacity: highlightedPolygonOverlay._originalStyle.strokeOpacity
             });
+            console.log('[高亮面] 已恢复原始样式:', highlightedPolygonOverlay._originalStyle);
         }
     }
 
-    // 保存原始样式
-    originalPolygonStyle = {
-        fillColor: polygonOverlay.getOptions().fillColor,
-        fillOpacity: polygonOverlay.getOptions().fillOpacity
-    };
+    // 如果当前polygon还没有保存过原始样式，则保存
+    if (!polygonOverlay._originalStyle) {
+        const options = polygonOverlay.getOptions();
+        polygonOverlay._originalStyle = {
+            fillColor: options.fillColor,
+            fillOpacity: options.fillOpacity,
+            strokeColor: options.strokeColor,
+            strokeWeight: options.strokeWeight,
+            strokeOpacity: options.strokeOpacity
+        };
+        console.log('[高亮面] 保存原始样式到polygon对象:', polygonOverlay._originalStyle);
+    }
 
-    // 设置高亮样式（使用图片中的颜色 #E3F2FD）
+    // 设置高亮样式
+    // 填充：#237CF3，透明度20%
+    // 边框：#237CF3，透明度60%，粗细1px
     polygonOverlay.setOptions({
-        fillColor: '#E3F2FD',
-        fillOpacity: 0.8
+        fillColor: '#237CF3',
+        fillOpacity: 0.2,
+        strokeColor: '#237CF3',
+        strokeOpacity: 0.6,
+        strokeWeight: 1
     });
+
+    console.log('[高亮面] 已设置高亮样式');
+
+    // 更新当前高亮的overlay引用
+    highlightedPolygonOverlay = polygonOverlay;
 }
 
 // 显示点信息面板
@@ -248,12 +412,12 @@ function renderPointsList(points) {
             </div>
             <div class="panel-point-actions">
                 <button class="panel-point-btn panel-point-btn-route" data-point-name="${point.name}">
-                    <i class="fas fa-map-marked-alt"></i>
-                    路线
+                    <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                    <span>路线</span>
                 </button>
                 <button class="panel-point-btn panel-point-btn-nav" data-point-name="${point.name}">
-                    <i class="fas fa-location-arrow"></i>
-                    导航
+                    <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                    <span>导航</span>
                 </button>
             </div>
         `;
@@ -274,19 +438,23 @@ function closePanels() {
     const panel = document.getElementById('map-selection-panel');
     panel.classList.remove('active');
 
-    // 恢复marker
-    if (highlightedMarker && highlightedMarker.originalIcon) {
-        highlightedMarker.setIcon(highlightedMarker.originalIcon);
+    // 恢复marker（使用DOM操作）
+    if (highlightedMarker) {
+        restoreMarkerState(highlightedMarker);
         highlightedMarker = null;
     }
 
-    // 恢复面样式
-    if (selectedPolygon && selectedPolygon.overlay && originalPolygonStyle) {
-        selectedPolygon.overlay.setOptions({
-            fillColor: originalPolygonStyle.fillColor,
-            fillOpacity: originalPolygonStyle.fillOpacity
+    // 恢复面样式（包括边框）
+    if (highlightedPolygonOverlay && highlightedPolygonOverlay._originalStyle) {
+        console.log('[关闭面板] 恢复面样式');
+        highlightedPolygonOverlay.setOptions({
+            fillColor: highlightedPolygonOverlay._originalStyle.fillColor,
+            fillOpacity: highlightedPolygonOverlay._originalStyle.fillOpacity,
+            strokeColor: highlightedPolygonOverlay._originalStyle.strokeColor,
+            strokeWeight: highlightedPolygonOverlay._originalStyle.strokeWeight,
+            strokeOpacity: highlightedPolygonOverlay._originalStyle.strokeOpacity
         });
-        originalPolygonStyle = null;
+        highlightedPolygonOverlay = null;
     }
 
     selectedPoint = null;
@@ -297,7 +465,65 @@ function closePanels() {
 function selectPointForRoute(point) {
     console.log('选择点用于路线规划:', point.name);
 
-    // 从sessionStorage获取当前输入类型
+    // 从sessionStorage获取当前输入类型，默认为终点
+    const routeData = sessionStorage.getItem('routePlanningData');
+    let inputType = 'end';  // 默认填充到终点
+
+    if (routeData) {
+        try {
+            const data = JSON.parse(routeData);
+            inputType = data.inputType || 'end';
+        } catch (e) {
+            console.error('解析路线数据失败:', e);
+        }
+    }
+
+    // 保存选择的点到sessionStorage
+    const newRouteData = JSON.parse(sessionStorage.getItem('routePlanningData') || '{}');
+
+    // 根据输入类型填充相应的字段
+    if (inputType === 'start') {
+        newRouteData.startLocation = point.name;
+        newRouteData.startPosition = point.geometry.coordinates;
+    } else if (inputType === 'end') {
+        newRouteData.endLocation = point.name;
+        newRouteData.endPosition = point.geometry.coordinates;
+    } else if (inputType === 'waypoint') {
+        // 添加途径点
+        if (!newRouteData.waypoints) {
+            newRouteData.waypoints = [];
+        }
+        newRouteData.waypoints.push({
+            name: point.name,
+            position: point.geometry.coordinates
+        });
+    }
+
+    sessionStorage.setItem('routePlanningData', JSON.stringify(newRouteData));
+
+    // 返回首页
+    window.location.href = 'index.html';
+}
+
+// 导航到点
+function navigateToPoint(point) {
+    console.log('开始导航到:', point.name);
+
+    // 使用当前页面的位置变量，如果没有则尝试从缓存获取
+    let currentPos = mapSelectionCurrentPosition || [0, 0];
+
+    if (!mapSelectionCurrentPosition) {
+        const savedPosition = sessionStorage.getItem('currentPosition');
+        if (savedPosition) {
+            try {
+                currentPos = JSON.parse(savedPosition);
+            } catch (e) {
+                console.warn('无法解析当前位置:', e);
+            }
+        }
+    }
+
+    // 先保存点位到路线规划数据（填入当前输入框）
     const routeData = sessionStorage.getItem('routePlanningData');
     let inputType = 'end';  // 默认填充到终点
 
@@ -315,31 +541,20 @@ function selectPointForRoute(point) {
 
     if (inputType === 'start') {
         newRouteData.startLocation = point.name;
-    } else if (inputType === 'end') {
+        newRouteData.startPosition = point.geometry.coordinates;
+    } else {
+        // 默认填充到终点
         newRouteData.endLocation = point.name;
-    } else if (inputType === 'waypoint') {
-        // 添加途径点
-        if (!newRouteData.waypoints) {
-            newRouteData.waypoints = [];
-        }
-        newRouteData.waypoints.push(point.name);
+        newRouteData.endPosition = point.geometry.coordinates;
     }
 
     sessionStorage.setItem('routePlanningData', JSON.stringify(newRouteData));
 
-    // 返回点位选择页面
-    window.location.href = 'point-selection.html';
-}
-
-// 导航到点
-function navigateToPoint(point) {
-    console.log('开始导航到:', point.name);
-
     // 准备导航路线数据
-    const routeData = {
+    const navigationData = {
         start: {
             name: '我的位置',
-            position: mapSelectionCurrentPosition || [0, 0]
+            position: currentPos
         },
         end: {
             name: point.name,
@@ -349,35 +564,41 @@ function navigateToPoint(point) {
     };
 
     // 保存到sessionStorage
-    sessionStorage.setItem('navigationRoute', JSON.stringify(routeData));
+    sessionStorage.setItem('navigationRoute', JSON.stringify(navigationData));
 
-    // 跳转到导航页面
+    // 直接跳转到导航页面
     window.location.href = 'navigation.html';
 }
 
 // 计算距离
 function calculateDistance(targetCoords) {
+    // 使用当前页面的位置变量
     if (!mapSelectionCurrentPosition || !targetCoords) {
         return '---';
     }
 
-    const [lng1, lat1] = mapSelectionCurrentPosition;
-    const [lng2, lat2] = targetCoords;
+    try {
+        const [lng1, lat1] = mapSelectionCurrentPosition;
+        const [lng2, lat2] = targetCoords;
 
-    // 使用Haversine公式计算距离
-    const R = 6371e3; // 地球半径（米）
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lng2 - lng1) * Math.PI / 180;
+        // 使用Haversine公式计算距离
+        const R = 6371e3; // 地球半径（米）
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lng2 - lng1) * Math.PI / 180;
 
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    const distance = R * c;
-    return Math.round(distance);
+        const distance = R * c;
+        return Math.round(distance);
+    } catch (e) {
+        console.warn('计算距离失败:', e);
+        return '---';
+    }
 }
 
 // 获取面的中心点
@@ -427,50 +648,667 @@ function isPointInPolygon(point, polygon) {
     return inside;
 }
 
-// 搜索点和面
+// 搜索点和面（搜索所有地图数据，不仅是KML）
 function searchPointsAndPolygons(keyword) {
-    if (!window.kmlData || !window.kmlData.features) {
+    const searchResults = document.getElementById('map-selection-search-results');
+
+    if (!searchResults) {
+        console.error('搜索结果容器不存在');
         return;
     }
 
-    const lowerKeyword = keyword.toLowerCase();
-    const features = window.kmlData.features;
+    // 如果关键词为空，隐藏搜索结果
+    if (!keyword || keyword.trim() === '') {
+        searchResults.style.display = 'none';
+        searchResults.innerHTML = '';
+        return;
+    }
 
-    // 搜索匹配的点和面
-    const matches = features.filter(f => {
-        const name = f.name.toLowerCase();
-        return name.includes(lowerKeyword);
-    });
+    const lowerKeyword = keyword.toLowerCase().trim();
+    const matches = [];
+
+    // 从所有kmlLayers中搜索（包括API加载的数据）
+    if (window.kmlLayers && window.kmlLayers.length > 0) {
+        window.kmlLayers.forEach(layer => {
+            if (!layer.visible || !layer.features) return;
+
+            layer.features.forEach(feature => {
+                const name = feature.name ? feature.name.toLowerCase() : '';
+                if (name.includes(lowerKeyword)) {
+                    matches.push({
+                        ...feature,
+                        source: layer.name || 'API数据'
+                    });
+                }
+            });
+        });
+    }
 
     console.log('搜索结果:', matches.length, '个匹配项');
 
-    // 如果只有一个匹配，自动选中
-    if (matches.length === 1) {
-        const match = matches[0];
-        if (match.geometry.type === 'point') {
-            // 找到对应的marker并点击
-            // 这里需要根据实际的marker存储方式来获取
-        } else if (match.geometry.type === 'polygon') {
-            // 找到对应的面并点击
-        }
+    // 清空之前的结果
+    searchResults.innerHTML = '';
+
+    if (matches.length === 0) {
+        searchResults.innerHTML = '<div class="search-result-item" style="justify-content: center; color: #999;">未找到匹配的地点</div>';
+        searchResults.style.display = 'block';
+        return;
+    }
+
+    // 分组显示：先显示点，再显示面
+    const points = matches.filter(m => m.geometry && m.geometry.type === 'point');
+    const polygons = matches.filter(m => m.geometry && m.geometry.type === 'polygon');
+
+    // 渲染点
+    if (points.length > 0) {
+        points.forEach(match => {
+            const item = createSearchResultItem(match, '点');
+            searchResults.appendChild(item);
+        });
+    }
+
+    // 渲染面
+    if (polygons.length > 0) {
+        polygons.forEach(match => {
+            const item = createSearchResultItem(match, '面');
+            searchResults.appendChild(item);
+        });
+    }
+
+    // 显示搜索结果
+    searchResults.style.display = 'block';
+}
+
+// 创建搜索结果项
+function createSearchResultItem(match, type) {
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+
+    // 计算距离
+    let distanceText = '';
+    if (match.geometry.type === 'point' && match.geometry.coordinates) {
+        const distance = calculateDistance(match.geometry.coordinates);
+        distanceText = distance !== '---' ? `${distance}m` : '';
+    } else if (match.geometry.type === 'polygon') {
+        const center = getPolygonCenter(match);
+        const distance = calculateDistance(center);
+        distanceText = distance !== '---' ? `${distance}m` : '';
+    }
+
+    item.innerHTML = `
+        <div class="result-info">
+            <div class="result-name">${match.name}</div>
+            ${distanceText ? `<div class="result-distance">${distanceText}</div>` : ''}
+        </div>
+        <div class="result-actions">
+            <button class="result-action-btn route-action" title="路线">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                <span>路线</span>
+            </button>
+            <button class="result-action-btn nav-action" title="导航">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                <span>导航</span>
+            </button>
+        </div>
+    `;
+
+    // 绑定事件
+    const routeBtn = item.querySelector('.route-action');
+    const navBtn = item.querySelector('.nav-action');
+
+    // 路线规划按钮
+    routeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        handleRouteAction(match);
+    });
+
+    // 导航按钮
+    navBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        handleNavAction(match);
+    });
+
+    // 点击整个项目
+    item.addEventListener('click', function() {
+        handleSearchItemClick(match);
+    });
+
+    return item;
+}
+
+// 处理路线规划操作
+function handleRouteAction(match) {
+    console.log('规划路线到:', match.name);
+
+    if (match.geometry.type === 'point') {
+        selectPointForRoute({
+            name: match.name,
+            geometry: match.geometry,
+            description: match.description || ''
+        });
+    } else if (match.geometry.type === 'polygon') {
+        // 面的中心点作为目的地
+        const center = getPolygonCenter(match);
+        selectPointForRoute({
+            name: match.name,
+            geometry: {
+                type: 'point',
+                coordinates: center
+            },
+            description: match.description || ''
+        });
     }
 }
 
-// 获取当前位置
-function getCurrentLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                mapSelectionCurrentPosition = [position.coords.longitude, position.coords.latitude];
-                console.log('当前位置:', mapSelectionCurrentPosition);
+// 处理导航操作
+function handleNavAction(match) {
+    console.log('开始导航到:', match.name);
+
+    if (match.geometry.type === 'point') {
+        navigateToPoint({
+            name: match.name,
+            geometry: match.geometry,
+            description: match.description || ''
+        });
+    } else if (match.geometry.type === 'polygon') {
+        // 面的中心点作为目的地
+        const center = getPolygonCenter(match);
+        navigateToPoint({
+            name: match.name,
+            geometry: {
+                type: 'point',
+                coordinates: center
             },
-            function(error) {
-                console.warn('获取位置失败:', error);
+            description: match.description || ''
+        });
+    }
+}
+
+// 处理搜索项点击
+function handleSearchItemClick(match) {
+    // 清空搜索框
+    const searchInput = document.getElementById('map-selection-search-input');
+    const clearBtn = document.getElementById('map-selection-clear-btn');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    if (clearBtn) {
+        clearBtn.style.display = 'none';
+    }
+
+    // 隐藏搜索结果
+    const searchResults = document.getElementById('map-selection-search-results');
+    if (searchResults) {
+        searchResults.style.display = 'none';
+    }
+
+    // 定位到该位置并放大地图两级
+    if (match.geometry.type === 'point') {
+        const currentZoom = map.getZoom();
+        map.setZoomAndCenter(currentZoom + 2, match.geometry.coordinates);
+        console.log('[地图选点-搜索] 放大地图两级:', currentZoom, '->', currentZoom + 2);
+
+        // 等待地图缩放完成后再触发marker点击
+        setTimeout(() => {
+            // 查找对应的marker并触发点击
+            findAndClickMarker(match);
+        }, 300);
+    } else if (match.geometry.type === 'polygon') {
+        const center = getPolygonCenter(match);
+        const currentZoom = map.getZoom();
+        map.setZoomAndCenter(currentZoom + 2, center);
+        console.log('[地图选点-搜索] 放大地图两级:', currentZoom, '->', currentZoom + 2);
+
+        // 等待地图缩放完成后再触发polygon点击
+        setTimeout(() => {
+            // 查找对应的polygon并触发点击
+            findAndClickPolygon(match);
+        }, 300);
+    }
+}
+
+// 查找并点击对应的marker
+function findAndClickMarker(feature) {
+    console.log('[findAndClickMarker] 开始查找marker:', feature.name);
+
+    if (!window.kmlLayers || window.kmlLayers.length === 0) {
+        console.warn('[findAndClickMarker] 没有KML图层');
+        return;
+    }
+
+    console.log('[findAndClickMarker] KML图层数量:', window.kmlLayers.length);
+
+    for (const layer of window.kmlLayers) {
+        if (!layer.visible || !layer.markers) {
+            console.log('[findAndClickMarker] 跳过图层（不可见或无markers）');
+            continue;
+        }
+
+        console.log('[findAndClickMarker] 检查图层，markers数量:', layer.markers.length);
+
+        for (const marker of layer.markers) {
+            if (!marker || typeof marker.getExtData !== 'function') continue;
+
+            const extData = marker.getExtData();
+            if (extData) {
+                console.log('[findAndClickMarker] 检查marker:', extData.name, '类型:', extData.type);
+
+                if (extData.name === feature.name && extData.type === '点') {
+                    console.log('[findAndClickMarker] ✓ 找到匹配的marker:', feature.name);
+                    // 触发handlePointClick
+                    if (typeof window.handleMapPointClick === 'function') {
+                        console.log('[findAndClickMarker] 调用 handleMapPointClick');
+                        window.handleMapPointClick(feature, marker);
+                    } else {
+                        console.error('[findAndClickMarker] window.handleMapPointClick 不是函数');
+                    }
+                    return;
+                }
             }
-        );
+        }
+    }
+
+    console.warn('[findAndClickMarker] ✗ 未找到匹配的marker:', feature.name);
+}
+
+// 查找并点击对应的polygon
+function findAndClickPolygon(feature) {
+    if (!window.kmlLayers || window.kmlLayers.length === 0) {
+        console.warn('没有KML图层');
+        return;
+    }
+
+    for (const layer of window.kmlLayers) {
+        if (!layer.visible || !layer.markers) continue;
+
+        for (const marker of layer.markers) {
+            if (!marker || typeof marker.getExtData !== 'function') continue;
+
+            const extData = marker.getExtData();
+            if (extData && extData.name === feature.name && extData.type === '面') {
+                // 找到了对应的polygon overlay
+                // 构造完整的feature对象并触发点击
+                const polygonFeature = {
+                    name: feature.name,
+                    geometry: feature.geometry,
+                    description: feature.description || ''
+                };
+
+                if (typeof window.handleMapPolygonClick === 'function') {
+                    window.handleMapPolygonClick(polygonFeature, marker);
+                }
+                return;
+            }
+        }
     }
 }
 
 // 导出函数供全局使用
 window.handleMapPointClick = handlePointClick;
 window.handleMapPolygonClick = handlePolygonClick;
+
+/**
+ * 从API加载地图数据（点、线、面）
+ * 适用于点位选择页面，不启动定位追踪
+ */
+async function loadMapDataFromAPIForSelection() {
+    try {
+        console.log('[选点页-API加载] 开始从API加载地图数据...');
+
+        // 禁用自动聚焦
+        if (typeof disableAutoCenter !== 'undefined') {
+            disableAutoCenter = true;
+            console.log('[选点页-API加载] 已禁用自动聚焦');
+        }
+
+        // 1. 获取项目选择信息
+        const projectSelection = sessionStorage.getItem('projectSelection');
+        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+
+        let projectId = null;
+        let projectName = '所有项目';
+        let projectCenter = null;
+
+        if (projectSelection) {
+            const selection = JSON.parse(projectSelection);
+            projectName = selection.project;
+
+            const userProjects = currentUser.projects || [];
+            const selectedProject = userProjects.find(p => p.projectName === projectName);
+
+            if (selectedProject) {
+                projectId = selectedProject.projectCode || selectedProject.id;
+                if (selectedProject.longitude && selectedProject.latitude) {
+                    projectCenter = [selectedProject.longitude, selectedProject.latitude];
+                }
+                console.log('[选点页-API加载] 选择的项目:', {
+                    name: projectName,
+                    id: projectId,
+                    center: projectCenter
+                });
+            }
+        }
+
+        // 2. 准备请求headers
+        const baseURL = 'https://dmap.cscec3bxjy.cn/api/map';
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // 3. 获取当前启用的地图版本号
+        if (!projectId) {
+            console.warn('[选点页-API加载] 没有项目ID，无法获取地图');
+            alert('请先选择项目');
+            return;
+        }
+
+        let versionId = null;
+        try {
+            console.log('[选点页-API加载] 获取项目地图版本...');
+            const versionRes = await fetch(`${baseURL}/map-versions/project/${projectId}/active`, { headers });
+
+            if (versionRes.ok) {
+                const versionData = await versionRes.json();
+                console.log('[选点页-API加载] 版本信息:', versionData);
+
+                if (versionData.code === 200 && versionData.data) {
+                    versionId = versionData.data.MapVersion_Id || versionData.data.id;
+                    console.log('[选点页-API加载] 当前启用版本ID:', versionId);
+                }
+            }
+        } catch (e) {
+            console.warn('[选点页-API加载] 获取版本信息失败:', e);
+        }
+
+        if (!versionId) {
+            console.warn('[选点页-API加载] 该项目没有启用的地图版本');
+            alert('该项目暂无地图数据');
+
+            if (projectCenter && map) {
+                console.log('[选点页-API加载] 设置地图中心为项目位置:', projectCenter);
+                map.setCenter(projectCenter);
+                map.setZoom(15);
+            }
+            return;
+        }
+
+        // 4. 构建请求URL
+        let pointsUrl = `${baseURL}/points?page=1&page_size=1000&project_id=${projectId}&map_version_id=${versionId}`;
+        let polylinesUrl = `${baseURL}/polylines?page=1&page_size=1000&project_id=${projectId}&map_version_id=${versionId}`;
+        let polygonsUrl = `${baseURL}/polygons?page=1&page_size=1000&project_id=${projectId}&map_version_id=${versionId}`;
+
+        console.log('[选点页-API加载] 请求URL:', { pointsUrl, polylinesUrl, polygonsUrl });
+
+        // 5. 并行请求点、线、面数据
+        const [pointsRes, polylinesRes, polygonsRes] = await Promise.all([
+            fetch(pointsUrl, { headers }),
+            fetch(polylinesUrl, { headers }),
+            fetch(polygonsUrl, { headers })
+        ]);
+
+        if (!pointsRes.ok || !polylinesRes.ok || !polygonsRes.ok) {
+            console.error('[选点页-API加载] API请求失败');
+            throw new Error('API请求失败');
+        }
+
+        // 6. 解析数据
+        const pointsData = await pointsRes.json();
+        const polylinesData = await polylinesRes.json();
+        const polygonsData = await polygonsRes.json();
+
+        let points = pointsData.data?.list || pointsData.data || [];
+        let polylines = polylinesData.data?.list || polylinesData.data || [];
+        let polygons = polygonsData.data?.list || polygonsData.data || [];
+
+        // 过滤数据：只保留当前版本的数据
+        points = points.filter(point => {
+            const versionField = point.map_version_id || point.MapVersion_Id || point.version_id;
+            if (!versionField) return true;
+            return versionField == versionId;
+        });
+
+        polylines = polylines.filter(line => {
+            if (!line.map_version_id) return true;
+            return line.map_version_id == versionId;
+        });
+
+        polygons = polygons.filter(polygon => {
+            if (!polygon.map_version_id) return true;
+            return polygon.map_version_id == versionId;
+        });
+
+        console.log('[选点页-API加载] 数据加载成功:', {
+            点数量: points.length,
+            线数量: polylines.length,
+            面数量: polygons.length
+        });
+
+        // 7. 转换为KML格式的features
+        let features;
+        if (window.APIDataConverter) {
+            features = APIDataConverter.convert(points, polylines, polygons);
+        } else {
+            features = convertAPIDataToFeaturesLocal(points, polylines, polygons);
+        }
+
+        console.log('[选点页-API加载] 转换后的features数量:', features.length);
+
+        // 8. 对线数据进行分割处理
+        let processedFeatures = features;
+        if (typeof processLineIntersections === 'function') {
+            try {
+                processedFeatures = processLineIntersections(features);
+                console.log('[选点页-API加载] 线段分割完成');
+            } catch (e) {
+                console.warn('[选点页-API加载] 线段分割失败:', e);
+            }
+        }
+
+        // 9. 构建KML数据对象
+        const kmlData = {
+            features: processedFeatures,
+            fileName: `${projectName} (API数据)`
+        };
+
+        // 10. 显示地图数据
+        if (processedFeatures.length > 0) {
+            window.isFirstKMLImport = true;
+            window.kmlData = kmlData;
+
+            console.log('[选点页-API加载] 调用displayKMLFeatures显示地图数据');
+            displayKMLFeatures(processedFeatures, kmlData.fileName);
+
+            console.log('[选点页-API加载] 地图数据已显示');
+
+            if (projectCenter && map) {
+                console.log('[选点页-API加载] 设置地图中心为项目位置:', projectCenter);
+                map.setCenter(projectCenter);
+                map.setZoom(15);
+            }
+        } else {
+            console.warn('[选点页-API加载] 无地图数据');
+
+            if (projectCenter && map) {
+                console.log('[选点页-API加载] 设置地图中心为项目位置:', projectCenter);
+                map.setCenter(projectCenter);
+                map.setZoom(15);
+            }
+        }
+
+        console.log('[选点页-API加载] 地图数据加载完成');
+
+    } catch (error) {
+        console.error('[选点页-API加载] 加载地图数据失败:', error);
+        alert('您所在位置周边无项目现场');
+    }
+}
+
+/**
+ * 将API数据转换为KML格式的features（本地版本）
+ */
+function convertAPIDataToFeaturesLocal(points, polylines, polygons) {
+    const features = [];
+
+    // 转换点
+    points.forEach(point => {
+        features.push({
+            name: point.name || '未命名点',
+            description: point.description || '',
+            geometry: {
+                type: 'point',
+                coordinates: [point.longitude, point.latitude]
+            },
+            properties: {
+                icon: point.icon_url || '',
+                ...point
+            }
+        });
+    });
+
+    // 转换线
+    polylines.forEach(line => {
+        const coordsField = line.line_position;
+        if (!coordsField) return;
+
+        let coords = [];
+        try {
+            if (typeof coordsField === 'string') {
+                if (coordsField.includes(';') && !coordsField.includes('[')) {
+                    coords = coordsField.split(';').map(point => {
+                        const [lng, lat] = point.split(',').map(Number);
+                        return [lng, lat];
+                    }).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+                } else {
+                    coords = JSON.parse(coordsField);
+                }
+            } else if (Array.isArray(coordsField)) {
+                coords = coordsField;
+            }
+        } catch (e) {
+            console.warn('解析线坐标失败:', line.line_name, e);
+            return;
+        }
+
+        if (!Array.isArray(coords) || coords.length === 0) return;
+
+        features.push({
+            name: line.line_name || '未命名线',
+            description: line.description || '',
+            geometry: {
+                type: 'line',
+                coordinates: coords,
+                style: {
+                    strokeColor: line.line_color || '#9AE59D',
+                    strokeWeight: line.line_width || 3,
+                    strokeOpacity: 1
+                }
+            }
+        });
+    });
+
+    // 转换面
+    polygons.forEach(polygon => {
+        const coordsField = polygon.pg_position;
+        if (!coordsField) return;
+
+        let coords = [];
+        try {
+            if (typeof coordsField === 'string') {
+                if (coordsField.includes(';') && !coordsField.includes('[')) {
+                    coords = coordsField.split(';').map(point => {
+                        const [lng, lat] = point.split(',').map(Number);
+                        return [lng, lat];
+                    }).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+                } else {
+                    coords = JSON.parse(coordsField);
+                }
+            } else if (Array.isArray(coordsField)) {
+                coords = coordsField;
+            }
+        } catch (e) {
+            console.warn('解析面坐标失败:', polygon.polygon_name, e);
+            return;
+        }
+
+        if (!Array.isArray(coords) || coords.length === 0) return;
+
+        features.push({
+            name: polygon.polygon_name || '未命名面',
+            description: polygon.description || '',
+            geometry: {
+                type: 'polygon',
+                coordinates: coords,
+                style: {
+                    fillColor: polygon.pg_color || '#CCCCCC',
+                    fillOpacity: 0.3,
+                    strokeColor: polygon.pg_frame_color || 'transparent',
+                    strokeWeight: polygon.pg_frame_width || 0
+                }
+            }
+        });
+    });
+
+    return features;
+}
+
+/**
+ * 获取一次用户位置（用于距离计算，不持续追踪）
+ */
+function getOnceLocation() {
+    console.log('[选点页] 获取一次位置用于距离计算');
+
+    // 优先从 sessionStorage 获取位置
+    const savedPosition = sessionStorage.getItem('currentPosition');
+    if (savedPosition) {
+        try {
+            mapSelectionCurrentPosition = JSON.parse(savedPosition);
+            console.log('[选点页] 使用缓存位置:', mapSelectionCurrentPosition);
+            return;
+        } catch (e) {
+            console.warn('[选点页] 解析缓存位置失败:', e);
+        }
+    }
+
+    // 如果没有缓存，获取一次位置
+    if (!navigator.geolocation) {
+        console.warn('[选点页] 浏览器不支持定位');
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            console.log('[选点页] 定位成功:', position);
+
+            let lng = position.coords.longitude;
+            let lat = position.coords.latitude;
+
+            // 转换坐标系（WGS84 -> GCJ02）
+            if (typeof wgs84ToGcj02 === 'function') {
+                const converted = wgs84ToGcj02(lng, lat);
+                lng = converted[0];
+                lat = converted[1];
+                console.log('[选点页] 转换后坐标:', lng, lat);
+            }
+
+            mapSelectionCurrentPosition = [lng, lat];
+
+            // 保存到 sessionStorage
+            try {
+                sessionStorage.setItem('currentPosition', JSON.stringify(mapSelectionCurrentPosition));
+                console.log('[选点页] 已保存位置到缓存');
+            } catch (e) {
+                console.warn('[选点页] 保存位置失败:', e);
+            }
+        },
+        function(error) {
+            console.warn('[选点页] 定位失败:', error.message);
+            // 定位失败不影响其他功能，距离显示会显示 ---
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000  // 5分钟内的缓存位置可用
+        }
+    );
+}
+
