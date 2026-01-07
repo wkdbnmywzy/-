@@ -158,11 +158,11 @@
 
 .admin-nav .nav-text {
     font-size: 11px;
-    color: #999;
+    color: #143662;
 }
 
 .admin-nav .nav-item.active .nav-text {
-    color: #1890ff;
+    color: #2A86FF;
 }
 
 /* 地图容器调整 */
