@@ -502,7 +502,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: linear-gradient(103deg, #F9FCFF 0%, #E5F0FF 100%);
+    background: linear-gradient(180deg, #F9FCFF 0%, #E5F0FF 100%);
     border-radius: 16px;
     padding: 24px;
     width: 280px;
@@ -513,9 +513,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
     margin-bottom: 24px;
-    position: relative;
+    position: relative; /* 为绝对定位的图标提供参照 */
 }
 
 /* 隐藏旧的头部结构 */
@@ -524,13 +523,12 @@
 }
 
 .nav-dialog-icon {
-    font-size: 24px; /* 调整图标大小适配标题 */
+    font-size: 24px;
     color: #2A86FF;
-    /* 让图标绝对定位到最右侧 */
-    position: absolute;
-    right: 0;
+    position: absolute; /* 绝对定位 */
+    right: 0;           /* 靠右 */
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateY(-50%); /* 垂直居中 */
 }
 
 .nav-dialog-title {
@@ -549,14 +547,14 @@
 
 .nav-dialog-body {
     text-align: center;
-    margin-rgba(35, 124, 243, 0.60);
-    margin-bottom: 4px;
+    margin-bottom: 24px;
 }
 
-.nav-dialog-location {
-    font-size: 16px;
-    font-weight: 600;
-    color: #143662
+.nav-dialog-project {
+    font-size: 14px;
+    color: #666666;
+    margin-bottom: 4px;
+}
 
 .nav-dialog-location {
     font-size: 16px;
