@@ -331,12 +331,23 @@ async function loadProjectMapData() {
             console.log('[管理端] 调用displayKMLFeatures显示地图数据');
             displayKMLFeatures(processedFeatures, kmlData.fileName);
 
+            // 保存路线数据到全局变量（供车辆管理器使用）
+            window.polylines = window.polylines || [];
+
             // 地图数据加载完成后，处理待选中的位置（如果有）
             if (typeof handlePendingSelectedLocation === 'function') {
                 setTimeout(() => {
                     handlePendingSelectedLocation();
                 }, 300);
             }
+
+            // 初始化车辆管理器（延迟一点确保地图完全加载）
+            setTimeout(() => {
+                if (typeof AdminVehicleManager !== 'undefined' && map) {
+                    console.log('[管理端] 初始化车辆管理器');
+                    AdminVehicleManager.init(map);
+                }
+            }, 500);
         } else {
             console.warn('[管理端] 无地图数据或displayKMLFeatures不可用');
         }
@@ -356,6 +367,9 @@ async function loadProjectMapData() {
 // 简单显示数据（备用方案，当 APIDataConverter 不可用时）
 function displayMapDataSimple(points, polylines, polygons) {
     if (!map) return;
+
+    // 初始化全局 polylines 数组
+    window.polylines = window.polylines || [];
 
     // 显示点
     points.forEach(point => {
@@ -392,6 +406,9 @@ function displayMapDataSimple(points, polylines, polygons) {
                 strokeWeight: parseInt(line.line_width) || 4
             });
             polyline.setMap(map);
+
+            // 保存到全局数组（供车辆管理器使用）
+            window.polylines.push(polyline);
         } catch (e) {
             console.warn('创建线失败:', e);
         }
@@ -500,24 +517,10 @@ function initEventListeners() {
             // TODO: 实现摄像头功能
         });
     }
-    
-    // 车辆切换按钮
-    if (vehicleToggleBtn && vehicleLegend) {
-        vehicleToggleBtn.addEventListener('click', function() {
-            // 切换按钮激活状态
-            this.classList.toggle('active');
-            
-            // 切换车辆图例显示/隐藏
-            if (vehicleLegend.style.display === 'none') {
-                vehicleLegend.style.display = 'flex';
-                console.log('车辆图例显示');
-            } else {
-                vehicleLegend.style.display = 'none';
-                console.log('车辆图例隐藏');
-            }
-        });
-    }
-    
+
+    // 车辆切换按钮 - 已移到 admin-vehicle-manager.js 中处理
+    // 相关逻辑在车辆管理器模块中统一管理
+
     // 底部卡片展开/收起
     const bottomCard = document.getElementById('bottom-card');
     const cardHandle = document.getElementById('card-handle');

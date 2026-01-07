@@ -401,6 +401,16 @@ function startRealtimeLocationTracking() {
 
             lastGpsPosIndex = curr;
 
+            // 启动车辆位置上报器（仅首次，司机端）
+            if (typeof window.VehicleLocationReporter !== 'undefined' && !window.locationReporterStarted) {
+                const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+                if (currentUser.isDriver || currentUser.role === 'driver') {
+                    console.log('[地图定位] GPS定位成功，启动位置上报器');
+                    window.VehicleLocationReporter.start({ latitude: lat, longitude: lng });
+                    window.locationReporterStarted = true;
+                }
+            }
+
             // 首次进入或用户点击定位后，自动居中（除非禁用了自动聚焦）
             if (!disableAutoCenter) {
                 if (!isRealtimeLocating) {

@@ -68,6 +68,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 从sessionStorage恢复路线规划数据
         restoreRoutePlanningData();
+
+        // 初始化车辆位置上报器（仅司机）
+        if (typeof window.VehicleLocationReporter !== 'undefined') {
+            window.VehicleLocationReporter.init();
+        }
     }, 1000);
 });
 

@@ -119,11 +119,24 @@
     flex-direction: row;
     align-items: center;
     gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(42, 134, 255, 0.1); /* 默认选中状态 */
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.legend-item:hover {
+    background: rgba(42, 134, 255, 0.15);
+}
+
+.legend-item:active {
+    transform: scale(0.98);
 }
 
 .legend-item img {
-    width: 36px;
-    height: 36px;
+    width: 23px;
+    height: 23px;
     object-fit: contain;
     transform: rotate(-90deg);
 }

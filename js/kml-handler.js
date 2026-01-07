@@ -925,6 +925,16 @@ function displayKMLFeatures(features, fileName) {
         features: features  // 保存要素信息（含样式）用于恢复
     });
 
+    // 保存 polylines 到全局变量（供车辆管理器使用）
+    window.polylines = window.polylines || [];
+    layerMarkers.forEach(marker => {
+        // 检查是否是 Polyline 类型
+        if (marker && marker.CLASS_NAME === 'AMap.Polyline') {
+            window.polylines.push(marker);
+        }
+    });
+    console.log('[KML-Handler] 已保存', window.polylines.length, '条路线到全局变量');
+
     // 禁用自动聚焦到用户位置，保持KML区域视图
     if (typeof disableAutoCenter !== 'undefined') {
         disableAutoCenter = true;
