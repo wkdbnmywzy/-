@@ -78,11 +78,10 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            background: rgba(255, 255, 255, 0.8);  /* 白色80%透明度 */
-            border-radius: 10px;  /* 10px圆角 */
-            padding: 10px 15px;
-            /* 蓝色外阴影: 6px blur, #2C88FF 60% */
-            box-shadow: 0px 0px 6px 0px rgba(44, 136, 255, 0.6);
+            background: #FCFDFF;
+            border-radius: 20px;
+            padding: 8px 15px;
+            box-shadow: 0px 0px 8px rgba(13, 121, 210, 0.2);
         }
 
         .search-input-field {
@@ -173,19 +172,21 @@
         }
 
         .search-result-item {
-            padding: 15px 20px;
+            padding: 10px 20px;
             background: white;
             display: flex !important;
             align-items: center;
             cursor: pointer;
             transition: background 0.2s;
-            margin-bottom: 1px;
+            margin-bottom: 0;
             visibility: visible !important;
             opacity: 1 !important;
+            border-bottom: 1px solid rgba(20, 54, 98, 0.12);
         }
 
         .search-result-item:last-child {
             margin-bottom: 0;
+            border-bottom: none;
         }
 
         .search-result-item:active {
@@ -215,14 +216,14 @@
 
         .search-result-name {
             font-size: 16px;
-            color: #2A86FF;  /* 蓝色名称，匹配设计稿 */
+            color: #143662;  /* 默认为深蓝，高亮时为 #2A86FF */
             margin-bottom: 4px;
             font-weight: 500;
         }
 
         .search-result-desc {
             font-size: 12px;
-            color: #999;
+            color: rgba(35, 124, 243, 0.6);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -230,22 +231,37 @@
 
         .search-result-actions {
             display: flex;
-            gap: 20px;
+            flex-direction: row;
+            gap: 0;
             align-items: center;
             margin-left: 15px;
+            flex-shrink: 0;
         }
 
         .action-btn {
             background: none;
             border: none;
-            padding: 0;
+            padding: 0 15px;
             cursor: pointer;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 4px;
-            color: #666;
+            color: #143662;
             font-size: 11px;
+            position: relative;
+        }
+
+        /* 垂直分割线：给第一个按钮加右边距线 */
+        .action-btn:first-child::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 80%; /* 线条高度 */
+            width: 1px;
+            background-color: rgba(20, 54, 98, 0.12);
         }
 
         .action-btn img {
@@ -259,7 +275,7 @@
         }
 
         .search-highlight {
-            color: #5BA8E3;
+            color: #2A86FF;
             font-weight: 600;
         }
 

@@ -1112,7 +1112,7 @@ body {
     cursor: pointer;
     background: linear-gradient(90deg, #2A86FF 0%, #2A86FF 100%);
     color: white;
-    box-shadow: 0 4px 12px rgba(42, 134, 255, 0.25);
+    box-shadow: none;
     transition: all 0.3s ease;
     flex-shrink: 0;
     margin-bottom: 16px;
@@ -1537,12 +1537,12 @@ body {
 
 .nav-text {
     font-size: 12px;
-    color: #666;
+    color: #143662;
     transition: color 0.3s ease;
 }
 
 .nav-item.active .nav-text {
-    color: #5BA8E3;
+    color: #2A86FF;
     font-weight: 500;
 }
 
