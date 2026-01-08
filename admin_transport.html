@@ -15,60 +15,45 @@
         <div class="transport-page">
             <!-- 顶部标签切换 -->
             <div class="transport-tabs">
-                <div class="tab-item" data-tab="vehicle">车辆进出管理</div>
-                <div class="tab-item active" data-tab="task">运输任务管理</div>
+                <div class="tab-item active" data-tab="vehicle">车辆进出管理</div>
+                <div class="tab-item" data-tab="task">运输任务管理</div>
             </div>
 
             <!-- 车辆进出管理 -->
-            <div class="tab-content" id="vehicle-tab" style="display: none;">
-                <!-- 进出统计 -->
-                <div class="stats-card">
-                    <div class="stats-header">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>进出统计</span>
-                        <i class="fas fa-chevron-right"></i>
-                    </div>
-                    <div class="stats-content">
-                        <div class="stats-row">
-                            <div class="stat-item">
-                                <div class="stat-number">28</div>
-                                <div class="stat-label">临时车辆车次</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-number">32</div>
-                                <div class="stat-label">固定车辆车次</div>
-                            </div>
+            <div class="tab-content" id="vehicle-tab">
+                <div class="tab-content-wrapper">
+                    <!-- 进出统计 -->
+                    <div class="stats-card">
+                        <div class="stats-header">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>进出统计</span>
+                            <i class="fas fa-chevron-right"></i>
                         </div>
-                        <div class="date-selector">今日 <i class="fas fa-caret-down"></i></div>
+                        <div class="stats-content">
+                            <div class="stats-row">
+                                <div class="stat-item">
+                                    <div class="stat-number">0</div>
+                                    <div class="stat-label">临时车辆车次</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-number">0</div>
+                                    <div class="stat-label">固定车辆车次</div>
+                                </div>
+                            </div>
+                            <div class="date-selector">今日 <i class="fas fa-caret-down"></i></div>
+                        </div>
                     </div>
-                </div>
 
-                <!-- 车辆列表 -->
-                <div class="vehicle-list">
-                    <div class="list-header">
-                        <div class="header-col">车辆属性</div>
-                        <div class="header-col">车牌</div>
-                        <div class="header-col">入场时间</div>
-                        <div class="header-col">离场时间</div>
-                    </div>
-                    <div class="list-body">
-                        <div class="list-item">
-                            <div class="col-data vehicle-type temporary">临时</div>
-                            <div class="col-data">鄂A888888</div>
-                            <div class="col-data">10-25 13:59</div>
-                            <div class="col-data">10-25 13:59</div>
+                    <!-- 车辆列表 -->
+                    <div class="vehicle-list">
+                        <div class="list-header">
+                            <div class="header-col">车辆属性</div>
+                            <div class="header-col">车牌</div>
+                            <div class="header-col">入场时间</div>
+                            <div class="header-col">离场时间</div>
                         </div>
-                        <div class="list-item">
-                            <div class="col-data vehicle-type temporary">临时</div>
-                            <div class="col-data">鄂A888888</div>
-                            <div class="col-data">10-25 13:59</div>
-                            <div class="col-data">10-25 13:59</div>
-                        </div>
-                        <div class="list-item">
-                            <div class="col-data vehicle-type fixed">固定</div>
-                            <div class="col-data">鄂A888888</div>
-                            <div class="col-data">10-25 13:59</div>
-                            <div class="col-data">10-25 13:59</div>
+                        <div class="list-body">
+                            <!-- 车辆数据将通过API动态加载 -->
                         </div>
                     </div>
                 </div>
@@ -85,20 +70,33 @@
                             <i class="fas fa-chevron-right"></i>
                         </div>
                         <div class="stats-content">
-                            <div class="stats-row">
-                                <div class="stat-item">
-                                    <div class="stat-number">28</div>
-                                    <div class="stat-label">进行中任务</div>
+                            <div class="stats-row-new">
+                                <!-- 左侧：进行中/已完成 -->
+                                <div class="stats-left">
+                                    <div class="stat-item">
+                                        <div class="stat-number">0</div>
+                                        <div class="stat-label">进行中任务</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-number">0</div>
+                                        <div class="stat-label">已完成任务</div>
+                                    </div>
                                 </div>
-                                <div class="stat-item">
-                                    <div class="stat-number">32</div>
-                                    <div class="stat-label">已完成任务</div>
+                                <!-- 右侧：任务类型 -->
+                                <div class="stats-right">
+                                    <div class="type-stat-item">
+                                        <span class="type-name">砂石运输</span>
+                                        <span class="type-count">0</span>
+                                    </div>
+                                    <div class="type-stat-item">
+                                        <span class="type-name">水泥运输</span>
+                                        <span class="type-count">0</span>
+                                    </div>
+                                    <div class="type-stat-item">
+                                        <span class="type-name">钢筋运输</span>
+                                        <span class="type-count">0</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="task-types">
-                                <div class="type-item">砂石运输 <span>18</span></div>
-                                <div class="type-item">水泥运输 <span>19</span></div>
-                                <div class="type-item">钢筋运输 <span>23</span></div>
                             </div>
                         </div>
                     </div>
@@ -111,21 +109,7 @@
                             <div class="header-col">任务车辆</div>
                         </div>
                         <div class="list-body">
-                            <div class="list-item">
-                                <div class="col-data task-type">水泥运输</div>
-                                <div class="col-data task-status ongoing">进行中</div>
-                                <div class="col-data">鄂A888888</div>
-                            </div>
-                            <div class="list-item">
-                                <div class="col-data task-type">砂石运输</div>
-                                <div class="col-data task-status ongoing">进行中</div>
-                                <div class="col-data">鄂A888888</div>
-                            </div>
-                            <div class="list-item">
-                                <div class="col-data task-type">钢筋运输</div>
-                                <div class="col-data task-status completed">已完成</div>
-                                <div class="col-data">鄂A888888</div>
-                            </div>
+                            <!-- 任务数据将通过API动态加载 -->
                         </div>
                     </div>
 

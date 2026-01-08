@@ -53,13 +53,34 @@
     border-radius: 2px 2px 0 0;
 }
 
+/* 标签页内容包装器 */
+.tab-content {
+    display: none;
+}
+
+.tab-content#vehicle-tab {
+    display: block;
+}
+
+.tab-content-wrapper {
+    position: relative;
+    min-height: calc(100vh - 120px);
+    margin: 16px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0px 0px 4px 0px rgba(13, 121, 210, 0.3);
+    overflow: hidden;
+}
+
 /* 统计卡片 */
 .stats-card {
-    margin: 16px;
-    background: #F8FBFF;
-    border-radius: 12px;
+    margin: 0;
+    background: white;
+    border-radius: 0;
     padding: 16px;
-    box-shadow: 0 2px 8px rgba(0, 121, 210, 0.15);
+    border: none;
+    border-bottom: 1px solid #E8F0FF;
+    box-shadow: none;
 }
 
 .stats-header {
@@ -86,30 +107,109 @@
     position: relative;
 }
 
+/* 车辆进出管理的统计行（左右各占50%）*/
 .stats-row {
     display: flex;
-    gap: 20px;
     padding: 20px;
-    background: linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%);
+    background: white;
     border-radius: 8px;
-    border: 1px solid #91d5ff;
+    border: 1px solid #E8F0FF;
+    gap: 0;
+}
+
+.stats-row .stat-item {
+    flex: 1;
+    text-align: center;
+    padding: 0 20px;
+    position: relative;
+}
+
+/* 中间分割线 */
+.stats-row .stat-item:first-child::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(20, 54, 98, 0.12);
+}
+
+/* 新的统计行布局（运输任务管理）*/
+.stats-row-new {
+    display: flex;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #2A86FF;
+    position: relative;
+}
+
+/* 左侧：进行中/已完成 */
+.stats-left {
+    flex: 1;
+    display: flex;
+    gap: 20px;
+    padding-right: 20px;
+}
+
+/* 中间分割线 */
+.stats-row-new::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 20px;
+    bottom: 20px;
+    width: 1px;
+    background: rgba(20, 54, 98, 0.12);
+    transform: translateX(-50%);
+}
+
+/* 右侧：任务类型 */
+.stats-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-left: 20px;
 }
 
 .stat-item {
-    flex: 1;
     text-align: center;
+}
+
+.stats-left .stat-item {
+    flex: 1;
 }
 
 .stat-number {
     font-size: 32px;
     font-weight: bold;
-    color: #1890ff;
+    color: #5BA8E3;
     margin-bottom: 8px;
 }
 
 .stat-label {
     font-size: 13px;
     color: #666;
+}
+
+/* 任务类型统计项 */
+.type-stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+}
+
+.type-name {
+    color: #333;
+}
+
+.type-count {
+    color: #5BA8E3;
+    font-weight: 600;
+    font-size: 16px;
 }
 
 .date-selector {
@@ -129,42 +229,23 @@
     font-size: 12px;
 }
 
-/* 任务类型统计 */
-.task-types {
-    display: flex;
-    justify-content: space-around;
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid #f0f0f0;
-}
-
-.type-item {
-    font-size: 13px;
-    color: #666;
-}
-
-.type-item span {
-    color: #1890ff;
-    font-weight: 600;
-    margin-left: 4px;
-}
-
 /* 列表样式 */
 .vehicle-list,
 .task-list {
-    margin: 0 16px 16px;
-    background: #F8FBFF;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 121, 210, 0.15);
+    margin: 0;
+    background: white;
+    border-radius: 0;
+    overflow: visible;
+    border: none;
+    box-shadow: none;
 }
 
 .list-header {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    background: #fafafa;
+    background: white;
     padding: 12px 16px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid #E8F0FF;
 }
 
 .task-list .list-header {
@@ -180,14 +261,16 @@
 .list-body {
     max-height: none;
     overflow-y: visible;
+    background: white;
 }
 
 .list-item {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     padding: 16px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid #F0F0F0;
     transition: background 0.3s;
+    background: white;
 }
 
 .task-list .list-item {
@@ -199,7 +282,7 @@
 }
 
 .list-item:active {
-    background: #f5f5f5;
+    background: #F8F9FA;
 }
 
 .col-data {
@@ -225,11 +308,13 @@
 }
 
 .task-type {
-    color: #1890ff;
+    color: #5BA8E3;
+    font-weight: 500;
 }
 
 .task-status {
     font-size: 13px;
+    font-weight: 500;
 }
 
 .task-status.ongoing {
@@ -240,16 +325,14 @@
     color: #999;
 }
 
-/* 标签页内容包装器 */
-.tab-content-wrapper {
-    position: relative;
-    min-height: calc(100vh - 120px);
+.task-status.overdue {
+    color: #FF6B6B;
 }
 
 /* 新增按钮 */
 .add-task-btn {
-    position: absolute;
-    bottom: 20px;
+    position: fixed;
+    bottom: 80px;
     right: 20px;
     width: 64px;
     height: 80px;
