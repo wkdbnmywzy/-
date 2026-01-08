@@ -45,6 +45,51 @@
             </div>
         </div>
 
+        <!-- 项目选择卡片（初始隐藏） -->
+        <!-- 遮罩层 -->
+        <div class="project-overlay hidden" id="project-overlay"></div>
+
+        <div class="project-card card hidden" id="admin-project-card">
+            <!-- 项目选择标题 -->
+            <div class="project-header">
+                <button class="back-arrow" id="admin-project-back-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h2 class="project-title">切换项目</h2>
+            </div>
+
+            <!-- 项目选择内容 -->
+            <div class="project-selection" id="admin-project-selection">
+                <div class="picker-container">
+                    <!-- 左侧省份选择器 -->
+                    <div class="picker-wrapper">
+                        <div class="wheel-picker">
+                            <div class="picker-mask"></div>
+                            <div class="picker-highlight"></div>
+                            <div class="picker-column" id="admin-province-column">
+                                <!-- 动态生成省份列表 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧项目选择器 -->
+                    <div class="picker-wrapper">
+                        <div class="wheel-picker">
+                            <div class="picker-mask"></div>
+                            <div class="picker-highlight"></div>
+                            <div class="picker-column" id="admin-project-column">
+                                <!-- 动态生成项目列表 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="login-btn primary-btn" id="admin-confirm-project-btn">
+                    确定
+                </button>
+            </div>
+        </div>
+
         <!-- 底部导航 -->
         <div class="bottom-nav admin-nav">
             <div class="nav-item" data-page="admin-navigation">

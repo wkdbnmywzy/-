@@ -208,11 +208,12 @@ function getCurrentGPSPosition() {
         if (window.lastGpsPosIndex) {
             const lnglat = window.lastGpsPosIndex;
 
+            // lastGpsPosIndex 是数组 [经度, 纬度]
             // 如果是高德地图坐标系，需要转换回WGS84（或直接使用，取决于后端要求）
             // 这里假设后端接受GCJ02坐标系（高德坐标系）
             resolve({
-                latitude: lnglat.lat,
-                longitude: lnglat.lng
+                latitude: lnglat[1],   // 数组第二个元素是纬度
+                longitude: lnglat[0]   // 数组第一个元素是经度
             });
             return;
         }
@@ -232,9 +233,10 @@ function getCurrentGPSPosition() {
                 // 调用全局的坐标转换函数（如果存在）
                 if (typeof wgs84ToGcj02 === 'function') {
                     const converted = wgs84ToGcj02(lng, lat);
+                    // wgs84ToGcj02 返回数组 [经度, 纬度]
                     resolve({
-                        latitude: converted.lat,
-                        longitude: converted.lng
+                        latitude: converted[1],   // 数组第二个元素是纬度
+                        longitude: converted[0]   // 数组第一个元素是经度
                     });
                 } else {
                     // 如果没有转换函数，直接使用原始坐标

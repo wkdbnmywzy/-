@@ -638,7 +638,7 @@ function getPolygonCenter(polygon) {
     return [sumLng / coords.length, sumLat / coords.length];
 }
 
-// 获取面内的点
+// 获取面内的点（通过polygon_id字段匹配）
 function getPointsInPolygon(polygon) {
     // 从全局kmlData中获取所有点
     if (!window.kmlData || !window.kmlData.features) {
@@ -648,27 +648,31 @@ function getPointsInPolygon(polygon) {
     const allFeatures = window.kmlData.features;
     const points = allFeatures.filter(f => f.geometry.type === 'point');
 
-    // 判断点是否在面内
-    return points.filter(point => {
-        return isPointInPolygon(point.geometry.coordinates, polygon.geometry.coordinates);
-    });
-}
+    // 获取面的ID
+    const polygonId = polygon.properties?.id;
 
-// 判断点是否在多边形内（射线法）
-function isPointInPolygon(point, polygon) {
-    const [x, y] = point;
-    let inside = false;
-
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const [xi, yi] = polygon[i];
-        const [xj, yj] = polygon[j];
-
-        const intersect = ((yi > y) !== (yj > y)) &&
-                         (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-        if (intersect) inside = !inside;
+    if (!polygonId) {
+        console.warn('[获取面内点] 面没有ID，无法匹配点', polygon);
+        return [];
     }
 
-    return inside;
+    // 通过polygon_id字段匹配点
+    const matchedPoints = points.filter(point => {
+        const pointPolygonId = point.properties?.polygon_id;
+
+        // 匹配条件：点的polygon_id等于面的id
+        const isMatched = pointPolygonId === polygonId;
+
+        if (isMatched) {
+            console.log('[获取面内点] 匹配到点:', point.name, '点的polygon_id:', pointPolygonId, '面ID:', polygonId);
+        }
+
+        return isMatched;
+    });
+
+    console.log(`[获取面内点] 面"${polygon.name}"(ID:${polygonId}) 匹配到 ${matchedPoints.length} 个点`);
+
+    return matchedPoints;
 }
 
 // 搜索点和面（搜索所有地图数据，不仅是KML）

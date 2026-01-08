@@ -75,140 +75,369 @@ class TaskManager {
 
     /**
      * 加载任务列表
-     * TODO: 对接后端API
-     *
-     * 后端需要提供以下字段:
-     * 【任务基本信息】
-     * - name: 任务名称 (显示在卡片顶部)
-     * - type: 任务类型 (显示在任务名称下方,如"水泥运输")
-     * - description: 任务详情 (显示在展开的详情区域,完整文本描述)
-     *
-     * 【时间轴区域数据】
-     * - startPoint: 起点信息 (时间轴上方)
-     *   - name: 起点地点名称
-     *   - date: 起点日期
-     *   - time: 起点时间段
-     *   - location: 起点经纬度坐标
-     * - endPoint: 终点信息 (时间轴下方)
-     *   - name: 终点地点名称
-     *   - date: 终点日期
-     *   - time: 终点时间段
-     *   - location: 终点经纬度坐标
-     * - status: 任务状态 (时间轴中间显示,如"进行中")
-     *
-     * 其他字段见 API_DOCUMENTATION.md
+     * 从API获取司机对应的任务数据
      */
     async loadTasks() {
         try {
-            // 预留后端API接口
-            // const response = await fetch('/api/tasks');
-            // const result = await response.json();
-            // if (result.code === 0) {
-            //     this.tasks = result.data.tasks;
-            // }
+            console.log('[任务页面] 开始加载任务...');
 
-            // 模拟数据（开发测试用）
-            this.tasks = this.getMockTasks();
+            // 1. 获取项目ID和车牌号
+            const projectId = this.getProjectId();
+            const plateNumber = this.getPlateNumber();
 
+            if (!projectId) {
+                console.warn('[任务页面] 未找到项目ID');
+                this.showEmpty();
+                return;
+            }
+
+            if (!plateNumber) {
+                console.warn('[任务页面] 未找到车牌号');
+                this.showEmpty();
+                return;
+            }
+
+            console.log('[任务页面] 项目ID:', projectId, '车牌号:', plateNumber);
+
+            // 2. 获取项目下所有任务
+            const allTasks = await this.fetchProjectTasks(projectId);
+            console.log('[任务页面] 项目任务总数:', allTasks.length);
+
+            // 3. 筛选出匹配车牌号的任务
+            const matchedTasks = allTasks.filter(task =>
+                task.plate_number && task.plate_number === plateNumber
+            );
+            console.log('[任务页面] 匹配车牌号的任务数:', matchedTasks.length);
+
+            if (matchedTasks.length === 0) {
+                console.log('[任务页面] 无匹配任务');
+                this.showEmpty();
+                return;
+            }
+
+            // 4. 获取每个任务的详细信息
+            const taskDetails = await Promise.all(
+                matchedTasks.map(async (task) => {
+                    const detail = await this.fetchTaskDetail(task.id);
+                    if (!detail) return null;
+
+                    // 如果有task_location_id，获取地点详情
+                    if (detail.task_location_id) {
+                        const locationDetail = await this.fetchLocationDetail(detail.task_location_id);
+                        if (locationDetail) {
+                            // 将地点信息合并到任务详情中
+                            detail.locationInfo = locationDetail;
+                        }
+                    }
+
+                    return detail;
+                })
+            );
+
+            // 5. 转换为前端需要的格式
+            this.tasks = taskDetails
+                .filter(detail => detail !== null)
+                .map(detail => this.convertTaskData(detail));
+
+            console.log('[任务页面] 最终显示任务数:', this.tasks.length);
+
+            // 6. 渲染任务列表
             this.renderTasks();
+
         } catch (error) {
-            console.error('加载任务失败:', error);
+            console.error('[任务页面] 加载任务失败:', error);
             this.showEmpty();
         }
     }
 
     /**
-     * 获取模拟数据
-     * TODO: 删除此方法，使用真实后端数据
-     *
-     * 注意: 以下三个字段必须由后端提供:
-     * - name: 任务名称
-     * - type: 任务类型
-     * - description: 任务详情描述
+     * 获取项目ID
      */
-    getMockTasks() {
-        return [
-            {
-                id: 1,
-                name: '任务名称1',  // 由后端提供
-                type: '水泥运输',   // 由后端提供
-                description: '请于2025年9月25日将水泥运送至汉韵公馆7号堆料区，请于2025年9月25日将水泥运送至汉韵公馆7号堆料区请于2025年9月25日将水泥运送至汉韵公馆7号堆料区请于2025年9月25日将水泥运送至汉韵公馆7号堆料区请于2025年9月25日将水泥运送至汉韵公馆7号堆料区，请于2025年9月25日将水泥运送至汉韵公馆7号堆料区，请于2025年9月25日将水泥运送至汉韵公馆7号堆料区',  // 由后端提供
-                startPoint: {
-                    name: '中建汉韵公馆项目',
-                    date: '9月26日',
-                    time: '15:30 - 16:30',
-                    location: [118.796877, 32.060255] // 经纬度
-                },
-                endPoint: {
-                    name: '终点项目',
-                    date: '9月26日',
-                    time: '17:30 - 18:30',
-                    location: [118.806877, 32.070255]
-                },
-                status: '进行中',
-                color: 'green'
-            },
-            {
-                id: 2,
-                name: '任务名称2',
-                type: '水泥运输',
-                description: '任务详情任务详情任务详情',
-                startPoint: {
-                    name: '起点项目',
-                    date: '9月27日',
-                    time: '08:00 - 09:00',
-                    location: [118.796877, 32.060255]
-                },
-                endPoint: {
-                    name: '终点项目',
-                    date: '9月27日',
-                    time: '10:00 - 11:00',
-                    location: [118.806877, 32.070255]
-                },
-                status: '已逾期',
-                color: 'pink'
-            },
-            {
-                id: 3,
-                name: '任务名称3',
-                type: '水泥运输',
-                description: '任务详情任务详情任务详情',
-                startPoint: {
-                    name: '起点项目',
-                    date: '9月28日',
-                    time: '14:00 - 15:00',
-                    location: [118.796877, 32.060255]
-                },
-                endPoint: {
-                    name: '终点项目',
-                    date: '9月28日',
-                    time: '16:00 - 17:00',
-                    location: [118.806877, 32.070255]
-                },
-                status: '未开始',
-                color: 'blue'
-            },
-            {
-                id: 4,
-                name: '任务名称4',
-                type: '水泥运输',
-                description: '任务详情任务详情任务详情',
-                startPoint: {
-                    name: '起点项目',
-                    date: '9月29日',
-                    time: '09:00 - 10:00',
-                    location: [118.796877, 32.060255]
-                },
-                endPoint: {
-                    name: '终点项目',
-                    date: '9月29日',
-                    time: '11:00 - 12:00',
-                    location: [118.806877, 32.070255]
-                },
-                status: '未开始',
-                color: 'green'
+    getProjectId() {
+        try {
+            const projectSelection = sessionStorage.getItem('projectSelection');
+            const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+
+            if (!projectSelection) {
+                return null;
             }
-        ];
+
+            const selection = JSON.parse(projectSelection);
+            const projectName = selection.project;
+
+            // 从用户的项目列表中找到选择的项目
+            const userProjects = currentUser.projects || [];
+            const selectedProject = userProjects.find(p => p.projectName === projectName);
+
+            if (selectedProject) {
+                return selectedProject.projectCode || selectedProject.id;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('[任务页面] 获取项目ID失败:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 获取车牌号
+     */
+    getPlateNumber() {
+        try {
+            const projectSelection = sessionStorage.getItem('projectSelection');
+            if (!projectSelection) {
+                return null;
+            }
+
+            const selection = JSON.parse(projectSelection);
+            return selection.vehicle || null;
+        } catch (error) {
+            console.error('[任务页面] 获取车牌号失败:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 获取项目下所有任务
+     */
+    async fetchProjectTasks(projectId) {
+        try {
+            const token = sessionStorage.getItem('authToken') || '';
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
+            console.log('[任务页面] 请求URL:', url);
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: headers
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            console.log('[任务页面] 任务列表响应:', result);
+
+            if (result.code === 200 && result.data) {
+                return result.data.list || result.data || [];
+            }
+
+            return [];
+        } catch (error) {
+            console.error('[任务页面] 获取项目任务失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 获取任务详情
+     */
+    async fetchTaskDetail(taskId) {
+        try {
+            const token = sessionStorage.getItem('authToken') || '';
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/${taskId}`;
+            console.log('[任务页面] 请求任务详情:', url);
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: headers
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            console.log('[任务页面] 任务详情响应:', result);
+            console.log('[任务页面] ========== 任务详情完整数据 ==========');
+            console.log(JSON.stringify(result.data, null, 2));
+            console.log('[任务页面] ==========================================');
+
+            if (result.code === 200 && result.data) {
+                return result.data;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('[任务页面] 获取任务详情失败:', taskId, error);
+            return null;
+        }
+    }
+
+    /**
+     * 获取地点详情
+     */
+    async fetchLocationDetail(locationId) {
+        try {
+            const token = sessionStorage.getItem('authToken') || '';
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            // 尝试几个可能的API端点
+            const possibleAPIs = [
+                `https://dmap.cscec3bxjy.cn/api/transport/task-locations/${locationId}`,
+                `https://dmap.cscec3bxjy.cn/api/transport/locations/${locationId}`,
+                `https://dmap.cscec3bxjy.cn/api/map/points/${locationId}`
+            ];
+
+            console.log('[任务页面] 查询地点详情，locationId:', locationId);
+
+            for (const url of possibleAPIs) {
+                try {
+                    console.log('[任务页面] 尝试API:', url);
+                    const response = await fetch(url, { method: 'GET', headers });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.code === 200 && result.data) {
+                            console.log('[任务页面] ✓ 地点详情获取成功:', result.data);
+                            return result.data;
+                        }
+                    }
+                } catch (e) {
+                    console.log('[任务页面] API调用失败:', e.message);
+                }
+            }
+
+            console.warn('[任务页面] 所有地点详情API都失败');
+            return null;
+        } catch (error) {
+            console.error('[任务页面] 获取地点详情失败:', locationId, error);
+            return null;
+        }
+    }
+
+    /**
+     * 转换API数据为前端格式
+     */
+    convertTaskData(apiData) {
+        // 状态映射
+        const statusMap = {
+            0: '未开始',
+            1: '进行中',
+            2: '已完成',
+            3: '已逾期',
+            4: '已取消'
+        };
+
+        // 状态对应的颜色
+        const colorMap = {
+            0: 'blue',   // 未开始
+            1: 'green',  // 进行中
+            2: 'gray',   // 已完成
+            3: 'pink',   // 已逾期
+            4: 'gray'    // 已取消
+        };
+
+        const status = statusMap[apiData.status] || '未开始';
+        const color = colorMap[apiData.status] || 'blue';
+
+        // 从locationInfo中获取地点信息
+        let startLocationName = '起点';
+        let endLocationName = '终点';
+        let startLongitude = 118.796877;
+        let startLatitude = 32.060255;
+        let endLongitude = 118.806877;
+        let endLatitude = 32.070255;
+
+        if (apiData.locationInfo) {
+            const loc = apiData.locationInfo;
+            // 假设起点和终点是同一个地点（根据实际API返回调整）
+            startLocationName = loc.name || loc.location_name || '起点';
+            endLocationName = loc.name || loc.location_name || '终点';
+            startLongitude = loc.longitude || startLongitude;
+            startLatitude = loc.latitude || startLatitude;
+            endLongitude = loc.longitude || endLongitude;
+            endLatitude = loc.latitude || endLatitude;
+
+            console.log('[任务页面] 使用地点信息:', {
+                name: startLocationName,
+                longitude: startLongitude,
+                latitude: startLatitude
+            });
+        } else {
+            console.warn('[任务页面] 未获取到地点信息，使用默认坐标');
+        }
+
+        return {
+            id: apiData.id,
+            name: apiData.task_name || '未命名任务',
+            type: apiData.task_name || '运输任务',
+            description: apiData.task_detail || '暂无任务详情',
+            startPoint: {
+                name: startLocationName,
+                date: this.formatDate(apiData.entry_start_time),
+                time: this.formatTimeRange(apiData.entry_start_time, apiData.entry_end_time),
+                location: [startLongitude, startLatitude]
+            },
+            endPoint: {
+                name: endLocationName,
+                date: this.formatDate(apiData.exit_start_time),
+                time: this.formatTimeRange(apiData.exit_start_time, apiData.exit_end_time),
+                location: [endLongitude, endLatitude]
+            },
+            status: status,
+            color: color
+        };
+    }
+
+    /**
+     * 格式化日期
+     * @param {string} dateTimeStr - ISO格式的日期时间字符串
+     * @returns {string} 格式化后的日期，如 "9月26日"
+     */
+    formatDate(dateTimeStr) {
+        if (!dateTimeStr) return '-';
+
+        try {
+            const date = new Date(dateTimeStr);
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            return `${month}月${day}日`;
+        } catch (e) {
+            return '-';
+        }
+    }
+
+    /**
+     * 格式化时间范围
+     * @param {string} startTime - 开始时间
+     * @param {string} endTime - 结束时间
+     * @returns {string} 格式化后的时间范围，如 "15:30 - 16:30"
+     */
+    formatTimeRange(startTime, endTime) {
+        if (!startTime || !endTime) return '-';
+
+        try {
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+
+            const startStr = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+            const endStr = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+
+            return `${startStr} - ${endStr}`;
+        } catch (e) {
+            return '-';
+        }
     }
 
     /**

@@ -500,8 +500,9 @@ function initEventListeners() {
     const locateBtn = document.getElementById('locate-btn');
     const cameraBtn = document.getElementById('camera-btn');
     const vehicleToggleBtn = document.getElementById('vehicle-toggle-btn');
+    const switchProjectBtn = document.getElementById('switch-project-btn');
     const vehicleLegend = document.getElementById('vehicle-legend');
-    
+
     // 定位按钮
     if (locateBtn) {
         locateBtn.addEventListener('click', function() {
@@ -509,7 +510,7 @@ function initEventListeners() {
             // TODO: 实现定位功能
         });
     }
-    
+
     // 摄像头按钮
     if (cameraBtn) {
         cameraBtn.addEventListener('click', function() {
@@ -517,6 +518,8 @@ function initEventListeners() {
             // TODO: 实现摄像头功能
         });
     }
+
+    // 切换项目按钮 - 已移除，功能转移至管理员"我的"页面
 
     // 车辆切换按钮 - 已移到 admin-vehicle-manager.js 中处理
     // 相关逻辑在车辆管理器模块中统一管理
