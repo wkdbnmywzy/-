@@ -423,8 +423,8 @@ body {
 /* 登录标签切换 */
 .login-tabs {
     display: flex;
-    gap: 40px;
-    margin-bottom: 40px;
+    gap: 24px; /* 减小按钮间距 */
+    margin-bottom: 20px; /* 缩小与表单的间距 */
     justify-content: center;
     position: relative;
 }
@@ -464,7 +464,7 @@ body {
 /* 表单 */
 .login-form {
     margin-bottom: 24px;
-    padding-top: 120px;
+    padding-top: 24px; /* 缩小上内边距，减小与标签的间距 */
 }
 
 /* 仅当切换到“账号密码”时，让账号/密码表单处于居中位置 */
