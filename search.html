@@ -294,13 +294,6 @@
 </head>
 <body>
     <div class="search-page-container">
-        <!-- 顶部标题栏 -->
-        <div class="search-header">
-            <button class="search-back-btn" id="search-back-btn">
-                <i class="fas fa-chevron-left"></i>
-            </button>
-            <h2 class="search-title">搜索</h2>
-        </div>
 
         <!-- 搜索输入区域 -->
         <div class="search-input-container">
@@ -480,13 +473,13 @@
                             <div class="search-result-desc">${highlightedAddress}</div>
                         </div>
                         <div class="search-result-actions">
-                            <button class="action-btn route-btn" title="路线">
-                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
-                                <span>路线</span>
-                            </button>
                             <button class="action-btn navigate-btn" title="导航">
                                 <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
                                 <span>导航</span>
+                            </button>
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
                             </button>
                         </div>
                     </div>
@@ -511,14 +504,15 @@
                             ${highlightedDesc ? `<div class="search-result-desc">${highlightedDesc}</div>` : ''}
                         </div>
                         <div class="search-result-actions">
-                            <button class="action-btn route-btn" title="路线">
-                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
-                                <span>路线</span>
-                            </button>
                             <button class="action-btn navigate-btn" title="导航">
                                 <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
                                 <span>导航</span>
                             </button>
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
+                            </button>
+
                         </div>
                     </div>
                 `;
@@ -554,13 +548,13 @@
                             <div class="search-result-desc">${point.address || ''}</div>
                         </div>
                         <div class="search-result-actions">
-                            <button class="action-btn route-btn" title="路线">
-                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
-                                <span>路线</span>
-                            </button>
                             <button class="action-btn navigate-btn" title="导航">
                                 <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
                                 <span>导航</span>
+                            </button>
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
                             </button>
                         </div>
                     </div>
@@ -583,14 +577,15 @@
                             ${point.description ? `<div class="search-result-desc">${point.description}</div>` : ''}
                         </div>
                         <div class="search-result-actions">
-                            <button class="action-btn route-btn" title="路线">
-                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
-                                <span>路线</span>
-                            </button>
                             <button class="action-btn navigate-btn" title="导航">
                                 <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
                                 <span>导航</span>
                             </button>
+                            <button class="action-btn route-btn" title="路线">
+                                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                                <span>路线</span>
+                            </button>
+
                         </div>
                     </div>
                 `;
