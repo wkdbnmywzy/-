@@ -313,6 +313,67 @@
 /* 管理员信息卡片调整 */
 .admin-card {
     height: 126px;
+    margin-bottom: 12px;
+    position: relative;
+}
+
+/* 切换项目卡片 */
+.switch-project-section {
+    margin: 30px 15px;
+}
+
+.switch-project {
+    display: flex;
+    align-items: center;
+    padding: 14px 20px;
+    background: #EFF5FF;
+    border-radius: 10px;
+    box-shadow: 0px 0px 4px 0px rgba(13,121,210,0.3);
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.switch-project .menu-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    margin-right: 10px;
+}
+
+.switch-project .menu-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+}
+
+.switch-project .label {
+    font-size: 15px;
+    color: #333;
+    font-weight: 600;
+}
+
+.switch-project .project-name {
+    font-size: 12px;
+    color: #999;
+    margin-top: 4px;
+}
+
+.switch-project .menu-arrow {
+    margin-left: auto;
+    color: #999;
+    font-size: 14px;
+}
+
+.switch-project:active {
+    transform: scale(0.995);
+}
+
+@media (max-width: 375px) {
+    .switch-project .menu-icon {
+        width: 32px;
+        height: 32px;
+    }
 }
 
 .admin-card .card-background {
