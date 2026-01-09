@@ -50,10 +50,15 @@ function initEventListeners() {
     const addTaskBtn = document.querySelector('.add-task-btn');
     if (addTaskBtn) {
         addTaskBtn.addEventListener('click', function() {
-            console.log('新增任务功能待实现');
-            // TODO: 实现新增任务功能
+            showPage('addTaskPage');
         });
     }
+
+    // 初始化任务列表交互
+    initTaskListInteractions();
+
+    // 初始化全屏页面交互
+    initPageInteractions();
 
     // 加载车辆进出数据
     loadVehicleData();
@@ -607,5 +612,156 @@ function renderTaskList(tasks) {
         setTimeout(() => {
             testGetLocationDetail(tasks[0].task_location_id);
         }, 1000);
+    }
+}
+
+/* ========== 新增交互逻辑 ========== */
+
+/**
+ * 初始化任务列表交互（气泡菜单）
+ */
+function initTaskListInteractions() {
+    const listBody = document.querySelector('#task-tab .list-body');
+    const popover = document.getElementById('taskActionPopover');
+    const deleteBtn = document.getElementById('popoverDeleteBtn');
+    const viewBtn = document.getElementById('popoverViewBtn');
+
+    if (!listBody || !popover) return;
+
+    let currentTaskId = null;
+
+    // 列表项点击事件委托
+    listBody.addEventListener('click', function(e) {
+        // 如果点击的是列表项本身或其子元素
+        const item = e.target.closest('.list-item');
+        if (!item) return;
+
+        e.stopPropagation(); // 阻止冒泡
+
+        // 获取任务ID
+        currentTaskId = item.dataset.taskId;
+        
+        // 定位气泡
+        const rect = item.getBoundingClientRect();
+        // 气泡宽度约为140px
+        const popoverWidth = 140; 
+        
+        // 计算位置：居中显示
+        let left = rect.left + (rect.width / 2) - (popoverWidth / 2);
+        let top = rect.top + (rect.height / 2) - 20; // 稍微上移
+
+        // 强制使用fixed定位，基于视口
+        popover.style.position = 'fixed';
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
+        popover.style.display = 'block';
+    });
+
+    // 点击气泡选项：查看/修改
+    if (viewBtn) {
+        viewBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            popover.style.display = 'none';
+            if (currentTaskId) {
+                openViewTaskPage(currentTaskId);
+            }
+        });
+    }
+
+    // 点击气泡选项：删除
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            popover.style.display = 'none';
+            // 简单确认
+            if (confirm('确定要删除该任务吗？')) {
+                console.log('删除任务:', currentTaskId);
+                // 这里可以调用API删除，然后刷新列表
+                // deleteTransportTask(currentTaskId).then(loadTaskData);
+                alert('删除成功');
+                // 暂时刷新已移除页面上的元素
+                const item = document.querySelector(`.list-item[data-task-id="${currentTaskId}"]`);
+                if (item) item.remove();
+            }
+        });
+    }
+
+    // 点击页面其他地方关闭气泡
+    document.addEventListener('click', function() {
+        if (popover) {
+            popover.style.display = 'none';
+        }
+    });
+    
+    // 阻止气泡本身的点击冒泡
+    popover.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+}
+
+/**
+ * 初始化页面交互（全屏弹窗）
+ */
+function initPageInteractions() {
+    // 新增任务页面按钮
+    document.getElementById('addCancelBtn')?.addEventListener('click', () => hidePage('addTaskPage'));
+    document.getElementById('addConfirmBtn')?.addEventListener('click', () => {
+        // TODO: 收集表单数据并提交
+        alert('新增任务成功');
+        hidePage('addTaskPage');
+        loadTaskData(); // 刷新列表
+    });
+    
+    // 查看任务页面按钮
+    document.getElementById('viewCancelBtn')?.addEventListener('click', () => hidePage('viewTaskPage'));
+    document.getElementById('viewSaveBtn')?.addEventListener('click', () => {
+        // TODO: 收集表单数据并保存
+        alert('保存成功');
+        hidePage('viewTaskPage');
+        loadTaskData(); // 刷新列表
+    });
+    
+    // 返回按钮通用处理
+    document.querySelectorAll('.back-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const page = this.closest('.sub-page');
+            if (page) {
+                hidePage(page.id);
+            }
+        });
+    });
+}
+
+/**
+ * 打开查看/修改页面并填充数据
+ */
+function openViewTaskPage(taskId) {
+    console.log('打开任务详情:', taskId);
+    
+    // 模拟填充数据，实际应该从API获取
+    // fetchTaskDetail(taskId).then(data => fillForm(data));
+    
+    // 显示页面
+    showPage('viewTaskPage');
+}
+
+/**
+ * 显示子页面
+ */
+function showPage(pageId) {
+    const page = document.getElementById(pageId);
+    if (page) {
+        page.style.display = 'flex';
+        // 记录状态，处理浏览器返回键（可选）
+    }
+}
+
+/**
+ * 隐藏子页面
+ */
+function hidePage(pageId) {
+    const page = document.getElementById(pageId);
+    if (page) {
+        page.style.display = 'none';
     }
 }
