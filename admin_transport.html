@@ -120,6 +120,210 @@
                     </button>
                 </div>
             </div>
+
+            <!-- 任务操作气泡 -->
+            <div class="task-action-popover" id="taskActionPopover">
+                <div class="popover-content">
+                    <div class="popover-item delete" id="popoverDeleteBtn">删除</div>
+                    <div class="popover-item view" id="popoverViewBtn">查看/修改</div>
+                </div>
+            </div>
+        
+            <!-- 查看/修改任务页面 -->
+            <div class="sub-page" id="viewTaskPage">
+                <div class="page-header">
+                    <div class="back-btn"><i class="fas fa-chevron-left"></i></div>
+                    <div class="page-title">查看任务</div>
+                    <div class="header-actions">
+                        <i class="fas fa-ellipsis-h header-icon-btn"></i>
+                        <i class="far fa-dot-circle header-icon-btn"></i>
+                    </div>
+                </div>
+                <div class="page-content">
+                    <div class="section-title">车辆信息</div>
+                    <div class="form-section vehicle-info-card">
+                        <div class="form-item">
+                            <div class="form-label">定位器</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input" id="viewLocator">
+                                    <option value="GPS1234">GPS1234</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">车牌号</div>
+                            <div class="form-input-wrapper">
+                                <input type="text" class="form-input" id="viewPlate" value="鄂A888888">
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">司机姓名</div>
+                            <div class="form-input-wrapper">
+                                <input type="text" class="form-input" id="viewDriver" value="司机姓名">
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">联系方式</div>
+                            <div class="form-input-wrapper">
+                                <input type="text" class="form-input" id="viewContact" value="15388888888">
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="section-title">任务信息</div>
+                    <div class="form-section">
+                        <div class="form-item">
+                            <div class="form-label required">任务类型</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input" id="viewTaskType">
+                                    <option value="sand">砂石运输</option>
+                                    <option value="cement">水泥运输</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item vertical">
+                            <div class="form-label">任务详情</div>
+                            <div class="textarea-wrapper">
+                                <textarea class="form-textarea" id="viewTaskDetail">请于2025年9月25日将水泥运送至汉韵公馆7号堆料区，请于...</textarea>
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">任务起点</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input" id="viewStartPoint">
+                                    <option>中建汉韵公馆 1号楼</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">任务终点</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input" id="viewEndPoint">
+                                    <option>中建汉韵公馆 1号楼</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item vertical">
+                            <div class="form-label required">入场时间</div>
+                            <div class="date-range-row">
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                                <span class="date-separator">至</span>
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                            </div>
+                        </div>
+                        <div class="form-item vertical">
+                            <div class="form-label required">离场时间</div>
+                            <div class="date-range-row">
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                                <span class="date-separator">至</span>
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="page-footer">
+                    <button class="btn btn-cancel" id="viewCancelBtn">取消</button>
+                    <button class="btn btn-primary" id="viewSaveBtn">保存</button>
+                </div>
+            </div>
+        
+            <!-- 新增任务页面 -->
+            <div class="sub-page" id="addTaskPage">
+                <div class="page-header">
+                    <div class="back-btn"><i class="fas fa-chevron-left"></i></div>
+                    <div class="page-title">新增任务</div>
+                    <div class="header-actions">
+                        <i class="fas fa-ellipsis-h header-icon-btn"></i>
+                        <i class="far fa-dot-circle header-icon-btn"></i>
+                    </div>
+                </div>
+                <div class="page-content">
+                    <div class="section-title">车辆信息</div>
+                    <div class="form-section vehicle-info-card">
+                        <div class="form-item">
+                            <div class="form-label">定位器</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input">
+                                    <option value="">选择定位器编号</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">车牌号</div>
+                            <div class="form-input-wrapper">
+                                <input type="text" class="form-input" placeholder="">
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">司机姓名</div>
+                            <div class="form-input-wrapper">
+                                <input type="text" class="form-input" placeholder="">
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">联系方式</div>
+                            <div class="form-input-wrapper">
+                                <input type="text" class="form-input" placeholder="">
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="section-title">任务信息</div>
+                    <div class="form-section">
+                        <div class="form-item">
+                            <div class="form-label required">任务类型</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input">
+                                    <option value="">选择任务类型</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item vertical">
+                            <div class="form-label">任务详情</div>
+                            <div class="textarea-wrapper">
+                                <textarea class="form-textarea" placeholder=""></textarea>
+                                <div class="char-count">(200字内)</div>
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">任务起点</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input">
+                                    <option value="">选择地点</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item">
+                            <div class="form-label required">任务终点</div>
+                            <div class="form-input-wrapper select-wrapper">
+                                <select class="form-input">
+                                    <option value="">选择地点</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-item vertical">
+                            <div class="form-label required">入场时间</div>
+                            <div class="date-range-row">
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                                <span class="date-separator">至</span>
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                            </div>
+                        </div>
+                        <div class="form-item vertical">
+                            <div class="form-label required">离场时间</div>
+                            <div class="date-range-row">
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                                <span class="date-separator">至</span>
+                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="page-footer">
+                    <button class="btn btn-cancel" id="addCancelBtn">取消</button>
+                    <button class="btn btn-primary" id="addConfirmBtn">新增</button>
+                </div>
+            </div>
         </div>
 
         <!-- 底部导航 -->
@@ -160,6 +364,8 @@
     </div>
 
     <script src="js/config.js"></script>
+
+
     <script src="js/admin_transport.js"></script>
 </body>
 </html>
