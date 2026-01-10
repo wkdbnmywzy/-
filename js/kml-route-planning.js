@@ -1348,6 +1348,20 @@ function displayKMLRoute(routeResult) {
         }
     }
 
+    // 检查是否从任务页发起的导航，如果是则自动跳转到导航页面
+    const urlParams = new URLSearchParams(window.location.search);
+    const isFromTaskNav = urlParams.get('nav') === 'true';
+
+    if (isFromTaskNav) {
+        console.log('[路线规划] 检测到任务导航，路线规划完成，2秒后跳转到导航页面...');
+        setTimeout(() => {
+            if (window.currentKMLRoute) {
+                console.log('[路线规划] 跳转到导航页面');
+                window.location.href = 'navigation.html';
+            }
+        }, 2000); // 延迟2秒，让用户看到路线
+    }
+
     return polyline;
 }
 

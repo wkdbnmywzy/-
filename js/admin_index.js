@@ -77,15 +77,27 @@ function getProjectCenter() {
     try {
         const projectSelection = sessionStorage.getItem('projectSelection');
         const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-        
+
         if (projectSelection) {
             const selection = JSON.parse(projectSelection);
             const projectName = selection.project;
-            
+
             // 从用户的项目列表中找到选择的项目
             const userProjects = currentUser.projects || [];
-            const selectedProject = userProjects.find(p => p.projectName === projectName);
-            
+
+            // 优先使用 projectCode 精确匹配，避免重名项目混淆
+            let selectedProject = null;
+            if (selection.projectCode) {
+                selectedProject = userProjects.find(p =>
+                    (p.projectCode === selection.projectCode) || (p.id === selection.projectCode)
+                );
+            }
+
+            // 如果projectCode匹配失败，回退到名称匹配
+            if (!selectedProject) {
+                selectedProject = userProjects.find(p => p.projectName === projectName);
+            }
+
             if (selectedProject && selectedProject.longitude && selectedProject.latitude) {
                 return [selectedProject.longitude, selectedProject.latitude];
             }
@@ -110,14 +122,28 @@ async function loadProjectMapData() {
         if (projectSelection) {
             const selection = JSON.parse(projectSelection);
             projectName = selection.project;
-            
+
             // 从用户的项目列表中找到选择的项目
             const userProjects = currentUser.projects || [];
             console.log('[管理端] 用户项目列表:', userProjects);
             console.log('[管理端] 选择的项目名称:', projectName);
-            
-            const selectedProject = userProjects.find(p => p.projectName === projectName);
-            
+            console.log('[管理端] 选择的项目Code:', selection.projectCode);
+
+            // 优先使用 projectCode 精确匹配，避免重名项目混淆
+            let selectedProject = null;
+            if (selection.projectCode) {
+                selectedProject = userProjects.find(p =>
+                    (p.projectCode === selection.projectCode) || (p.id === selection.projectCode)
+                );
+                console.log('[管理端] 通过projectCode匹配:', selectedProject ? '成功' : '失败');
+            }
+
+            // 如果projectCode匹配失败，回退到名称匹配
+            if (!selectedProject) {
+                selectedProject = userProjects.find(p => p.projectName === projectName);
+                console.log('[管理端] 通过projectName匹配:', selectedProject ? '成功' : '失败');
+            }
+
             if (selectedProject) {
                 // projectCode 才是API需要的项目ID
                 projectId = selectedProject.projectCode || selectedProject.id;

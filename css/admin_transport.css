@@ -422,19 +422,25 @@
 
 /* Sub-pages (Full Screen Overlays) */
 .sub-page {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     background: #F5F7FA;
     z-index: 2000;
     display: none;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .sub-page.active {
     display: flex;
+}
+
+/* Special handling for Add Task page without header */
+#addTaskPage .page-content {
+    padding-top: 20px;
 }
 
 .page-header {
@@ -481,7 +487,10 @@
     flex: 1;
     padding: 16px;
     overflow-y: auto;
+    overflow-x: hidden;
     padding-bottom: 80px; /* Space for footer */
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* Form Sections */
@@ -490,6 +499,8 @@
     border-radius: 8px;
     padding: 16px;
     margin-bottom: 16px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .section-title {
@@ -498,7 +509,8 @@
     color: #333;
     margin-bottom: 16px;
     padding-left: 8px;
-    /* border-left: 3px solid #1890ff; */ /* Optional style */
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .form-item {
@@ -555,6 +567,16 @@
     font-size: 14px;
     color: #333;
     appearance: none; /* Hide default arrow */
+
+    /* 隐藏滚动条 */
+    overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* 隐藏滚动条 - WebKit浏览器 (Chrome, Safari) */
+.form-input-wrapper select::-webkit-scrollbar {
+    display: none;
 }
 /* Add custom arrow for select */
 .form-input-wrapper.select-wrapper::after {
@@ -628,6 +650,17 @@
     gap: 8px;
     font-size: 13px;
     color: #333;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.date-input:hover {
+    background-color: rgba(42, 134, 255, 0.05);
+}
+
+.date-input:active {
+    background-color: rgba(42, 134, 255, 0.1);
 }
 
 .date-separator {

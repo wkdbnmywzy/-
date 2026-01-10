@@ -82,17 +82,81 @@ document.addEventListener('DOMContentLoaded', function() {
 function checkURLAction() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
+    const nav = urlParams.get('nav');
 
-    // 检查是否从任务页来进行导航，如果是则清除标记和地图状态
+    // 检查是否从任务页来进行导航
     const fromTaskNav = sessionStorage.getItem('fromTaskNavigation');
     if (fromTaskNav === 'true') {
         sessionStorage.removeItem('fromTaskNavigation');
         sessionStorage.removeItem('mapState');
-        console.log('从任务页导航进入，已清除地图状态缓存');
+        console.log('[URL参数] 从任务页导航进入，已清除地图状态缓存');
     }
 
+    // 处理从任务页发起的导航（nav=true）
+    if (nav === 'true') {
+        console.log('[URL参数] 检测到任务导航，准备自动规划路线');
+
+        // 读取起点信息
+        const startLat = parseFloat(urlParams.get('startLat'));
+        const startLng = parseFloat(urlParams.get('startLng'));
+        const startName = urlParams.get('startName');
+
+        // 读取终点信息
+        const endLat = parseFloat(urlParams.get('endLat'));
+        const endLng = parseFloat(urlParams.get('endLng'));
+        const endName = urlParams.get('endName');
+
+        const taskId = urlParams.get('taskId');
+
+        console.log('[URL参数] 起点:', startName, [startLng, startLat]);
+        console.log('[URL参数] 终点:', endName, [endLng, endLat]);
+
+        // 延迟执行，确保地图和UI已完全加载
+        setTimeout(() => {
+            try {
+                // 设置起点
+                if (window.startLocation && typeof window.startLocation === 'object') {
+                    window.startLocation.name = startName;
+                    window.startLocation.coords = [startLng, startLat];
+                    const startInput = document.getElementById('start-location');
+                    if (startInput) {
+                        startInput.value = startName;
+                    }
+                    console.log('[URL参数] ✓ 起点已设置:', startName);
+                }
+
+                // 设置终点
+                if (window.endLocation && typeof window.endLocation === 'object') {
+                    window.endLocation.name = endName;
+                    window.endLocation.coords = [endLng, endLat];
+                    const endInput = document.getElementById('end-location');
+                    if (endInput) {
+                        endInput.value = endName;
+                    }
+                    console.log('[URL参数] ✓ 终点已设置:', endName);
+                }
+
+                // 自动规划路线（路线规划完成后会在displayKMLRoute中自动跳转到导航页）
+                if (typeof calculateRoute === 'function') {
+                    console.log('[URL参数] 开始自动规划路线...');
+                    calculateRoute();
+                } else {
+                    console.error('[URL参数] calculateRoute 函数未找到');
+                }
+
+            } catch (error) {
+                console.error('[URL参数] 自动规划路线失败:', error);
+            }
+        }, 1500); // 延迟1.5秒，确保地图加载完成
+
+        // 清除URL参数，避免刷新时重复执行
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+    }
+
+    // 处理添加途径点操作
     if (action === 'addWaypoint') {
-        console.log('检测到添加途径点操作，跳转到点位选择界面');
+        console.log('[URL参数] 检测到添加途径点操作，跳转到点位选择界面');
         // 跳转到点位选择界面
         if (typeof showPickerPanel === 'function') {
             currentInputType = 'waypoint';

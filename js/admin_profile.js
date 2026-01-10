@@ -172,6 +172,7 @@ function hideAdminProjectSelection() {
 // 初始化项目选择器
 function initAdminProjectPicker(projects) {
     console.log('[切换项目] 初始化项目选择器，项目数量:', projects.length);
+    console.log('[切换项目] 所有项目:', projects);
 
     // 按省份分组项目
     const projectsByProvince = {};
@@ -186,6 +187,7 @@ function initAdminProjectPicker(projects) {
 
     const provinces = Object.keys(projectsByProvince);
     console.log('[切换项目] 省份列表:', provinces);
+    console.log('[切换项目] 按省份分组后的项目:', projectsByProvince);
 
     // 初始化省份列和项目列
     const provinceColumn = document.getElementById('admin-province-column');
@@ -200,12 +202,14 @@ function initAdminProjectPicker(projects) {
     let selectedProject = null;
     let provincePicker = null;
     let projectPicker = null;
+    let currentProjectList = []; // 保存当前项目列表，供onChange使用
 
     // 创建省份选择器
     provincePicker = new WheelPicker(
         provinceColumn,
         provinces,
         function(province) {
+            console.log('[切换项目] 省份轮盘onChange触发:', province);
             selectedProvince = province;
             updateProjectColumn(province);
         }
@@ -214,21 +218,39 @@ function initAdminProjectPicker(projects) {
     // 更新项目列
     function updateProjectColumn(province) {
         const projectList = projectsByProvince[province] || [];
+        console.log('[切换项目] updateProjectColumn被调用:', {
+            province: province,
+            projectList: projectList,
+            projectCount: projectList.length
+        });
+
+        currentProjectList = projectList; // 更新当前项目列表
         const projectNames = projectList.map(p => p.projectName);
 
         if (projectPicker) {
+            console.log('[切换项目] 更新已存在的项目选择器，项目数:', projectNames.length);
             projectPicker.updateItems(projectNames);
+            // updateItems会调用updateSelection(0)，触发onChange，此时会用currentProjectList[0]
         } else {
+            // 第一次创建选择器
             projectPicker = new WheelPicker(
                 projectColumn,
                 projectNames,
                 function(projectName, index) {
-                    selectedProject = projectList[index];
+                    selectedProject = currentProjectList[index]; // 使用外部的currentProjectList
+                    console.log('[切换项目] 项目轮盘onChange触发:', {
+                        projectName: projectName,
+                        index: index,
+                        selectedProject: selectedProject
+                    });
                 }
             );
         }
 
-        selectedProject = projectList[0];
+        // 确保selectedProject被正确设置
+        if (!selectedProject && currentProjectList.length > 0) {
+            selectedProject = currentProjectList[0];
+        }
     }
 
     // 初始化项目列
@@ -394,20 +416,56 @@ class WheelPicker {
 function confirmAdminProjectSelection() {
     const selection = window.adminProjectSelection?.getSelected();
 
+    console.log('[切换项目] window.adminProjectSelection:', window.adminProjectSelection);
+    console.log('[切换项目] getSelected()返回:', selection);
+
     if (!selection || !selection.project) {
         alert('请选择项目');
         return;
     }
 
-    console.log('[切换项目] 选择的项目:', selection);
+    console.log('[切换项目] 选择的项目完整信息:', {
+        province: selection.province,
+        projectName: selection.project.projectName,
+        projectCode: selection.project.projectCode,
+        projectId: selection.project.id,
+        fullProject: selection.project
+    });
 
-    // 保存项目选择
+    // 保存项目选择（包含完整的项目信息以避免重名项目混淆）
     const projectSelection = {
         province: selection.province,
         project: selection.project.projectName,
+        projectCode: selection.project.projectCode || selection.project.id, // 保存唯一ID
+        projectId: selection.project.id,
         timestamp: new Date().toISOString()
     };
+
+    console.log('[切换项目] 即将保存到sessionStorage:', projectSelection);
     sessionStorage.setItem('projectSelection', JSON.stringify(projectSelection));
+
+    // 验证保存是否成功
+    const saved = sessionStorage.getItem('projectSelection');
+    console.log('[切换项目] 保存后读取验证:', saved);
+
+    // ========== 清除旧的地图数据缓存 ==========
+    console.log('[切换项目] 清除旧的地图数据缓存...');
+
+    // 清除KML相关数据
+    sessionStorage.removeItem('kmlRawData');        // 原始KML文本
+    sessionStorage.removeItem('kmlFileName');       // KML文件名
+    sessionStorage.removeItem('kmlData');           // 结构化KML数据（点位列表）
+    sessionStorage.removeItem('processedKMLData');  // 处理后的KML数据
+
+    // 清除路线规划相关数据
+    sessionStorage.removeItem('routePlanningData'); // 路线规划数据
+    sessionStorage.removeItem('navigationRoute');   // 导航路线数据
+
+    // 清除选中位置
+    sessionStorage.removeItem('selectedLocation');  // 选中的位置
+
+    console.log('[切换项目] 缓存清除完成');
+    // ==========================================
 
     // 隐藏卡片
     hideAdminProjectSelection();

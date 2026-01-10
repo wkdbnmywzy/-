@@ -821,6 +821,14 @@ const NavUI = (function() {
      */
     function restoreRoutePlanningData() {
         try {
+            // 【新增】优先检查是否有任务导航数据（从任务页跳转过来）
+            const taskNavDataStr = sessionStorage.getItem('taskNavigationData');
+            if (taskNavDataStr) {
+                console.log('[NavUI] 检测到任务导航数据，开始自动导航流程...');
+                handleTaskNavigation(taskNavDataStr);
+                return;
+            }
+
             // 【修复】直接读取 point-selection.js 保存的完整路线数据
             const routeData = NavDataStore.getRoute();
             if (!routeData) {
@@ -842,13 +850,18 @@ const NavUI = (function() {
             }
 
             // 恢复途经点
+            const waypointsContainer = document.getElementById('nav-waypoints-container');
             if (routeData.waypoints && routeData.waypoints.length > 0) {
-                const waypointsContainer = document.getElementById('nav-waypoints-container');
                 if (waypointsContainer) {
                     waypointsContainer.innerHTML = '';
                     routeData.waypoints.forEach(waypoint => {
                         addWaypointToUI(waypoint.name || waypoint);
                     });
+                }
+            } else {
+                // 没有途径点时，确保容器为空（以便CSS :empty生效）
+                if (waypointsContainer) {
+                    waypointsContainer.innerHTML = '';
                 }
             }
 
@@ -856,6 +869,104 @@ const NavUI = (function() {
             console.log('[NavUI] ✓ 路线数据已恢复完成');
         } catch (e) {
             console.error('[NavUI] 恢复路线规划数据失败:', e);
+        }
+    }
+
+    /**
+     * 处理任务导航（从任务页跳转过来的导航请求）
+     * @param {string} taskNavDataStr - 任务导航数据JSON字符串
+     */
+    async function handleTaskNavigation(taskNavDataStr) {
+        try {
+            // 1. 解析任务导航数据
+            const taskNavData = JSON.parse(taskNavDataStr);
+            console.log('[任务导航] 解析任务数据:', taskNavData);
+
+            // 2. 转换为导航系统所需的路线格式
+            const routeData = {
+                start: {
+                    name: taskNavData.startPoint.name,
+                    position: [taskNavData.startPoint.lng, taskNavData.startPoint.lat],
+                    isMyLocation: false
+                },
+                end: {
+                    name: taskNavData.endPoint.name,
+                    position: [taskNavData.endPoint.lng, taskNavData.endPoint.lat]
+                },
+                waypoints: [] // 任务导航不包含途径点
+            };
+
+            console.log('[任务导航] 转换后的路线数据:', routeData);
+
+            // 3. 保存路线数据到NavDataStore
+            NavDataStore.setRoute(routeData);
+
+            // 4. 更新UI显示
+            const startInput = document.getElementById('nav-start-location');
+            const endInput = document.getElementById('nav-end-location');
+            const waypointsContainer = document.getElementById('nav-waypoints-container');
+
+            if (startInput) {
+                startInput.value = routeData.start.name;
+            }
+            if (endInput) {
+                endInput.value = routeData.end.name;
+            }
+
+            // 清空途径点容器（确保完全为空，以便CSS :empty生效）
+            if (waypointsContainer) {
+                waypointsContainer.innerHTML = '';
+            }
+
+            // 5. 触发路线规划（手动调用KML路线规划）
+            console.log('[任务导航] 开始规划路线...');
+
+            // 确保KML图已构建
+            if (typeof buildKMLGraph === 'function' && (!window.kmlGraph || !window.kmlNodes || window.kmlNodes.length === 0)) {
+                console.log('[任务导航] 构建KML图...');
+                buildKMLGraph();
+            }
+
+            // 调用KML路线规划
+            let routeResult = null;
+            if (typeof planKMLRoute === 'function') {
+                const startCoord = [taskNavData.startPoint.lng, taskNavData.startPoint.lat];
+                const endCoord = [taskNavData.endPoint.lng, taskNavData.endPoint.lat];
+                console.log('[任务导航] 规划路线:', { start: startCoord, end: endCoord });
+                routeResult = planKMLRoute(startCoord, endCoord);
+
+                if (routeResult && routeResult.path && routeResult.path.length >= 2) {
+                    console.log('[任务导航] 路线规划成功，路径点数:', routeResult.path.length);
+
+                    // 显示路线
+                    if (typeof displayKMLRoute === 'function') {
+                        displayKMLRoute(routeResult);
+                    }
+                } else {
+                    console.error('[任务导航] 路线规划失败');
+                    alert('无法规划路线，请检查起点和终点是否在道路上');
+                    sessionStorage.removeItem('taskNavigationData');
+                    return;
+                }
+            } else {
+                console.error('[任务导航] 未找到路线规划函数');
+                alert('路线规划功能不可用');
+                sessionStorage.removeItem('taskNavigationData');
+                return;
+            }
+
+            // 6. 路线规划完成，清除任务导航数据
+            // 用户需要手动点击"开始导航"按钮
+            console.log('[任务导航] ✓ 路线规划完成，等待用户点击"开始导航"按钮');
+
+            // 清除任务导航数据，避免刷新时重复执行
+            sessionStorage.removeItem('taskNavigationData');
+
+        } catch (error) {
+            console.error('[任务导航] 处理任务导航失败:', error);
+            alert('加载任务导航失败: ' + error.message);
+            // 清除无效数据
+            sessionStorage.removeItem('taskNavigationData');
         }
     }
 

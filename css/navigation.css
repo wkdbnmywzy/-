@@ -200,6 +200,12 @@
     -ms-overflow-style: none; /* IE/Edge */
 }
 
+/* 当途径点容器为空时，隐藏整个容器（包括橙色圆点） */
+.waypoints-container:empty {
+    display: none;
+    padding: 0;
+}
+
 /* 途径点容器图标 */
 .waypoints-container::before {
     content: '';
@@ -209,6 +215,11 @@
     border-radius: 50%;
     background-color: #FF9800;
     flex-shrink: 0;
+}
+
+/* 当容器为空时，不显示橙色圆点 */
+.waypoints-container:empty::before {
+    display: none;
 }
 
 /* 隐藏滚动条 - Webkit浏览器 */

@@ -229,21 +229,13 @@
         
             <!-- 新增任务页面 -->
             <div class="sub-page" id="addTaskPage">
-                <div class="page-header">
-                    <div class="back-btn"><i class="fas fa-chevron-left"></i></div>
-                    <div class="page-title">新增任务</div>
-                    <div class="header-actions">
-                        <i class="fas fa-ellipsis-h header-icon-btn"></i>
-                        <i class="far fa-dot-circle header-icon-btn"></i>
-                    </div>
-                </div>
                 <div class="page-content">
                     <div class="section-title">车辆信息</div>
                     <div class="form-section vehicle-info-card">
                         <div class="form-item">
                             <div class="form-label">定位器</div>
                             <div class="form-input-wrapper select-wrapper">
-                                <select class="form-input">
+                                <select class="form-input" id="addLocator">
                                     <option value="">选择定位器编号</option>
                                 </select>
                             </div>
@@ -273,8 +265,12 @@
                         <div class="form-item">
                             <div class="form-label required">任务类型</div>
                             <div class="form-input-wrapper select-wrapper">
-                                <select class="form-input">
+                                <select class="form-input" id="addTaskType">
                                     <option value="">选择任务类型</option>
+                                    <option value="1">砂石运输</option>
+                                    <option value="2">水泥运输</option>
+                                    <option value="3">钢筋运输</option>
+                                    <option value="99">其他</option>
                                 </select>
                             </div>
                         </div>
@@ -288,7 +284,7 @@
                         <div class="form-item">
                             <div class="form-label required">任务起点</div>
                             <div class="form-input-wrapper select-wrapper">
-                                <select class="form-input">
+                                <select class="form-input" id="addStartPoint">
                                     <option value="">选择地点</option>
                                 </select>
                             </div>
@@ -296,7 +292,7 @@
                         <div class="form-item">
                             <div class="form-label required">任务终点</div>
                             <div class="form-input-wrapper select-wrapper">
-                                <select class="form-input">
+                                <select class="form-input" id="addEndPoint">
                                     <option value="">选择地点</option>
                                 </select>
                             </div>
@@ -304,17 +300,17 @@
                         <div class="form-item vertical">
                             <div class="form-label required">入场时间</div>
                             <div class="date-range-row">
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                                <div class="date-input" id="addEntryStartTime"><i class="far fa-calendar-alt"></i> 选择时间</div>
                                 <span class="date-separator">至</span>
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                                <div class="date-input" id="addEntryEndTime"><i class="far fa-calendar-alt"></i> 选择时间</div>
                             </div>
                         </div>
                         <div class="form-item vertical">
                             <div class="form-label required">离场时间</div>
                             <div class="date-range-row">
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                                <div class="date-input" id="addExitStartTime"><i class="far fa-calendar-alt"></i> 选择时间</div>
                                 <span class="date-separator">至</span>
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 选择时间</div>
+                                <div class="date-input" id="addExitEndTime"><i class="far fa-calendar-alt"></i> 选择时间</div>
                             </div>
                         </div>
                     </div>

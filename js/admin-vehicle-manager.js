@@ -77,7 +77,19 @@ const AdminVehicleManager = (function() {
 
                 // 从用户的项目列表中找到选择的项目
                 const userProjects = currentUser.projects || [];
-                const selectedProject = userProjects.find(p => p.projectName === projectName);
+
+                // 优先使用 projectCode 精确匹配，避免重名项目混淆
+                let selectedProject = null;
+                if (selection.projectCode) {
+                    selectedProject = userProjects.find(p =>
+                        (p.projectCode === selection.projectCode) || (p.id === selection.projectCode)
+                    );
+                }
+
+                // 如果projectCode匹配失败，回退到名称匹配
+                if (!selectedProject) {
+                    selectedProject = userProjects.find(p => p.projectName === projectName);
+                }
 
                 if (selectedProject) {
                     // projectCode 才是API需要的项目ID

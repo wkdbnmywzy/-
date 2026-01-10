@@ -51,6 +51,8 @@ function initEventListeners() {
     if (addTaskBtn) {
         addTaskBtn.addEventListener('click', function() {
             showPage('addTaskPage');
+            // 加载表单所需的数据
+            loadAddTaskFormData();
         });
     }
 
@@ -483,7 +485,19 @@ function getProjectId() {
 
         // 从用户的项目列表中找到选择的项目
         const userProjects = currentUser.projects || [];
-        const selectedProject = userProjects.find(p => p.projectName === projectName);
+
+        // 优先使用 projectCode 精确匹配，避免重名项目混淆
+        let selectedProject = null;
+        if (selection.projectCode) {
+            selectedProject = userProjects.find(p =>
+                (p.projectCode === selection.projectCode) || (p.id === selection.projectCode)
+            );
+        }
+
+        // 如果projectCode匹配失败，回退到名称匹配
+        if (!selectedProject) {
+            selectedProject = userProjects.find(p => p.projectName === projectName);
+        }
 
         if (selectedProject) {
             // projectCode 才是API需要的项目ID
@@ -706,10 +720,7 @@ function initPageInteractions() {
     // 新增任务页面按钮
     document.getElementById('addCancelBtn')?.addEventListener('click', () => hidePage('addTaskPage'));
     document.getElementById('addConfirmBtn')?.addEventListener('click', () => {
-        // TODO: 收集表单数据并提交
-        alert('新增任务成功');
-        hidePage('addTaskPage');
-        loadTaskData(); // 刷新列表
+        createNewTask();
     });
     
     // 查看任务页面按钮
@@ -733,14 +744,538 @@ function initPageInteractions() {
 }
 
 /**
+ * 加载新增任务表单所需的数据
+ */
+async function loadAddTaskFormData() {
+    const projectId = getProjectId();
+    if (!projectId) {
+        console.warn('[新增任务] 未找到项目ID');
+        return;
+    }
+
+    // 并行加载定位器和点位数据
+    await Promise.all([
+        loadLocators(projectId),
+        loadTaskLocations()
+    ]);
+
+    // 初始化时间选择器
+    initDateTimePickers();
+}
+
+/**
+ * 加载定位器列表
+ * @param {string} projectId - 项目ID
+ */
+async function loadLocators(projectId) {
+    try {
+        const token = sessionStorage.getItem('authToken') || '';
+        const url = `https://dmap.cscec3bxjy.cn/api/transport/tracker/project-locations?projectId=${projectId}`;
+
+        console.log('[新增任务] 加载定位器列表:', url);
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            console.error('[新增任务] 加载定位器失败:', response.status);
+            return;
+        }
+
+        const result = await response.json();
+        console.log('[新增任务] 定位器API响应:', result);
+
+        if (result.code === 200 && result.data) {
+            const locatorSelect = document.getElementById('addLocator');
+            if (!locatorSelect) return;
+
+            // 清空现有选项（保留第一个默认选项）
+            locatorSelect.innerHTML = '<option value="">选择定位器编号</option>';
+
+            if (result.data.length === 0) {
+                // 如果没有定位器数据，添加提示选项
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = '（该项目暂无定位器数据）';
+                option.disabled = true;
+                locatorSelect.appendChild(option);
+                console.log('[新增任务] 该项目暂无定位器数据');
+            } else {
+                // 添加定位器选项
+                result.data.forEach(locator => {
+                    const option = document.createElement('option');
+                    // 使用TrackerID作为value，PlateNumber作为显示文本
+                    option.value = locator.TrackerID;
+                    option.textContent = `${locator.PlateNumber} (${locator.TrackerID})`;
+                    // 保存额外信息到dataset
+                    option.dataset.plateNumber = locator.PlateNumber;
+                    option.dataset.trackerId = locator.TrackerID;
+                    locatorSelect.appendChild(option);
+                });
+                console.log('[新增任务] 已加载', result.data.length, '个定位器');
+            }
+        }
+    } catch (error) {
+        console.error('[新增任务] 加载定位器失败:', error);
+    }
+}
+
+/**
+ * 加载任务地点（从sessionStorage的kmlData获取已过滤的点位）
+ */
+async function loadTaskLocations() {
+    try {
+        console.log('[新增任务] 从sessionStorage加载点位数据...');
+
+        // 从sessionStorage获取kmlData（首页或点位选择界面已经加载并过滤好的数据）
+        const kmlDataStr = sessionStorage.getItem('kmlData');
+
+        if (!kmlDataStr) {
+            console.warn('[新增任务] sessionStorage中没有kmlData，请先访问首页加载地图数据');
+            // 显示提示
+            const startPointSelect = document.getElementById('addStartPoint');
+            const endPointSelect = document.getElementById('addEndPoint');
+
+            if (startPointSelect && endPointSelect) {
+                startPointSelect.innerHTML = '<option value="">请先访问首页加载地图</option>';
+                endPointSelect.innerHTML = '<option value="">请先访问首页加载地图</option>';
+            }
+            return;
+        }
+
+        // 解析kmlData
+        const kmlDataArray = JSON.parse(kmlDataStr);
+        console.log('[新增任务] kmlData数组:', kmlDataArray);
+
+        // 提取所有点位（kmlData是数组，每个元素是一个KML文件的数据）
+        const allPoints = [];
+
+        kmlDataArray.forEach(kmlItem => {
+            if (kmlItem.points && Array.isArray(kmlItem.points)) {
+                kmlItem.points.forEach(point => {
+                    allPoints.push({
+                        id: point.id || point.name, // 使用ID或名称作为标识
+                        name: point.name,
+                        position: point.position
+                    });
+                });
+            }
+        });
+
+        console.log('[新增任务] 从kmlData提取到的点位数量:', allPoints.length);
+        console.log('[新增任务] 点位示例（前5个）:', allPoints.slice(0, 5));
+
+        // 填充起点和终点下拉框
+        const startPointSelect = document.getElementById('addStartPoint');
+        const endPointSelect = document.getElementById('addEndPoint');
+
+        if (startPointSelect && endPointSelect) {
+            // 清空现有选项
+            startPointSelect.innerHTML = '<option value="">选择地点</option>';
+            endPointSelect.innerHTML = '<option value="">选择地点</option>';
+
+            if (allPoints.length === 0) {
+                const startOption = document.createElement('option');
+                startOption.value = '';
+                startOption.textContent = '（暂无可用点位数据）';
+                startOption.disabled = true;
+                startPointSelect.appendChild(startOption);
+
+                const endOption = document.createElement('option');
+                endOption.value = '';
+                endOption.textContent = '（暂无可用点位数据）';
+                endOption.disabled = true;
+                endPointSelect.appendChild(endOption);
+
+                console.log('[新增任务] 暂无可用点位数据');
+            } else {
+                // 添加点位选项
+                allPoints.forEach((point, index) => {
+                    // 起点
+                    const startOption = document.createElement('option');
+                    startOption.value = index;
+                    startOption.textContent = point.name;
+                    startOption.dataset.lng = point.position[0];
+                    startOption.dataset.lat = point.position[1];
+                    if (point.id) startOption.dataset.pointId = point.id;
+                    startPointSelect.appendChild(startOption);
+
+                    // 终点
+                    const endOption = document.createElement('option');
+                    endOption.value = index;
+                    endOption.textContent = point.name;
+                    endOption.dataset.lng = point.position[0];
+                    endOption.dataset.lat = point.position[1];
+                    if (point.id) endOption.dataset.pointId = point.id;
+                    endPointSelect.appendChild(endOption);
+                });
+
+                console.log('[新增任务] 已加载', allPoints.length, '个点位到起点和终点下拉框');
+            }
+        }
+    } catch (error) {
+        console.error('[新增任务] 加载地点失败:', error);
+    }
+}
+
+/**
+ * 初始化时间选择器
+ */
+function initDateTimePickers() {
+    // 时间选择器元素
+    const entryStartTimeEl = document.getElementById('addEntryStartTime');
+    const entryEndTimeEl = document.getElementById('addEntryEndTime');
+    const exitStartTimeEl = document.getElementById('addExitStartTime');
+    const exitEndTimeEl = document.getElementById('addExitEndTime');
+
+    // 保存选择的时间
+    const selectedTimes = {
+        entryStart: null,
+        entryEnd: null,
+        exitStart: null,
+        exitEnd: null
+    };
+
+    // 绑定点击事件
+    if (entryStartTimeEl) {
+        entryStartTimeEl.addEventListener('click', () => {
+            showDateTimePicker('入场开始时间', (dateTime) => {
+                selectedTimes.entryStart = dateTime;
+                entryStartTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        });
+    }
+
+    if (entryEndTimeEl) {
+        entryEndTimeEl.addEventListener('click', () => {
+            showDateTimePicker('入场结束时间', (dateTime) => {
+                selectedTimes.entryEnd = dateTime;
+                entryEndTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        });
+    }
+
+    if (exitStartTimeEl) {
+        exitStartTimeEl.addEventListener('click', () => {
+            showDateTimePicker('离场开始时间', (dateTime) => {
+                selectedTimes.exitStart = dateTime;
+                exitStartTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        });
+    }
+
+    if (exitEndTimeEl) {
+        exitEndTimeEl.addEventListener('click', () => {
+            showDateTimePicker('离场结束时间', (dateTime) => {
+                selectedTimes.exitEnd = dateTime;
+                exitEndTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        });
+    }
+
+    // 保存到全局以便在提交时访问
+    window.addTaskSelectedTimes = selectedTimes;
+}
+
+/**
+ * 显示时间选择器（简单实现）
+ * @param {string} title - 选择器标题
+ * @param {Function} callback - 选择完成后的回调函数
+ */
+function showDateTimePicker(title, callback) {
+    // 使用HTML5的datetime-local输入框
+    const input = document.createElement('input');
+    input.type = 'datetime-local';
+    input.style.position = 'absolute';
+    input.style.opacity = '0';
+    input.style.pointerEvents = 'none';
+
+    // 设置默认值为当前时间
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    input.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+    document.body.appendChild(input);
+
+    input.addEventListener('change', function() {
+        if (this.value) {
+            // 转换为ISO格式
+            const dateTime = new Date(this.value).toISOString();
+            callback(dateTime);
+        }
+        document.body.removeChild(input);
+    });
+
+    // 触发点击打开选择器
+    input.click();
+    input.showPicker();
+}
+
+/**
+ * 格式化时间显示
+ * @param {string} isoDateTime - ISO格式的时间字符串
+ * @returns {string} 格式化后的显示文本
+ */
+function formatDateTimeDisplay(isoDateTime) {
+    if (!isoDateTime) return '选择时间';
+
+    const date = new Date(isoDateTime);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return `${month}月${day}日 ${hours}:${minutes}`;
+}
+
+/**
+ * 创建新任务
+ */
+async function createNewTask() {
+    try {
+        console.log('[新增任务] 开始创建新任务...');
+
+        // 1. 获取项目ID
+        const projectId = getProjectId();
+        if (!projectId) {
+            alert('未找到项目ID，请先选择项目');
+            return;
+        }
+
+        // 2. 获取token和用户信息
+        const token = sessionStorage.getItem('authToken') || '';
+        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+        const publisherId = currentUser.userId || currentUser.id || '';
+
+        if (!token) {
+            alert('未登录，请先登录');
+            return;
+        }
+
+        // 3. 收集表单数据
+        const formData = collectTaskFormData();
+        if (!formData) {
+            return; // 验证失败，collectTaskFormData已显示错误提示
+        }
+
+        // 4. 构建请求body
+        const requestBody = {
+            driver_name: formData.driverName,
+            phone: formData.phone,
+            plate_number: formData.plateNumber,
+            vehicle_type: formData.vehicleType || 0,
+            vehicle_id: formData.locatorId || 0, // 使用定位器ID
+            task_type: formData.taskType,
+            task_name: formData.taskName || '',
+            task_detail: formData.taskDetail || '',
+            start_point: formData.startPoint || 0,
+            end_point: formData.endPoint || 0,
+            task_location_id: 0, // 暂时设为0
+            entry_start_time: formData.entryStartTime,
+            entry_end_time: formData.entryEndTime,
+            exit_start_time: formData.exitStartTime,
+            exit_end_time: formData.exitEndTime,
+            project_id: projectId,
+            publisher_id: publisherId,
+            publish_date: new Date().toISOString(),
+            status: 0 // 0=未开始
+        };
+
+        console.log('[新增任务] 请求body:', requestBody);
+
+        // 5. 发送POST请求
+        const url = 'https://dmap.cscec3bxjy.cn/api/transport/tasks';
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        };
+
+        console.log('[新增任务] 请求URL:', url);
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(requestBody)
+        });
+
+        console.log('[新增任务] 响应状态:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[新增任务] 请求失败:', errorText);
+            alert(`创建任务失败: ${response.status} ${response.statusText}`);
+            return;
+        }
+
+        const result = await response.json();
+        console.log('[新增任务] API响应:', result);
+
+        if (result.code === 200) {
+            alert('新增任务成功');
+            hidePage('addTaskPage');
+            // 清空表单
+            clearTaskForm();
+            // 刷新任务列表
+            loadTaskData();
+        } else {
+            alert(`创建任务失败: ${result.message || '未知错误'}`);
+        }
+
+    } catch (error) {
+        console.error('[新增任务] 创建失败:', error);
+        alert('创建任务时发生错误，请稍后重试');
+    }
+}
+
+/**
+ * 收集任务表单数据并验证
+ * @returns {Object|null} 表单数据对象，验证失败返回null
+ */
+function collectTaskFormData() {
+    const addTaskPage = document.getElementById('addTaskPage');
+    if (!addTaskPage) {
+        alert('未找到表单');
+        return null;
+    }
+
+    // 获取表单输入值
+    const locatorSelect = document.getElementById('addLocator');
+    const plateNumber = addTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(2) input')?.value.trim();
+    const driverName = addTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(3) input')?.value.trim();
+    const phone = addTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(4) input')?.value.trim();
+    const taskTypeSelect = document.getElementById('addTaskType');
+    const taskDetail = addTaskPage.querySelector('.form-section:nth-child(4) .form-item:nth-child(2) textarea')?.value.trim();
+    const startPointSelect = document.getElementById('addStartPoint');
+    const endPointSelect = document.getElementById('addEndPoint');
+
+    // 验证必填字段
+    if (!plateNumber) {
+        alert('请输入车牌号');
+        return null;
+    }
+    if (!driverName) {
+        alert('请输入司机姓名');
+        return null;
+    }
+    if (!phone) {
+        alert('请输入联系方式');
+        return null;
+    }
+    if (!taskTypeSelect || !taskTypeSelect.value) {
+        alert('请选择任务类型');
+        return null;
+    }
+    if (!startPointSelect || !startPointSelect.value) {
+        alert('请选择任务起点');
+        return null;
+    }
+    if (!endPointSelect || !endPointSelect.value) {
+        alert('请选择任务终点');
+        return null;
+    }
+
+    // 获取时间数据
+    const selectedTimes = window.addTaskSelectedTimes || {};
+    if (!selectedTimes.entryStart || !selectedTimes.entryEnd || !selectedTimes.exitStart || !selectedTimes.exitEnd) {
+        alert('请选择完整的入场和离场时间');
+        return null;
+    }
+
+    // 获取任务类型
+    const taskType = parseInt(taskTypeSelect.value) || 0;
+    const taskName = taskTypeSelect.options[taskTypeSelect.selectedIndex]?.text || '';
+
+    // 获取定位器ID
+    const locatorId = locatorSelect?.value || '';
+
+    // 获取起点和终点
+    const startPoint = parseInt(startPointSelect.value) || 0;
+    const endPoint = parseInt(endPointSelect.value) || 0;
+
+    return {
+        locatorId,
+        driverName,
+        phone,
+        plateNumber,
+        vehicleType: 0, // 暂时默认为0
+        taskType,
+        taskName,
+        taskDetail,
+        startPoint,
+        endPoint,
+        entryStartTime: selectedTimes.entryStart,
+        entryEndTime: selectedTimes.entryEnd,
+        exitStartTime: selectedTimes.exitStart,
+        exitEndTime: selectedTimes.exitEnd
+    };
+}
+
+/**
+ * 清空任务表单
+ */
+function clearTaskForm() {
+    const addTaskPage = document.getElementById('addTaskPage');
+    if (!addTaskPage) return;
+
+    // 清空输入框
+    addTaskPage.querySelectorAll('input').forEach(input => {
+        input.value = '';
+    });
+
+    // 清空文本域
+    addTaskPage.querySelectorAll('textarea').forEach(textarea => {
+        textarea.value = '';
+    });
+
+    // 重置下拉框
+    addTaskPage.querySelectorAll('select').forEach(select => {
+        select.selectedIndex = 0;
+    });
+
+    // 重置时间选择器显示
+    const timeElements = [
+        'addEntryStartTime',
+        'addEntryEndTime',
+        'addExitStartTime',
+        'addExitEndTime'
+    ];
+
+    timeElements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.innerHTML = '<i class="far fa-calendar-alt"></i> 选择时间';
+        }
+    });
+
+    // 清空时间选择器数据
+    if (window.addTaskSelectedTimes) {
+        window.addTaskSelectedTimes = {
+            entryStart: null,
+            entryEnd: null,
+            exitStart: null,
+            exitEnd: null
+        };
+    }
+}
+
+/**
  * 打开查看/修改页面并填充数据
  */
 function openViewTaskPage(taskId) {
     console.log('打开任务详情:', taskId);
-    
+
     // 模拟填充数据，实际应该从API获取
     // fetchTaskDetail(taskId).then(data => fillForm(data));
-    
+
     // 显示页面
     showPage('viewTaskPage');
 }

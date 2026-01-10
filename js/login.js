@@ -1,5 +1,61 @@
 // 登录页面 JavaScript - 基于设计图
 
+// ==================== 模拟GPS调试功能 ====================
+// 用于开发测试，可在控制台设置模拟GPS坐标
+let mockGPSCoordinates = null;
+
+/**
+ * 设置模拟GPS坐标（用于开发测试）
+ * @param {number} longitude - 经度（范围：-180 到 180）
+ * @param {number} latitude - 纬度（范围：-90 到 90）
+ * @example setMockGPS(114.402198, 30.452716)  // 武汉（经度在前，纬度在后）
+ */
+window.setMockGPS = function(longitude, latitude) {
+    if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+        console.error('[模拟GPS] 参数错误：经度和纬度必须是数字');
+        return;
+    }
+    if (longitude < -180 || longitude > 180) {
+        console.error('[模拟GPS] 经度范围错误：必须在 -180 到 180 之间');
+        return;
+    }
+    if (latitude < -90 || latitude > 90) {
+        console.error('[模拟GPS] 纬度范围错误：必须在 -90 到 90 之间');
+        return;
+    }
+
+    mockGPSCoordinates = { latitude, longitude };
+    console.log(`[模拟GPS] ✓ 已设置模拟坐标: 经度=${longitude}, 纬度=${latitude}`);
+    console.log('[模拟GPS] 下次登录将使用此坐标搜索附近项目');
+};
+
+/**
+ * 清除模拟GPS坐标，恢复使用真实GPS
+ */
+window.clearMockGPS = function() {
+    mockGPSCoordinates = null;
+    console.log('[模拟GPS] ✓ 已清除模拟坐标，将使用真实GPS定位');
+};
+
+/**
+ * 查看当前模拟GPS设置
+ */
+window.getMockGPS = function() {
+    if (mockGPSCoordinates) {
+        console.log('[模拟GPS] 当前模拟坐标:', mockGPSCoordinates);
+        return mockGPSCoordinates;
+    } else {
+        console.log('[模拟GPS] 未设置模拟坐标，使用真实GPS');
+        return null;
+    }
+};
+
+console.log('[模拟GPS] 调试功能已加载，可用命令：');
+console.log('  setMockGPS(经度, 纬度) - 设置模拟GPS坐标');
+console.log('  clearMockGPS() - 清除模拟坐标');
+console.log('  getMockGPS() - 查看当前设置');
+console.log('  示例: setMockGPS(114.402198, 30.452716)  // 武汉');
+
 // DOM元素
 const driverLoginForm = document.getElementById('driver-login-form');
 const adminLoginForm = document.getElementById('admin-login-form');
@@ -241,6 +297,10 @@ async function handleDriverLogin(e) {
     showLoadingScreen();
 
     try {
+        // 司机登录不使用token，清除之前可能存在的token（避免API请求401错误）
+        sessionStorage.removeItem('authToken');
+        console.log('[司机登录] 已清除authToken，司机登录不需要token');
+
         // 获取GPS位置
         console.log('[司机登录] 获取GPS位置...');
         const position = await getCurrentPosition();
@@ -301,18 +361,47 @@ async function handleDriverLogin(e) {
 }
 
 /**
- * 获取当前GPS位置
+ * 获取当前GPS位置（支持模拟坐标用于开发测试）
+ * 优先使用模拟坐标，若未设置则使用真实GPS
  * @returns {Promise<GeolocationPosition>}
  */
 function getCurrentPosition() {
     return new Promise((resolve, reject) => {
+        // 如果设置了模拟GPS坐标，直接返回模拟数据
+        if (mockGPSCoordinates) {
+            console.log('[GPS定位] 使用模拟GPS坐标:', mockGPSCoordinates);
+            // 构造符合GeolocationPosition接口的对象
+            const mockPosition = {
+                coords: {
+                    latitude: mockGPSCoordinates.latitude,
+                    longitude: mockGPSCoordinates.longitude,
+                    accuracy: 10,
+                    altitude: null,
+                    altitudeAccuracy: null,
+                    heading: null,
+                    speed: null
+                },
+                timestamp: Date.now()
+            };
+            resolve(mockPosition);
+            return;
+        }
+
+        // 未设置模拟坐标，使用真实GPS
+        console.log('[GPS定位] 使用真实GPS定位...');
         if (!navigator.geolocation) {
             reject(new Error('浏览器不支持定位功能'));
             return;
         }
-        
+
         navigator.geolocation.getCurrentPosition(
-            resolve,
+            (position) => {
+                console.log('[GPS定位] 真实GPS定位成功:', {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                });
+                resolve(position);
+            },
             reject,
             {
                 enableHighAccuracy: true,

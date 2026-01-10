@@ -115,18 +115,29 @@ class TaskManager {
                 return;
             }
 
-            // 4. 获取每个任务的详细信息
+            // 4. 获取每个任务的详细信息，包括起点终点
             const taskDetails = await Promise.all(
                 matchedTasks.map(async (task) => {
                     const detail = await this.fetchTaskDetail(task.id);
                     if (!detail) return null;
 
-                    // 如果有task_location_id，获取地点详情
-                    if (detail.task_location_id) {
-                        const locationDetail = await this.fetchLocationDetail(detail.task_location_id);
-                        if (locationDetail) {
-                            // 将地点信息合并到任务详情中
-                            detail.locationInfo = locationDetail;
+                    // 获取起点信息（start_point是点位ID）
+                    if (detail.start_point) {
+                        console.log('[任务页面] 获取起点信息，ID:', detail.start_point);
+                        const startPointInfo = await this.fetchPointDetail(detail.start_point);
+                        if (startPointInfo) {
+                            detail.startPointInfo = startPointInfo;
+                            console.log('[任务页面] ✓ 起点信息:', startPointInfo);
+                        }
+                    }
+
+                    // 获取终点信息（end_point是点位ID）
+                    if (detail.end_point) {
+                        console.log('[任务页面] 获取终点信息，ID:', detail.end_point);
+                        const endPointInfo = await this.fetchPointDetail(detail.end_point);
+                        if (endPointInfo) {
+                            detail.endPointInfo = endPointInfo;
+                            console.log('[任务页面] ✓ 终点信息:', endPointInfo);
                         }
                     }
 
@@ -182,16 +193,39 @@ class TaskManager {
 
     /**
      * 获取车牌号
+     * 从多个位置尝试获取：vehicleInfo、projectSelection、currentUser
      */
     getPlateNumber() {
         try {
-            const projectSelection = sessionStorage.getItem('projectSelection');
-            if (!projectSelection) {
-                return null;
+            // 1. 优先从 vehicleInfo 获取（登录时保存的车辆信息）
+            const vehicleInfo = sessionStorage.getItem('vehicleInfo');
+            if (vehicleInfo) {
+                const vehicle = JSON.parse(vehicleInfo);
+                if (vehicle.licensePlate) {
+                    console.log('[任务页面] 从vehicleInfo获取车牌号:', vehicle.licensePlate);
+                    return vehicle.licensePlate;
+                }
             }
 
-            const selection = JSON.parse(projectSelection);
-            return selection.vehicle || null;
+            // 2. 尝试从 projectSelection 获取
+            const projectSelection = sessionStorage.getItem('projectSelection');
+            if (projectSelection) {
+                const selection = JSON.parse(projectSelection);
+                if (selection.vehicle) {
+                    console.log('[任务页面] 从projectSelection获取车牌号:', selection.vehicle);
+                    return selection.vehicle;
+                }
+            }
+
+            // 3. 最后尝试从 currentUser 获取
+            const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+            if (currentUser.licensePlate) {
+                console.log('[任务页面] 从currentUser获取车牌号:', currentUser.licensePlate);
+                return currentUser.licensePlate;
+            }
+
+            console.warn('[任务页面] 未在任何位置找到车牌号');
+            return null;
         } catch (error) {
             console.error('[任务页面] 获取车牌号失败:', error);
             return null;
@@ -203,20 +237,27 @@ class TaskManager {
      */
     async fetchProjectTasks(projectId) {
         try {
-            const token = sessionStorage.getItem('authToken') || '';
+            const token = sessionStorage.getItem('authToken');
             const headers = {
                 'Content-Type': 'application/json'
             };
-            if (token) {
+
+            // 只在token存在且不为空时才添加Authorization header
+            if (token && token.trim() !== '') {
                 headers['Authorization'] = `Bearer ${token}`;
+                console.log('[任务页面] 使用token请求（token长度:', token.length, '）');
+            } else {
+                console.log('[任务页面] 无token，使用匿名请求');
             }
 
-            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
-            console.log('[任务页面] 请求URL:', url);
+            const url = `http://115.159.67.12:8086/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
+            console.log('[任务页面] 请求URL（内网测试）:', url);
+            console.log('[任务页面] 请求headers:', headers);
 
             const response = await fetch(url, {
                 method: 'GET',
-                headers: headers
+                headers: headers,
+                credentials: 'omit'  // 不发送cookie
             });
 
             if (!response.ok) {
@@ -242,20 +283,23 @@ class TaskManager {
      */
     async fetchTaskDetail(taskId) {
         try {
-            const token = sessionStorage.getItem('authToken') || '';
+            const token = sessionStorage.getItem('authToken');
             const headers = {
                 'Content-Type': 'application/json'
             };
-            if (token) {
+
+            // 只在token存在且不为空时才添加Authorization header
+            if (token && token.trim() !== '') {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/${taskId}`;
-            console.log('[任务页面] 请求任务详情:', url);
+            const url = `http://115.159.67.12:8086/api/transport/tasks/${taskId}`;
+            console.log('[任务页面] 请求任务详情（内网测试）:', url);
 
             const response = await fetch(url, {
                 method: 'GET',
-                headers: headers
+                headers: headers,
+                credentials: 'omit'
             });
 
             if (!response.ok) {
@@ -280,51 +324,51 @@ class TaskManager {
     }
 
     /**
-     * 获取地点详情
+     * 根据点位ID获取点位详细信息（使用首页的点位接口）
+     * @param {number} pointId - 点位ID
+     * @returns {Promise<Object|null>} 点位详细信息
      */
-    async fetchLocationDetail(locationId) {
+    async fetchPointDetail(pointId) {
         try {
-            const token = sessionStorage.getItem('authToken') || '';
+            const token = sessionStorage.getItem('authToken');
             const headers = {
                 'Content-Type': 'application/json'
             };
-            if (token) {
+
+            // 只在token存在且不为空时才添加Authorization header
+            if (token && token.trim() !== '') {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            // 尝试几个可能的API端点
-            const possibleAPIs = [
-                `https://dmap.cscec3bxjy.cn/api/transport/task-locations/${locationId}`,
-                `https://dmap.cscec3bxjy.cn/api/transport/locations/${locationId}`,
-                `https://dmap.cscec3bxjy.cn/api/map/points/${locationId}`
-            ];
+            // 使用首页的地图API点位查询接口（HTTPS可用）
+            const url = `https://dmap.cscec3bxjy.cn/api/map/points/${pointId}`;
+            console.log('[任务页面] 请求点位详情:', url);
 
-            console.log('[任务页面] 查询地点详情，locationId:', locationId);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: headers,
+                credentials: 'omit'
+            });
 
-            for (const url of possibleAPIs) {
-                try {
-                    console.log('[任务页面] 尝试API:', url);
-                    const response = await fetch(url, { method: 'GET', headers });
-
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result.code === 200 && result.data) {
-                            console.log('[任务页面] ✓ 地点详情获取成功:', result.data);
-                            return result.data;
-                        }
-                    }
-                } catch (e) {
-                    console.log('[任务页面] API调用失败:', e.message);
-                }
+            if (!response.ok) {
+                console.warn('[任务页面] 点位详情请求失败:', response.status);
+                return null;
             }
 
-            console.warn('[任务页面] 所有地点详情API都失败');
+            const result = await response.json();
+            console.log('[任务页面] 点位详情响应:', result);
+
+            if (result.code === 200 && result.data) {
+                return result.data;
+            }
+
             return null;
         } catch (error) {
-            console.error('[任务页面] 获取地点详情失败:', locationId, error);
+            console.error('[任务页面] 获取点位详情失败:', pointId, error);
             return null;
         }
     }
+
 
     /**
      * 转换API数据为前端格式
@@ -351,7 +395,7 @@ class TaskManager {
         const status = statusMap[apiData.status] || '未开始';
         const color = colorMap[apiData.status] || 'blue';
 
-        // 从locationInfo中获取地点信息
+        // 默认值
         let startLocationName = '起点';
         let endLocationName = '终点';
         let startLongitude = 118.796877;
@@ -359,23 +403,36 @@ class TaskManager {
         let endLongitude = 118.806877;
         let endLatitude = 32.070255;
 
-        if (apiData.locationInfo) {
-            const loc = apiData.locationInfo;
-            // 假设起点和终点是同一个地点（根据实际API返回调整）
-            startLocationName = loc.name || loc.location_name || '起点';
-            endLocationName = loc.name || loc.location_name || '终点';
-            startLongitude = loc.longitude || startLongitude;
-            startLatitude = loc.latitude || startLatitude;
-            endLongitude = loc.longitude || endLongitude;
-            endLatitude = loc.latitude || endLatitude;
+        // 使用起点信息（从start_point ID查询得到）
+        if (apiData.startPointInfo) {
+            const point = apiData.startPointInfo;
+            startLocationName = point.name || point.point_name || '起点';
+            startLongitude = point.longitude || point.lng || startLongitude;
+            startLatitude = point.latitude || point.lat || startLatitude;
 
-            console.log('[任务页面] 使用地点信息:', {
+            console.log('[任务页面] 使用起点信息:', {
                 name: startLocationName,
                 longitude: startLongitude,
                 latitude: startLatitude
             });
         } else {
-            console.warn('[任务页面] 未获取到地点信息，使用默认坐标');
+            console.warn('[任务页面] 未获取到起点信息，使用默认坐标');
+        }
+
+        // 使用终点信息（从end_point ID查询得到）
+        if (apiData.endPointInfo) {
+            const point = apiData.endPointInfo;
+            endLocationName = point.name || point.point_name || '终点';
+            endLongitude = point.longitude || point.lng || endLongitude;
+            endLatitude = point.latitude || point.lat || endLatitude;
+
+            console.log('[任务页面] 使用终点信息:', {
+                name: endLocationName,
+                longitude: endLongitude,
+                latitude: endLatitude
+            });
+        } else {
+            console.warn('[任务页面] 未获取到终点信息，使用默认坐标');
         }
 
         return {
@@ -591,15 +648,34 @@ class TaskManager {
         const projectEl = document.getElementById('nav-dialog-project');
         const locationEl = document.getElementById('nav-dialog-location');
 
-        // 设置目的地信息
-        projectEl.textContent = task.endPoint.name.replace('项目', '').trim();
-        locationEl.textContent = task.endPoint.name;
+        // 获取项目名称（上方浅色小字）
+        let projectName = '项目名称';
+        try {
+            const projectSelection = sessionStorage.getItem('projectSelection');
+            if (projectSelection) {
+                const selection = JSON.parse(projectSelection);
+                projectName = selection.project || '项目名称';
+            }
+        } catch (error) {
+            console.error('[导航弹窗] 获取项目名称失败:', error);
+        }
 
-        // 保存当前任务信息，供确认导航时使用
+        // 设置目的地信息
+        projectEl.textContent = projectName;  // 项目名称
+        locationEl.textContent = task.endPoint.name;  // 地点名称
+
+        // 保存完整的任务信息（起点+终点），供确认导航时使用
         dialog.dataset.taskId = task.id;
-        dialog.dataset.lat = task.endPoint.location[1];
-        dialog.dataset.lng = task.endPoint.location[0];
-        dialog.dataset.locationName = task.endPoint.name;
+
+        // 起点信息
+        dialog.dataset.startLat = task.startPoint.location[1];
+        dialog.dataset.startLng = task.startPoint.location[0];
+        dialog.dataset.startName = task.startPoint.name;
+
+        // 终点信息
+        dialog.dataset.endLat = task.endPoint.location[1];
+        dialog.dataset.endLng = task.endPoint.location[0];
+        dialog.dataset.endName = task.endPoint.name;
 
         dialog.classList.add('show');
     }
@@ -618,22 +694,45 @@ class TaskManager {
     confirmNavigation() {
         const dialog = document.getElementById('nav-confirm-dialog');
         const taskId = dialog.dataset.taskId;
-        const lat = parseFloat(dialog.dataset.lat);
-        const lng = parseFloat(dialog.dataset.lng);
-        const locationName = dialog.dataset.locationName;
+
+        // 获取起点信息
+        const startLat = parseFloat(dialog.dataset.startLat);
+        const startLng = parseFloat(dialog.dataset.startLng);
+        const startName = dialog.dataset.startName;
+
+        // 获取终点信息
+        const endLat = parseFloat(dialog.dataset.endLat);
+        const endLng = parseFloat(dialog.dataset.endLng);
+        const endName = dialog.dataset.endName;
 
         this.closeNavigationDialog();
 
-        // 保存任务页即将跳转的标记，首页可以不重新定位
+        console.log('[任务导航] 直接跳转到导航页面，起点:', startName, '终点:', endName);
+
+        // 将起点终点信息保存到sessionStorage，供导航页面使用
         try {
-            sessionStorage.setItem('fromTaskNavigation', 'true');
+            const taskNavigationData = {
+                taskId: taskId,
+                startPoint: {
+                    name: startName,
+                    lng: startLng,
+                    lat: startLat
+                },
+                endPoint: {
+                    name: endName,
+                    lng: endLng,
+                    lat: endLat
+                },
+                timestamp: Date.now()
+            };
+            sessionStorage.setItem('taskNavigationData', JSON.stringify(taskNavigationData));
+            console.log('[任务导航] 导航数据已保存到sessionStorage');
         } catch (e) {
-            console.warn('保存导航来源标记失败:', e);
+            console.warn('[任务导航] 保存导航数据失败:', e);
         }
 
-        // 跳转到地图页面并开始导航
-        // 使用URL参数传递导航信息
-        window.location.href = `index.html?nav=true&lat=${lat}&lng=${lng}&name=${encodeURIComponent(locationName)}&taskId=${taskId}`;
+        // 直接跳转到导航页面
+        window.location.href = 'navigation.html';
     }
 
     /**

@@ -1706,6 +1706,7 @@ function isValidFeatureName(name) {
         /^polygon\d*$/i,
         /^new\s+polygon/i,  // 匹配 "New Polygon"
         /^区域\d+$/i,
+        /^区块\s*\d+$/,     // 匹配 "区块 4", "区块 24", "区块  24" 等
         /^path\d+$/i,
         /^layer\d*$/i,      // 匹配 "Layer", "Layer1" 等
         /^shape\d*$/i       // 匹配 "Shape", "Shape1" 等

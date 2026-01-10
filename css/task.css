@@ -552,14 +552,15 @@
 
 .nav-dialog-project {
     font-size: 14px;
-    color: rgba(35, 124, 243, 0.6);
-    margin-bottom: 4px;
+    color: #999999;  /* 浅灰色，符合设计稿 */
+    margin-bottom: 8px;  /* 增加间距 */
 }
 
 .nav-dialog-location {
-    font-size: 16px;
+    font-size: 18px;  /* 增大字号，更突出 */
     font-weight: 600;
     color: #333333;
+    line-height: 1.4;
 }
 
 .nav-dialog-actions {
