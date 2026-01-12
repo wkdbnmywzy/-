@@ -445,7 +445,14 @@
                     }
                 } else if (action === 'map-selection') {
                     // 地图选点功能 - 跳转到地图选点页面
-                    console.log('跳转到地图选点页面');
+                    console.log('跳转到地图选点页面，当前输入类型:', currentInputType);
+
+                    // 保存当前输入类型到sessionStorage
+                    const routeData = JSON.parse(sessionStorage.getItem('routePlanningData') || '{}');
+                    routeData.inputType = currentInputType;
+                    routeData.activeInput = currentActiveInput;
+                    sessionStorage.setItem('routePlanningData', JSON.stringify(routeData));
+
                     window.location.href = 'map-point-selection.html';
                 }
 

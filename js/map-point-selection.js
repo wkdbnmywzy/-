@@ -117,25 +117,7 @@ function initEventListeners() {
         pointCloseBtn.addEventListener('click', closePanels);
     }
 
-    // 点信息面板 - 路线按钮
-    const pointRouteBtn = document.getElementById('point-route-btn');
-    if (pointRouteBtn) {
-        pointRouteBtn.addEventListener('click', function() {
-            if (selectedPoint) {
-                selectPointForRoute(selectedPoint);
-            }
-        });
-    }
-
-    // 点信息面板 - 导航按钮
-    const pointNavBtn = document.getElementById('point-nav-btn');
-    if (pointNavBtn) {
-        pointNavBtn.addEventListener('click', function() {
-            if (selectedPoint) {
-                navigateToPoint(selectedPoint);
-            }
-        });
-    }
+    // 注意：点信息面板的路线和导航按钮在showPointPanel中动态创建和绑定
 
     // 面信息面板 - 关闭按钮
     const polygonCloseBtn = document.getElementById('panel-polygon-close-btn');
@@ -356,7 +338,84 @@ function showPointPanel(point, distance) {
 
     // 设置点信息
     document.getElementById('point-name').textContent = point.name;
-    document.getElementById('point-distance').textContent = `距离 ${distance} 米`;
+    document.getElementById('point-distance').textContent = formatDistance(distance);
+
+    // 设置项目名称
+    const projectSelection = sessionStorage.getItem('projectSelection');
+    let projectName = '';
+    if (projectSelection) {
+        try {
+            const selection = JSON.parse(projectSelection);
+            projectName = selection.project || '';
+        } catch (e) {
+            console.warn('解析项目选择失败:', e);
+        }
+    }
+    document.getElementById('point-project-name').textContent = projectName;
+
+    // 根据inputType判断按钮显示
+    const routeData = sessionStorage.getItem('routePlanningData');
+    let inputType = 'end';  // 默认为终点
+    if (routeData) {
+        try {
+            const data = JSON.parse(routeData);
+            inputType = data.inputType || 'end';
+        } catch (e) {
+            console.warn('解析路线数据失败:', e);
+        }
+    }
+
+    const panelActions = document.getElementById('point-panel-actions');
+
+    if (inputType === 'waypoint') {
+        // 途径点模式：显示"取消"和"确认"文字按钮
+        panelActions.innerHTML = `
+            <button class="panel-btn panel-btn-outline" id="point-cancel-btn">
+                <span>取消</span>
+            </button>
+            <button class="panel-btn panel-btn-primary" id="point-confirm-btn">
+                <span>确认</span>
+            </button>
+        `;
+
+        // "取消"按钮：关闭面板，恢复图标状态
+        document.getElementById('point-cancel-btn').addEventListener('click', function() {
+            closePanels();
+        });
+
+        // "确认"按钮：添加到途径点并跳转
+        document.getElementById('point-confirm-btn').addEventListener('click', function() {
+            if (selectedPoint) {
+                selectPointForRoute(selectedPoint);
+            }
+        });
+    } else {
+        // 终点/起点模式：显示"路线"和"导航"按钮
+        panelActions.innerHTML = `
+            <button class="panel-btn panel-btn-outline" id="point-route-btn">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
+                <span>路线</span>
+            </button>
+            <button class="panel-btn panel-btn-primary" id="point-nav-btn">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
+                <span>导航</span>
+            </button>
+        `;
+
+        // 绑定路线按钮
+        document.getElementById('point-route-btn').addEventListener('click', function() {
+            if (selectedPoint) {
+                selectPointForRoute(selectedPoint);
+            }
+        });
+
+        // 绑定导航按钮
+        document.getElementById('point-nav-btn').addEventListener('click', function() {
+            if (selectedPoint) {
+                navigateToPoint(selectedPoint);
+            }
+        });
+    }
 
     // 显示点面板
     document.getElementById('panel-point-info').style.display = 'block';
@@ -377,7 +436,20 @@ function showPolygonPanel(polygon, pointsInPolygon) {
     // 计算面中心距离
     const center = getPolygonCenter(polygon);
     const distance = calculateDistance(center);
-    document.getElementById('polygon-area').textContent = `距离 ${distance} 米`;
+    document.getElementById('polygon-area').textContent = formatDistance(distance);
+
+    // 设置项目名称
+    const projectSelection = sessionStorage.getItem('projectSelection');
+    let projectName = '';
+    if (projectSelection) {
+        try {
+            const selection = JSON.parse(projectSelection);
+            projectName = selection.project || '';
+        } catch (e) {
+            console.warn('解析项目选择失败:', e);
+        }
+    }
+    document.getElementById('polygon-project-name').textContent = projectName;
 
     // 渲染面内点列表
     renderPointsList(pointsInPolygon);
@@ -402,35 +474,76 @@ function renderPointsList(points) {
 
     points.forEach(point => {
         const distance = calculateDistance(point.geometry.coordinates);
+        const formattedDistance = formatDistance(distance);
 
         const item = document.createElement('div');
         item.className = 'panel-point-item';
         item.innerHTML = `
             <div class="panel-point-info">
                 <div class="panel-point-name">${point.name}</div>
-                <div class="panel-point-distance">${distance}m</div>
+                <div class="panel-point-distance">${formattedDistance}</div>
             </div>
             <div class="panel-point-actions">
-                <button class="panel-point-btn panel-point-btn-route" data-point-name="${point.name}">
-                    <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
-                    <span>路线</span>
-                </button>
-                <button class="panel-point-btn panel-point-btn-nav" data-point-name="${point.name}">
-                    <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
-                    <span>导航</span>
+                <button class="panel-point-btn panel-point-btn-add" data-point-name="${point.name}">
+                    <img src="images/工地数字导航小程序切图/司机/2X/导航/添加地点.png" alt="添加">
+                    <span>添加</span>
                 </button>
             </div>
         `;
 
-        // 绑定按钮事件
-        const routeBtn = item.querySelector('.panel-point-btn-route');
-        const navBtn = item.querySelector('.panel-point-btn-nav');
-
-        routeBtn.addEventListener('click', () => selectPointForRoute(point));
-        navBtn.addEventListener('click', () => navigateToPoint(point));
+        // 绑定添加按钮事件
+        const addBtn = item.querySelector('.panel-point-btn-add');
+        addBtn.addEventListener('click', () => addPointToRoute(point));
 
         listContainer.appendChild(item);
     });
+}
+
+// 添加点位到路线（用于区域内点位列表）
+function addPointToRoute(point) {
+    console.log('添加点位到路线:', point.name);
+
+    // 从sessionStorage获取当前输入类型
+    const routeData = sessionStorage.getItem('routePlanningData');
+    let inputType = 'end';  // 默认为终点
+
+    if (routeData) {
+        try {
+            const data = JSON.parse(routeData);
+            inputType = data.inputType || 'end';
+        } catch (e) {
+            console.error('解析路线数据失败:', e);
+        }
+    }
+
+    // 保存选择的点到sessionStorage
+    const newRouteData = JSON.parse(sessionStorage.getItem('routePlanningData') || '{}');
+
+    // 根据输入类型填充相应的字段
+    if (inputType === 'start') {
+        newRouteData.startLocation = point.name;
+        newRouteData.startPosition = point.geometry.coordinates;
+    } else if (inputType === 'end') {
+        newRouteData.endLocation = point.name;
+        newRouteData.endPosition = point.geometry.coordinates;
+    } else if (inputType === 'waypoint') {
+        // 添加途径点
+        if (!newRouteData.waypoints) {
+            newRouteData.waypoints = [];
+        }
+        newRouteData.waypoints.push(point.name);
+
+        // 保存途径点位置信息
+        if (!newRouteData.waypointPositions) {
+            newRouteData.waypointPositions = {};
+        }
+        newRouteData.waypointPositions[point.name] = point.geometry.coordinates;
+    }
+
+    sessionStorage.setItem('routePlanningData', JSON.stringify(newRouteData));
+
+    // 跳转回点位选择界面
+    window.location.href = 'point-selection.html';
 }
 
 // 关闭面板
@@ -624,6 +737,22 @@ function calculateDistance(targetCoords) {
     }
 }
 
+// 格式化距离显示（米或千米）
+function formatDistance(distance) {
+    if (distance === '---') {
+        return '距离 ---';
+    }
+
+    const distanceNum = typeof distance === 'number' ? distance : parseInt(distance);
+
+    if (distanceNum < 1000) {
+        return `距离 ${distanceNum} 米`;
+    } else {
+        const km = (distanceNum / 1000).toFixed(1);
+        return `距离 ${km} 千米`;
+    }
+}
+
 // 获取面的中心点
 function getPolygonCenter(polygon) {
     const coords = polygon.geometry.coordinates;
@@ -755,11 +884,25 @@ function createSearchResultItem(match, type) {
     let distanceText = '';
     if (match.geometry.type === 'point' && match.geometry.coordinates) {
         const distance = calculateDistance(match.geometry.coordinates);
-        distanceText = distance !== '---' ? `${distance}m` : '';
+        if (distance !== '---') {
+            const distanceNum = typeof distance === 'number' ? distance : parseInt(distance);
+            if (distanceNum < 1000) {
+                distanceText = `${distanceNum}m`;
+            } else {
+                distanceText = `${(distanceNum / 1000).toFixed(1)}km`;
+            }
+        }
     } else if (match.geometry.type === 'polygon') {
         const center = getPolygonCenter(match);
         const distance = calculateDistance(center);
-        distanceText = distance !== '---' ? `${distance}m` : '';
+        if (distance !== '---') {
+            const distanceNum = typeof distance === 'number' ? distance : parseInt(distance);
+            if (distanceNum < 1000) {
+                distanceText = `${distanceNum}m`;
+            } else {
+                distanceText = `${(distanceNum / 1000).toFixed(1)}km`;
+            }
+        }
     }
 
     item.innerHTML = `

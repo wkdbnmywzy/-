@@ -33,15 +33,18 @@
             <!-- 点信息面板 -->
             <div class="panel-point-info" id="panel-point-info" style="display: none;">
                 <div class="panel-header">
-                    <div class="panel-title-row">
-                        <h3 class="panel-title" id="point-name">点位名称</h3>
-                        <button class="panel-close-btn" id="panel-close-btn">
-                            <i class="fas fa-times"></i>
-                        </button>
+                    <div class="panel-content">
+                        <div class="panel-title-row">
+                            <h3 class="panel-title" id="point-name">点位名称</h3>
+                            <span class="panel-project-name" id="point-project-name">项目名称</span>
+                        </div>
+                        <p class="panel-subtitle" id="point-distance">距离 125 米</p>
                     </div>
-                    <p class="panel-subtitle" id="point-distance">距离 125 米</p>
+                    <button class="panel-close-btn" id="panel-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <div class="panel-actions">
+                <div class="panel-actions" id="point-panel-actions">
                     <button class="panel-btn panel-btn-outline" id="point-route-btn">
                         <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
                         <span>路线</span>
@@ -56,13 +59,16 @@
             <!-- 面信息面板 -->
             <div class="panel-polygon-info" id="panel-polygon-info" style="display: none;">
                 <div class="panel-header">
-                    <div class="panel-title-row">
-                        <h3 class="panel-title" id="polygon-name">区域名称</h3>
-                        <button class="panel-close-btn" id="panel-polygon-close-btn">
-                            <i class="fas fa-times"></i>
-                        </button>
+                    <div class="panel-content">
+                        <div class="panel-title-row">
+                            <h3 class="panel-title" id="polygon-name">区域名称</h3>
+                            <span class="panel-project-name" id="polygon-project-name">项目名称</span>
+                        </div>
+                        <p class="panel-subtitle" id="polygon-area">距离 125 米</p>
                     </div>
-                    <p class="panel-subtitle" id="polygon-area">距离 125 米</p>
+                    <button class="panel-close-btn" id="panel-polygon-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
 
                 <!-- 区域内点位列表 -->
