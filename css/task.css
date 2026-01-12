@@ -1,3 +1,15 @@
+/* 隐藏滚动条但保持滚动功能 */
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;  /* IE和Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
 /* 任务页面容器 */
 .container {
     width: 100%;

@@ -1,5 +1,17 @@
 /* 管理员界面样式 */
 
+/* 隐藏滚动条但保持滚动功能 */
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;  /* IE和Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
 .admin-container {
     position: relative;
     width: 100%;

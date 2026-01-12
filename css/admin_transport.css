@@ -1,17 +1,26 @@
 /* 运输管理页面样式 */
 
+/* 隐藏滚动条但保持滚动功能 */
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;  /* IE和Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
 .transport-page {
     width: 100%;
     height: calc(100vh - 60px);
     background: white;
-    overflow: hidden;
+    overflow-y: auto; /* 允许垂直滚动 */
+    overflow-x: hidden; /* 禁止横向滚动 */
     display: flex;
     flex-direction: column;
     position: relative;
-}
-
-.transport-page::-webkit-scrollbar {
-    display: none;
 }
 
 /* 顶部标签切换 */

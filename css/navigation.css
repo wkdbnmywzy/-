@@ -1,5 +1,17 @@
 /* 导航界面样式 */
 
+/* 隐藏滚动条但保持滚动功能 */
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;  /* IE和Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
 /* 地图容器 */
 #navigation-map-container {
     flex: 1;
@@ -21,7 +33,7 @@
     z-index: 90;
     max-height: 90vh; /* 恢复到90% */
     overflow-x: hidden; /* 隐藏横向滚动条 */
-    overflow-y: visible; /* 纵向不滚动 */
+    overflow-y: auto; /* 纵向可滚动 */
 }
 
 /* 路线选择器 */

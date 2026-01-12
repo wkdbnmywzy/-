@@ -1,10 +1,24 @@
 /* profile.css - 我的页面样式 */
 
+/* 隐藏滚动条但保持滚动功能 */
+*::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;  /* IE和Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
 .profile-page {
     width: 100%;
     min-height: 100vh;
     background: #ffffff;
     padding-bottom: 80px;
+    overflow-y: auto; /* 允许垂直滚动 */
+    overflow-x: hidden; /* 禁止横向滚动 */
 }
 
 /* 顶部标题栏 */
