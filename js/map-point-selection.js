@@ -540,6 +540,9 @@ function addPointToRoute(point) {
         newRouteData.waypointPositions[point.name] = point.geometry.coordinates;
     }
 
+    // 【修复】清除自动添加途径点标志，因为用户已经完成选择
+    newRouteData.autoAddWaypoint = false;
+
     sessionStorage.setItem('routePlanningData', JSON.stringify(newRouteData));
 
     // 跳转回点位选择界面
@@ -608,6 +611,9 @@ function selectPointForRoute(point) {
         }
         newRouteData.waypoints.push(point.name);
     }
+
+    // 【修复】清除自动添加途径点标志，因为用户已经完成选择
+    newRouteData.autoAddWaypoint = false;
 
     sessionStorage.setItem('routePlanningData', JSON.stringify(newRouteData));
 

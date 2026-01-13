@@ -447,10 +447,37 @@
                     // 地图选点功能 - 跳转到地图选点页面
                     console.log('跳转到地图选点页面，当前输入类型:', currentInputType);
 
-                    // 保存当前输入类型到sessionStorage
+                    // 【修复】保存当前输入框的值到sessionStorage
+                    const pickerStartInput = document.getElementById('picker-start-location');
+                    const pickerEndInput = document.getElementById('picker-end-location');
+                    const pickerWaypointsContainer = document.getElementById('picker-waypoints-container');
+
                     const routeData = JSON.parse(sessionStorage.getItem('routePlanningData') || '{}');
+
+                    // 保存起点和终点
+                    if (pickerStartInput) {
+                        routeData.startLocation = pickerStartInput.value.trim();
+                    }
+                    if (pickerEndInput) {
+                        routeData.endLocation = pickerEndInput.value.trim();
+                    }
+
+                    // 保存途径点
+                    const waypoints = [];
+                    if (pickerWaypointsContainer) {
+                        const waypointInputs = pickerWaypointsContainer.querySelectorAll('.picker-waypoint-input');
+                        waypointInputs.forEach(input => {
+                            if (input.value.trim()) {
+                                waypoints.push(input.value.trim());
+                            }
+                        });
+                    }
+                    routeData.waypoints = waypoints;
+
+                    // 保存当前输入类型
                     routeData.inputType = currentInputType;
                     routeData.activeInput = currentActiveInput;
+
                     sessionStorage.setItem('routePlanningData', JSON.stringify(routeData));
 
                     window.location.href = 'map-point-selection.html';
@@ -464,7 +491,7 @@
     // 恢复路线数据
     function restoreRouteData() {
         const routeData = sessionStorage.getItem('routePlanningData');
-        
+
         // 【新增】如果没有路线数据，起点默认填充"我的位置"
         if (!routeData) {
             const pickerStartInput = document.getElementById('picker-start-location');
@@ -472,12 +499,24 @@
                 pickerStartInput.value = '我的位置';
                 console.log('起点默认填充: 我的位置');
             }
+
+            // 【修复】设置默认的输入类型为终点
+            currentInputType = 'end';
+            currentActiveInput = 'picker-end-location';
+            console.log('设置默认输入类型: end');
             return;
         }
 
         try {
             const data = JSON.parse(routeData);
             console.log('恢复路线规划数据:', data);
+
+            // 【修复】立即设置输入类型，避免延迟导致的问题
+            const targetInputType = data.inputType || 'end';
+            const targetActiveInput = data.activeInput || 'picker-end-location';
+            currentInputType = targetInputType;
+            currentActiveInput = targetActiveInput;
+            console.log('恢复输入类型:', currentInputType, '活动输入框:', currentActiveInput);
 
             // 【修改】如果起点为空，默认填充"我的位置"
             if (data.startLocation) {
@@ -486,7 +525,7 @@
                 document.getElementById('picker-start-location').value = '我的位置';
                 console.log('起点为空，默认填充: 我的位置');
             }
-            
+
             if (data.endLocation) {
                 document.getElementById('picker-end-location').value = data.endLocation;
             }
@@ -516,27 +555,15 @@
                 }
             } else {
                 // 如果不是自动添加途径点，则根据 activeInput 和 inputType 自动聚焦
-                // 【修复】如果没有指定 inputType，默认为 'start'
-                const targetInputType = data.inputType || 'start';
-                const targetActiveInput = data.activeInput || 'start-location';
-                
-                console.log('自动聚焦到输入框:', targetActiveInput, '类型:', targetInputType);
+                console.log('自动聚焦到输入框:', currentActiveInput, '类型:', currentInputType);
                 setTimeout(() => {
                     let inputElement = null;
 
-                    // 【修复】在调用 focus() 之前先设置 currentInputType
-                    // 避免 focus 事件处理器中的条件判断出错
-                    if (typeof currentInputType !== 'undefined') {
-                        currentInputType = targetInputType;
-                        currentActiveInput = targetActiveInput;
-                        console.log('预设 currentInputType:', currentInputType);
-                    }
-
-                    if (targetInputType === 'start') {
+                    if (currentInputType === 'start') {
                         inputElement = document.getElementById('picker-start-location');
-                    } else if (targetInputType === 'end') {
+                    } else if (currentInputType === 'end') {
                         inputElement = document.getElementById('picker-end-location');
-                    } else if (targetInputType === 'waypoint') {
+                    } else if (currentInputType === 'waypoint') {
                         // 对于途径点，聚焦到最后一个途径点输入框
                         const waypointInputs = document.querySelectorAll('.picker-waypoint-input');
                         if (waypointInputs.length > 0) {
