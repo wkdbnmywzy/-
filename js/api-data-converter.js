@@ -48,7 +48,12 @@ const APIDataConverter = {
                     this.log(`点[${index}] 跳过(点位xx类型): ${point.point_name}`);
                     return;
                 }
-                
+                // 过滤掉 point_type 为 3 的点（AI摄像头对应的点位，避免冗余渲染）
+                if (point.point_type === 3) {
+                    this.log(`点[${index}] 跳过(AI摄像头点位): ${point.point_name}, point_type=${point.point_type}`);
+                    return;
+                }
+
                 const feature = this.convertPoint(point, index);
                 if (feature) {
                     features.push(feature);

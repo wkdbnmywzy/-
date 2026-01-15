@@ -374,21 +374,21 @@ class TaskManager {
      * 转换API数据为前端格式
      */
     convertTaskData(apiData) {
-        // 状态映射
+        // 状态映射 (0=草稿, 1=已下发, 2=进行中, 3=已完成, 4=已取消)
         const statusMap = {
-            0: '未开始',
-            1: '进行中',
-            2: '已完成',
-            3: '已逾期',
+            0: '草稿',
+            1: '已下发',
+            2: '进行中',
+            3: '已完成',
             4: '已取消'
         };
 
-        // 状态对应的颜色
+        // 状态对应的颜色 (0=草稿, 1=已下发, 2=进行中, 3=已完成, 4=已取消)
         const colorMap = {
-            0: 'blue',   // 未开始
-            1: 'green',  // 进行中
-            2: 'gray',   // 已完成
-            3: 'pink',   // 已逾期
+            0: 'gray',   // 草稿
+            1: 'blue',   // 已下发
+            2: 'green',  // 进行中
+            3: 'gray',   // 已完成
             4: 'gray'    // 已取消
         };
 
@@ -618,14 +618,16 @@ class TaskManager {
     }
 
     /**
-     * 将状态文本映射为样式类
+     * 将状态文本映射为样式类 (0=草稿, 1=已下发, 2=进行中, 3=已完成, 4=已取消)
      */
     getStatusClass(statusText) {
         const t = (statusText || '').trim();
+        if (t === '草稿') return 'status-draft';
+        if (t === '已下发') return 'status-assigned';
         if (t === '进行中') return 'status-in-progress';
-        if (t === '已逾期') return 'status-overdue';
-    if (t === '未开始') return 'status-not-started';
-        return 'status-in-progress';
+        if (t === '已完成') return 'status-completed';
+        if (t === '已取消') return 'status-cancelled';
+        return 'status-assigned'; // 默认为已下发
     }
 
     /**

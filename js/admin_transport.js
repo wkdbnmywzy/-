@@ -62,6 +62,9 @@ function initEventListeners() {
     // 初始化全屏页面交互
     initPageInteractions();
 
+    // 初始化统计卡片展开/收起功能
+    initStatsCardToggle();
+
     // 加载车辆进出数据
     loadVehicleData();
 }
@@ -114,6 +117,60 @@ function handleNavigation(page) {
 }
 
 /**
+ * 初始化统计卡片展开/收起功能
+ */
+function initStatsCardToggle() {
+    // 选择所有统计卡片的header
+    const statsHeaders = document.querySelectorAll('.stats-card .stats-header');
+
+    statsHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            // 找到对应的stats-content
+            const statsCard = this.closest('.stats-card');
+            const statsContent = statsCard.querySelector('.stats-content');
+            const chevronIcon = this.querySelector('.fa-chevron-right, .fa-chevron-down');
+
+            // 找到紧跟在当前stats-card后面的列表（task-list 或 vehicle-list）
+            let dataList = statsCard.nextElementSibling;
+            // 确保找到的是列表元素（task-list 或 vehicle-list）
+            while (dataList && !dataList.classList.contains('task-list') && !dataList.classList.contains('vehicle-list')) {
+                dataList = dataList.nextElementSibling;
+            }
+
+            if (!statsContent) return;
+
+            // 切换展开/收起状态
+            const isExpanded = statsContent.classList.contains('expanded');
+
+            if (isExpanded) {
+                // 收起
+                statsContent.classList.remove('expanded');
+                if (dataList) {
+                    dataList.classList.remove('expanded');
+                }
+                if (chevronIcon) {
+                    chevronIcon.classList.remove('fa-chevron-down');
+                    chevronIcon.classList.add('fa-chevron-right');
+                }
+            } else {
+                // 展开
+                statsContent.classList.add('expanded');
+                if (dataList) {
+                    dataList.classList.add('expanded');
+                }
+                if (chevronIcon) {
+                    chevronIcon.classList.remove('fa-chevron-right');
+                    chevronIcon.classList.add('fa-chevron-down');
+                }
+            }
+        });
+
+        // 添加鼠标悬停效果
+        header.style.cursor = 'pointer';
+    });
+}
+
+/**
  * 测试获取任务地点详情
  * @param {number} locationId - 地点ID
  */
@@ -161,12 +218,13 @@ window.testGetLocationDetail = testGetLocationDetail;
 
 /**
  * 状态码映射表
+ * 0=草稿, 1=已下发, 2=进行中, 3=已完成, 4=已取消
  */
 const STATUS_MAP = {
-    0: '未开始',
-    1: '进行中',
-    2: '已完成',
-    3: '已逾期',
+    0: '草稿',
+    1: '已下发',
+    2: '进行中',
+    3: '已完成',
     4: '已取消'
 };
 
@@ -182,7 +240,7 @@ const VEHICLE_TYPE_MAP = {
 
 /**
  * 加载车辆进出数据
- * 尝试使用 /api/transport/ 下的API（避免CORS问题）
+ * 使用专门的车辆进出统计API
  */
 async function loadVehicleData() {
     try {
@@ -201,71 +259,63 @@ async function loadVehicleData() {
 
         // 3. 构建请求headers
         const headers = {
-            'Content-Type': 'application/json'
+            'accept': 'application/json'
         };
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // 4. 尝试使用 /api/transport/ 下的API
-        const baseURL = 'https://dmap.cscec3bxjy.cn/api/transport';
+        // 4. 使用车辆进出统计API
+        const baseURL = 'http://115.159.67.12:8086/api/transport/statistics';
 
-        // 方案1：尝试从任务数据中统计车辆
-        // 通过获取所有任务，统计临时车辆和固定车辆
-        const tasksUrl = `${baseURL}/tasks/project/${projectId}?page=1&page_size=1000`;
+        // 获取Dashboard数据（包含车辆列表）
+        const dashboardUrl = `${baseURL}/dashboard?projectId=${projectId}`;
+        console.log('[车辆进出] 请求Dashboard API:', dashboardUrl);
 
-        console.log('[车辆进出] 通过任务统计车辆，URL:', tasksUrl);
+        const dashboardResponse = await fetch(dashboardUrl, {
+            method: 'GET',
+            headers,
+            credentials: 'omit'
+        });
 
-        const response = await fetch(tasksUrl, { method: 'GET', headers });
-
-        if (!response.ok) {
-            console.warn('[车辆进出] 请求失败:', response.status);
+        if (!dashboardResponse.ok) {
+            console.warn('[车辆进出] Dashboard请求失败:', dashboardResponse.status);
             return;
         }
 
-        const data = await response.json();
-        console.log('[车辆进出] 任务数据:', data);
+        const dashboardData = await dashboardResponse.json();
+        console.log('[车辆进出] Dashboard数据:', dashboardData);
 
         let tempCount = 0;
         let fixedCount = 0;
-        const vehicleList = []; // 车辆详细列表
+        const vehicleList = [];
 
-        if (data.code === 200 && data.data) {
-            const taskList = data.data.list || data.data || [];
+        if (dashboardData.code === 200 && dashboardData.data) {
+            const data = dashboardData.data;
 
-            // 统计不同的车辆（使用车牌号去重）
-            const tempVehicles = new Set();  // 临时车辆
-            const fixedVehicles = new Set(); // 固定车辆
-            const vehicleMap = new Map(); // 车辆详情映射
+            // 获取统计数据
+            tempCount = data.tempCount || 0;
+            fixedCount = data.fixedCount || 0;
 
-            taskList.forEach(task => {
-                if (task.plate_number) {
-                    tempVehicles.add(task.plate_number);
+            // 获取车辆列表
+            const list = data.list || [];
 
-                    // 保存车辆详情（每个车牌只保存一次）
-                    if (!vehicleMap.has(task.plate_number)) {
-                        vehicleMap.set(task.plate_number, {
-                            plate_number: task.plate_number,
-                            vehicle_type: task.vehicle_type,
-                            entry_start_time: task.entry_start_time,
-                            exit_start_time: task.exit_start_time,
-                            driver_name: task.driver_name
-                        });
-                    }
-                }
+            // 转换数据格式
+            list.forEach(vehicle => {
+                vehicleList.push({
+                    attribute: vehicle.attribute,           // 车辆属性（临时车/固定车）
+                    plate_number: vehicle.plateNumber,      // 车牌号
+                    task_status: vehicle.taskStatus,        // 任务状态
+                    entry_time: vehicle.entryTime,          // 入场时间
+                    exit_time: vehicle.exitTime || null     // 离场时间（可能为空）
+                });
             });
 
-            tempCount = tempVehicles.size;
-            fixedCount = 0; // 固定车辆暂时无法从任务中区分
-
-            // 转换为数组
-            vehicleList.push(...Array.from(vehicleMap.values()));
-
-            console.log('[车辆进出] 从任务中统计到的车辆:', {
+            console.log('[车辆进出] 统计数据:', {
                 临时车辆: tempCount,
                 固定车辆: fixedCount,
-                车牌列表: Array.from(tempVehicles),
-                车辆详情: vehicleList
+                车辆总数: vehicleList.length,
+                车辆列表: vehicleList
             });
         }
 
@@ -324,21 +374,22 @@ function renderVehicleList(vehicles) {
 
     // 渲染每辆车
     vehicles.forEach(vehicle => {
-        // 判断车辆属性（临时/固定）
-        // 暂时都显示为"临时"，因为无法从任务数据判断
-        const vehicleAttr = '临时';
-        const vehicleClass = 'temporary';
+        // 判断车辆属性（临时车/固定车）
+        const vehicleAttr = vehicle.attribute || '临时车';
+        const vehicleClass = vehicleAttr === '固定车' ? 'fixed' : 'temporary';
 
-        // 格式化时间
-        const entryTime = formatDateTime(vehicle.entry_start_time);
-        const exitTime = formatDateTime(vehicle.exit_start_time);
+        // 任务进度
+        const taskStatus = vehicle.task_status || '无任务';
+
+        // 格式化入场时间
+        const entryTime = formatDateTime(vehicle.entry_time);
 
         const itemHtml = `
             <div class="list-item">
                 <div class="col-data vehicle-type ${vehicleClass}">${vehicleAttr}</div>
                 <div class="col-data">${vehicle.plate_number}</div>
+                <div class="col-data task-progress">${taskStatus}</div>
                 <div class="col-data">${entryTime}</div>
-                <div class="col-data">${exitTime}</div>
             </div>
         `;
 
@@ -388,80 +439,105 @@ async function loadTaskData() {
 
         // 2. 获取token
         const token = sessionStorage.getItem('authToken') || '';
-        if (!token) {
-            console.warn('[运输管理] 未找到token');
-            return;
-        }
 
         // 3. 构建请求headers
         const headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'accept': 'application/json'
         };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
 
-        // 4. 构建请求URL
-        const baseURL = 'https://dmap.cscec3bxjy.cn/api/transport';
-        const page = 1;
-        const pageSize = 100;
-        const url = `${baseURL}/tasks/project/${projectId}?page=${page}&page_size=${pageSize}`;
+        // 4. 获取所有任务数据
+        const baseURL = 'http://115.159.67.12:8086/api/transport';
+        const tasksUrl = `${baseURL}/tasks/project/${projectId}?page=1&page_size=1000`;
 
-        console.log('[运输管理] 请求URL:', url);
-        console.log('[运输管理] 请求Headers:', headers);
+        console.log('[运输管理] 请求任务列表URL:', tasksUrl);
 
-        // 5. 发送请求
-        const response = await fetch(url, {
+        const tasksResponse = await fetch(tasksUrl, {
             method: 'GET',
-            headers: headers
+            headers,
+            credentials: 'omit'
         });
 
-        console.log('[运输管理] 响应状态:', response.status);
-
-        if (!response.ok) {
-            console.error('[运输管理] 请求失败:', response.status, response.statusText);
-            const errorText = await response.text();
-            console.error('[运输管理] 错误详情:', errorText);
+        if (!tasksResponse.ok) {
+            console.error('[运输管理] 任务列表请求失败:', tasksResponse.status);
             return;
         }
 
-        // 6. 解析响应
-        const data = await response.json();
-        console.log('[运输管理] ========== API返回数据 ==========');
-        console.log('[运输管理] 完整响应:', data);
-        console.log('[运输管理] 响应code:', data.code);
-        console.log('[运输管理] 响应message:', data.message);
-        console.log('[运输管理] 响应data:', data.data);
+        const tasksData = await tasksResponse.json();
+        console.log('[运输管理] 任务列表响应:', tasksData);
 
-        if (data.code === 200 && data.data) {
-            // 提取任务列表（可能在 data.data.list 或 data.data 中）
-            const taskList = data.data.list || data.data;
-            console.log('[运输管理] 任务列表类型:', Array.isArray(taskList) ? '数组' : typeof taskList);
-            console.log('[运输管理] 任务数量:', Array.isArray(taskList) ? taskList.length : '不是数组');
+        // 获取今天的日期（只比较年月日）
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayTime = today.getTime();
+        console.log('[运输管理] 今日日期:', today.toLocaleDateString());
 
-            if (Array.isArray(taskList) && taskList.length > 0) {
-                console.log('[运输管理] ========== 第一条任务数据详情 ==========');
-                console.log('[运输管理] 第一条任务:', JSON.stringify(taskList[0], null, 2));
-                console.log('[运输管理] 任务字段列表:', Object.keys(taskList[0]));
-                console.log('[运输管理] =====================================');
+        if (tasksData.code === 200 && tasksData.data) {
+            const allTasks = tasksData.data.list || tasksData.data || [];
+            console.log('[运输管理] 任务总数:', allTasks.length);
 
-                // 更新统计数据
-                updateTaskStats(taskList);
+            // 5. 根据入场和离场时间筛选今日任务和历史任务
+            const todayTasks = [];
+            const historyTasks = [];
 
-                // 渲染任务列表
-                renderTaskList(taskList);
+            allTasks.forEach(task => {
+                // 获取任务的入场和离场时间
+                const entryStartTime = task.entry_start_time;
+                const exitStartTime = task.exit_start_time;
 
-                console.log('[运输管理] ✓ 任务数据加载成功');
-            } else {
-                console.warn('[运输管理] 返回的任务列表为空');
-            }
+                if (entryStartTime && exitStartTime) {
+                    try {
+                        // 解析入场时间
+                        const entryDate = new Date(entryStartTime);
+                        entryDate.setHours(0, 0, 0, 0);
+                        const entryTime = entryDate.getTime();
+
+                        // 解析离场时间
+                        const exitDate = new Date(exitStartTime);
+                        exitDate.setHours(0, 0, 0, 0);
+                        const exitTime = exitDate.getTime();
+
+                        // 判断任务是否与今天相关：
+                        // 1. 今天在入场和离场时间范围内（任务跨越今天）
+                        // 2. 入场时间是今天
+                        // 3. 离场时间是今天
+                        const isToday = (entryTime <= todayTime && exitTime >= todayTime);
+
+                        if (isToday) {
+                            todayTasks.push(task);
+                        } else {
+                            historyTasks.push(task);
+                        }
+                    } catch (error) {
+                        console.warn('[运输管理] 解析任务时间失败:', entryStartTime, exitStartTime, error);
+                        // 解析失败的任务归为历史任务
+                        historyTasks.push(task);
+                    }
+                } else {
+                    // 没有完整时间信息的任务归为历史任务
+                    historyTasks.push(task);
+                }
+            });
+
+            console.log('[运输管理] 今日任务数:', todayTasks.length);
+            console.log('[运输管理] 历史任务数:', historyTasks.length);
+
+            // 6. 分别更新统计数据和渲染列表
+            updateTodayTaskStats(todayTasks);
+            updateHistoryTaskStats(historyTasks);
+            renderTodayTaskList(todayTasks);
+            renderHistoryTaskList(historyTasks);
+
+            console.log('[运输管理] ✓ 任务数据加载成功');
         } else {
-            console.error('[运输管理] API返回错误 - code:', data.code, 'message:', data.message);
+            console.error('[运输管理] API返回错误 - code:', tasksData.code);
         }
 
     } catch (error) {
         console.error('[运输管理] ========== 加载失败 ==========');
-        console.error('[运输管理] 错误类型:', error.name);
         console.error('[运输管理] 错误信息:', error.message);
-        console.error('[运输管理] 错误堆栈:', error.stack);
         console.error('[运输管理] ===================================');
     }
 }
@@ -529,10 +605,10 @@ function updateTaskStats(tasks) {
         // 直接使用 task_name 字段（API已返回中文名称）
         const taskType = task.task_name || '其他';
 
-        // 统计状态（1=进行中，2=已完成）
-        if (status === 1) {
+        // 统计状态 (2=进行中, 3=已完成)
+        if (status === 2) {
             ongoingCount++;
-        } else if (status === 2) {
+        } else if (status === 3) {
             completedCount++;
         }
 
@@ -577,6 +653,188 @@ function updateTaskStats(tasks) {
 }
 
 /**
+ * 更新今日任务统计数据
+ */
+function updateTodayTaskStats(tasks) {
+    let ongoingCount = 0;
+    let completedCount = 0;
+    const typeCount = {};
+
+    tasks.forEach(task => {
+        const status = task.status;
+        const taskType = task.task_name || '其他';
+
+        if (status === 2) {
+            ongoingCount++;
+        } else if (status === 3) {
+            completedCount++;
+        }
+
+        typeCount[taskType] = (typeCount[taskType] || 0) + 1;
+    });
+
+    console.log('[今日任务] 统计 - 进行中:', ongoingCount, '已完成:', completedCount);
+
+    // 限定在任务标签页内选择统计卡片
+    const taskTab = document.querySelector('#task-tab');
+    if (!taskTab) return;
+
+    const todayStatsCard = taskTab.querySelectorAll('.stats-card')[0];
+    if (todayStatsCard) {
+        const statNumbers = todayStatsCard.querySelectorAll('.stats-left .stat-number');
+        if (statNumbers.length >= 2) {
+            statNumbers[0].textContent = ongoingCount;
+            statNumbers[1].textContent = completedCount;
+        }
+
+        const typeStatItems = todayStatsCard.querySelectorAll('.type-stat-item');
+        const sortedTypes = Object.entries(typeCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+        sortedTypes.forEach(([typeName, count], index) => {
+            if (typeStatItems[index]) {
+                const nameSpan = typeStatItems[index].querySelector('.type-name');
+                const countSpan = typeStatItems[index].querySelector('.type-count');
+                if (nameSpan && countSpan) {
+                    nameSpan.textContent = typeName;
+                    countSpan.textContent = count;
+                }
+            }
+        });
+    }
+}
+
+/**
+ * 更新历史任务统计数据
+ */
+function updateHistoryTaskStats(tasks) {
+    let ongoingCount = 0;
+    let completedCount = 0;
+    const typeCount = {};
+
+    tasks.forEach(task => {
+        const status = task.status;
+        const taskType = task.task_name || '其他';
+
+        if (status === 2) {
+            ongoingCount++;
+        } else if (status === 3) {
+            completedCount++;
+        }
+
+        typeCount[taskType] = (typeCount[taskType] || 0) + 1;
+    });
+
+    console.log('[历史任务] 统计 - 进行中:', ongoingCount, '已完成:', completedCount);
+
+    // 限定在任务标签页内选择统计卡片
+    const taskTab = document.querySelector('#task-tab');
+    if (!taskTab) return;
+
+    const historyStatsCard = taskTab.querySelectorAll('.stats-card')[1];
+    if (historyStatsCard) {
+        const statNumbers = historyStatsCard.querySelectorAll('.stats-left .stat-number');
+        if (statNumbers.length >= 2) {
+            statNumbers[0].textContent = ongoingCount;
+            statNumbers[1].textContent = completedCount;
+        }
+
+        const typeStatItems = historyStatsCard.querySelectorAll('.type-stat-item');
+        const sortedTypes = Object.entries(typeCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+        sortedTypes.forEach(([typeName, count], index) => {
+            if (typeStatItems[index]) {
+                const nameSpan = typeStatItems[index].querySelector('.type-name');
+                const countSpan = typeStatItems[index].querySelector('.type-count');
+                if (nameSpan && countSpan) {
+                    nameSpan.textContent = typeName;
+                    countSpan.textContent = count;
+                }
+            }
+        });
+    }
+}
+
+/**
+ * 渲染今日任务列表
+ */
+function renderTodayTaskList(tasks) {
+    const listBody = document.querySelector('#today-task-list .list-body');
+    if (!listBody) return;
+
+    listBody.innerHTML = '';
+
+    if (!tasks || tasks.length === 0) {
+        console.log('[今日任务] 无任务数据');
+        return;
+    }
+
+    tasks.forEach(task => {
+        const taskType = task.task_name || '未知类型';
+        const taskStatus = STATUS_MAP[task.status] || '未知';
+        const vehicle = task.plate_number || '未分配';
+
+        let statusClass = 'draft';
+        if (task.status === 0) statusClass = 'draft';
+        else if (task.status === 1) statusClass = 'assigned';
+        else if (task.status === 2) statusClass = 'ongoing';
+        else if (task.status === 3) statusClass = 'completed';
+        else if (task.status === 4) statusClass = 'cancelled';
+
+        const itemHtml = `
+            <div class="list-item" data-task-id="${task.id}">
+                <div class="col-data task-type">${taskType}</div>
+                <div class="col-data task-status ${statusClass}">${taskStatus}</div>
+                <div class="col-data">${vehicle}</div>
+            </div>
+        `;
+
+        listBody.insertAdjacentHTML('beforeend', itemHtml);
+    });
+
+    console.log('[今日任务] 列表渲染完成，共', tasks.length, '条');
+}
+
+/**
+ * 渲染历史任务列表
+ */
+function renderHistoryTaskList(tasks) {
+    const listBody = document.querySelector('#history-task-list .list-body');
+    if (!listBody) return;
+
+    listBody.innerHTML = '';
+
+    if (!tasks || tasks.length === 0) {
+        console.log('[历史任务] 无任务数据');
+        return;
+    }
+
+    tasks.forEach(task => {
+        const taskType = task.task_name || '未知类型';
+        const taskStatus = STATUS_MAP[task.status] || '未知';
+        const vehicle = task.plate_number || '未分配';
+
+        let statusClass = 'draft';
+        if (task.status === 0) statusClass = 'draft';
+        else if (task.status === 1) statusClass = 'assigned';
+        else if (task.status === 2) statusClass = 'ongoing';
+        else if (task.status === 3) statusClass = 'completed';
+        else if (task.status === 4) statusClass = 'cancelled';
+
+        const itemHtml = `
+            <div class="list-item" data-task-id="${task.id}">
+                <div class="col-data task-type">${taskType}</div>
+                <div class="col-data task-status ${statusClass}">${taskStatus}</div>
+                <div class="col-data">${vehicle}</div>
+            </div>
+        `;
+
+        listBody.insertAdjacentHTML('beforeend', itemHtml);
+    });
+
+    console.log('[历史任务] 列表渲染完成，共', tasks.length, '条');
+}
+
+/**
  * 渲染任务列表
  * @param {Array} tasks - 任务列表
  */
@@ -597,14 +855,18 @@ function renderTaskList(tasks) {
         const taskStatus = STATUS_MAP[task.status] || '未知';
         const vehicle = task.plate_number || '未分配';
 
-        // 判断状态样式
-        let statusClass = 'ongoing';
-        if (task.status === 2) {
-            statusClass = 'completed'; // 已完成
-        } else if (task.status === 3) {
-            statusClass = 'overdue'; // 已逾期
+        // 判断状态样式 (0=草稿, 1=已下发, 2=进行中, 3=已完成, 4=已取消)
+        let statusClass = 'draft';
+        if (task.status === 0) {
+            statusClass = 'draft'; // 草稿
         } else if (task.status === 1) {
+            statusClass = 'assigned'; // 已下发
+        } else if (task.status === 2) {
             statusClass = 'ongoing'; // 进行中
+        } else if (task.status === 3) {
+            statusClass = 'completed'; // 已完成
+        } else if (task.status === 4) {
+            statusClass = 'cancelled'; // 已取消
         }
 
         const itemHtml = `

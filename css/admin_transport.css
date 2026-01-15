@@ -115,6 +115,14 @@
 
 .stats-content {
     position: relative;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.stats-content.expanded {
+    max-height: 500px;
+    transition: max-height 0.3s ease-in;
 }
 
 /* 车辆进出管理的统计行（左右各占50%）*/
@@ -248,6 +256,20 @@
     overflow: visible;
     border: none;
     box-shadow: none;
+}
+
+/* 列表展开/收起 */
+.vehicle-list,
+.task-list {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.vehicle-list.expanded,
+.task-list.expanded {
+    max-height: 1000px;
+    transition: max-height 0.3s ease-in;
 }
 
 .list-header {

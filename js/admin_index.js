@@ -1,17 +1,22 @@
 // 管理员导航页面 JavaScript
 // map 变量已在 config.js 中声明，这里直接使用
 
+// 全局变量：存储地图点位数据和摄像头标记
+let mapPoints = [];  // 存储所有地图点位数据
+let cameraMarkers = [];  // 存储摄像头标记
+let isCameraLayerVisible = false;  // 摄像头图层是否可见
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 检查登录状态
     checkLoginStatus();
-    
+
     // 初始化地图
     initMap();
-    
+
     // 初始化事件监听
     initEventListeners();
-    
+
     // 加载项目地图数据
     loadProjectMapData();
 });
@@ -240,6 +245,10 @@ async function loadProjectMapData() {
         let points = pointsData.data?.list || pointsData.data || [];
         let polylines = polylinesData.data?.list || polylinesData.data || [];
         let polygons = polygonsData.data?.list || polygonsData.data || [];
+
+        // 保存点位数据到全局变量（供摄像头功能使用）
+        mapPoints = points;
+        console.log('[管理端] 保存点位数据:', mapPoints.length, '个点');
 
         // 【新增】过滤数据：只保留当前版本的数据，去除其他版本的重复数据
         console.log('[管理端] ========== 数据版本过滤 ==========');
@@ -540,8 +549,8 @@ function initEventListeners() {
     // 摄像头按钮
     if (cameraBtn) {
         cameraBtn.addEventListener('click', function() {
-            console.log('摄像头功能待实现');
-            // TODO: 实现摄像头功能
+            console.log('[摄像头] 切换摄像头图层显示');
+            toggleCameraLayer();
         });
     }
 
@@ -617,5 +626,449 @@ function handleNavigation(page) {
         case 'admin-profile':
             window.location.href = 'admin_profile.html';
             break;
+    }
+}
+
+// ==================== 摄像头功能相关函数 ====================
+
+/**
+ * 切换摄像头图层显示
+ */
+async function toggleCameraLayer() {
+    if (isCameraLayerVisible) {
+        // 隐藏摄像头图层
+        hideCameraLayer();
+    } else {
+        // 显示摄像头图层
+        await showCameraLayer();
+    }
+}
+
+/**
+ * 显示摄像头图层
+ */
+async function showCameraLayer() {
+    try {
+        console.log('[摄像头] 开始显示摄像头图层');
+
+        // 获取当前项目ID
+        const projectId = getCurrentProjectId();
+        if (!projectId) {
+            alert('请先选择项目');
+            return;
+        }
+
+        console.log('[摄像头] 当前项目ID:', projectId);
+
+        // 获取摄像头列表
+        const cameras = await fetchCameras(projectId);
+        if (!cameras || cameras.length === 0) {
+            alert('该项目暂无摄像头数据');
+            return;
+        }
+
+        console.log('[摄像头] 获取到摄像头数量:', cameras.length);
+
+        // 在地图上显示摄像头
+        await displayCamerasOnMap(cameras);
+
+        isCameraLayerVisible = true;
+
+        // 设置按钮为选中状态
+        const cameraBtn = document.getElementById('camera-btn');
+        if (cameraBtn) {
+            cameraBtn.classList.add('active');
+        }
+
+        console.log('[摄像头] 摄像头图层显示完成');
+
+    } catch (error) {
+        console.error('[摄像头] 显示摄像头图层失败:', error);
+        alert('加载摄像头数据失败');
+    }
+}
+
+/**
+ * 隐藏摄像头图层
+ */
+function hideCameraLayer() {
+    console.log('[摄像头] 隐藏摄像头图层');
+
+    // 移除所有摄像头标记
+    cameraMarkers.forEach(marker => {
+        if (marker) {
+            marker.setMap(null);
+        }
+    });
+
+    cameraMarkers = [];
+    isCameraLayerVisible = false;
+
+    // 移除按钮选中状态
+    const cameraBtn = document.getElementById('camera-btn');
+    if (cameraBtn) {
+        cameraBtn.classList.remove('active');
+    }
+
+    console.log('[摄像头] 摄像头图层已隐藏');
+}
+
+/**
+ * 获取当前项目ID
+ */
+function getCurrentProjectId() {
+    try {
+        const projectSelection = sessionStorage.getItem('projectSelection');
+        const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+
+        if (projectSelection) {
+            const selection = JSON.parse(projectSelection);
+            const projectName = selection.project;
+
+            // 从用户的项目列表中找到选择的项目
+            const userProjects = currentUser.projects || [];
+
+            // 优先使用 projectCode 精确匹配
+            let selectedProject = null;
+            if (selection.projectCode) {
+                selectedProject = userProjects.find(p =>
+                    (p.projectCode === selection.projectCode) || (p.id === selection.projectCode)
+                );
+            }
+
+            // 如果projectCode匹配失败，回退到名称匹配
+            if (!selectedProject) {
+                selectedProject = userProjects.find(p => p.projectName === projectName);
+            }
+
+            if (selectedProject) {
+                return selectedProject.projectCode || selectedProject.id;
+            }
+        }
+    } catch (e) {
+        console.error('[摄像头] 获取项目ID失败:', e);
+    }
+    return null;
+}
+
+/**
+ * 获取摄像头列表
+ * @param {string} projectId - 项目ID
+ * @returns {Promise<Array>} 摄像头列表
+ */
+async function fetchCameras(projectId) {
+    try {
+        const url = `http://115.159.67.12:8085/api/video/cameras?page=1&page_size=1000&project_id=${projectId}`;
+        console.log('[摄像头] 请求URL:', url);
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('[摄像头] API响应:', data);
+
+        if (data.code === 200 && data.data) {
+            // 返回摄像头列表
+            return data.data.list || data.data.items || data.data;
+        }
+
+        return [];
+    } catch (error) {
+        console.error('[摄像头] 获取摄像头列表失败:', error);
+        throw error;
+    }
+}
+
+/**
+ * 通过pointid获取点位的经纬度
+ * @param {string} pointId - 点位ID
+ * @returns {Object|null} {longitude, latitude}
+ */
+function getCameraPosition(pointId) {
+    if (!pointId || !mapPoints || mapPoints.length === 0) {
+        console.warn('[摄像头] 无法查询点位，pointId:', pointId, 'mapPoints:', mapPoints?.length);
+        return null;
+    }
+
+    // 在地图点位数据中查找匹配的点
+    const point = mapPoints.find(p =>
+        p.point_id === pointId ||
+        p.id === pointId ||
+        p.Point_Id === pointId ||
+        String(p.point_id) === String(pointId) ||
+        String(p.id) === String(pointId)
+    );
+
+    if (point) {
+        const lng = parseFloat(point.longitude);
+        const lat = parseFloat(point.latitude);
+
+        if (!isNaN(lng) && !isNaN(lat)) {
+            console.log('[摄像头] 找到点位坐标:', pointId, '->', [lng, lat]);
+            return { longitude: lng, latitude: lat };
+        }
+    }
+
+    console.warn('[摄像头] 未找到点位:', pointId);
+    return null;
+}
+
+/**
+ * 在地图上显示摄像头标记
+ * @param {Array} cameras - 摄像头列表
+ */
+async function displayCamerasOnMap(cameras) {
+    if (!map) {
+        console.error('[摄像头] 地图实例不存在');
+        return;
+    }
+
+    console.log('[摄像头] 开始在地图上显示摄像头...');
+
+    for (const camera of cameras) {
+        try {
+            // 获取摄像头的点位ID
+            const pointId = camera.point_id || camera.pointId;
+            if (!pointId) {
+                console.warn('[摄像头] 摄像头缺少point_id:', camera);
+                continue;
+            }
+
+            // 获取点位的经纬度
+            const position = getCameraPosition(pointId);
+            if (!position) {
+                console.warn('[摄像头] 无法获取摄像头位置:', camera.id, 'pointId:', pointId);
+                continue;
+            }
+
+            // 获取摄像头详情（包含名称）
+            let cameraName = camera.camera_name || camera.name || '未命名摄像头';
+
+            // 如果没有名称，尝试获取详情
+            if (!camera.camera_name && !camera.name) {
+                const details = await getCameraDetails(camera.id);
+                if (details && details.camera_name) {
+                    cameraName = details.camera_name;
+                }
+            }
+
+            // 创建自定义HTML内容：图标 + 文本标签 + 指向三角形
+            const cameraContent = document.createElement('div');
+            cameraContent.className = 'camera-marker-container';
+            cameraContent.innerHTML = `
+                <div class="camera-label-wrapper">
+                    <div class="camera-label-content">
+                        <svg class="camera-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
+                            <circle cx="12" cy="12" r="10" fill="white"/>
+                            <path d="M7 9 L7 15 L10 15 L10 9 Z M12 7.5 L16.5 12 L12 16.5 Z" fill="#1890ff"/>
+                        </svg>
+                        <span class="camera-name">${cameraName}</span>
+                    </div>
+                    <div class="camera-label-arrow"></div>
+                </div>
+            `;
+
+            // 添加样式（如果还没有添加）
+            if (!document.getElementById('camera-marker-styles')) {
+                const style = document.createElement('style');
+                style.id = 'camera-marker-styles';
+                style.textContent = `
+                    .camera-marker-container {
+                        position: relative;
+                        cursor: pointer;
+                    }
+                    .camera-label-wrapper {
+                        position: relative;
+                        display: inline-block;
+                    }
+                    .camera-label-content {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+                        padding: 6px 12px;
+                        border-radius: 6px;
+                        box-shadow: 0 3px 8px rgba(24, 144, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2);
+                        white-space: nowrap;
+                        border: 2px solid rgba(255, 255, 255, 0.9);
+                    }
+                    .camera-label-content:hover {
+                        background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
+                        box-shadow: 0 4px 12px rgba(24, 144, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.3);
+                        transform: translateY(-1px);
+                        transition: all 0.2s ease;
+                    }
+                    .camera-icon {
+                        flex-shrink: 0;
+                        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+                    }
+                    .camera-name {
+                        color: #ffffff;
+                        font-size: 13px;
+                        font-weight: 500;
+                        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+                        letter-spacing: 0.3px;
+                    }
+                    .camera-label-arrow {
+                        position: absolute;
+                        bottom: -8px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        width: 0;
+                        height: 0;
+                        border-left: 8px solid transparent;
+                        border-right: 8px solid transparent;
+                        border-top: 8px solid #096dd9;
+                        filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
+                    }
+                    .camera-label-arrow::before {
+                        content: '';
+                        position: absolute;
+                        top: -10px;
+                        left: -8px;
+                        width: 0;
+                        height: 0;
+                        border-left: 8px solid transparent;
+                        border-right: 8px solid transparent;
+                        border-top: 8px solid rgba(255, 255, 255, 0.9);
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // 创建摄像头标记（使用自定义HTML内容）
+            const marker = new AMap.Marker({
+                position: [position.longitude, position.latitude],
+                content: cameraContent,
+                offset: new AMap.Pixel(0, -8), // 向上偏移，让箭头指向准确位置
+                extData: {
+                    type: 'camera',
+                    cameraId: camera.id,
+                    cameraName: cameraName,
+                    pointId: pointId
+                }
+            });
+
+            // 添加点击事件
+            marker.on('click', function() {
+                const data = this.getExtData();
+                showCameraInfo(data.cameraId, data.cameraName);
+            });
+
+            // 添加到地图
+            marker.setMap(map);
+            cameraMarkers.push(marker);
+
+            console.log('[摄像头] 添加标记:', cameraName, 'at', [position.longitude, position.latitude]);
+
+        } catch (error) {
+            console.error('[摄像头] 创建摄像头标记失败:', error, camera);
+        }
+    }
+
+    console.log('[摄像头] 共添加', cameraMarkers.length, '个摄像头标记');
+}
+
+/**
+ * 获取摄像头详情
+ * @param {string} cameraId - 摄像头ID
+ * @returns {Promise<Object|null>} 摄像头详情
+ */
+async function getCameraDetails(cameraId) {
+    try {
+        const url = `http://115.159.67.12:8085/api/video/cameras/${cameraId}`;
+        console.log('[摄像头] 获取详情URL:', url);
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.code === 200 && data.data) {
+            return data.data;
+        }
+
+        return null;
+    } catch (error) {
+        console.error('[摄像头] 获取摄像头详情失败:', error);
+        return null;
+    }
+}
+
+/**
+ * 显示摄像头信息窗口
+ * @param {string} cameraId - 摄像头ID
+ * @param {string} cameraName - 摄像头名称
+ */
+async function showCameraInfo(cameraId, cameraName) {
+    console.log('[摄像头] 点击摄像头:', cameraId, cameraName);
+
+    try {
+        // 获取摄像头详情（包含视频流URL）
+        const details = await getCameraDetails(cameraId);
+
+        if (!details) {
+            alert('无法获取摄像头详情');
+            return;
+        }
+
+        // 获取视频流URL
+        const videoUrl = details.url || details.video_url || details.stream_url || '暂无视频流';
+
+        // 构建信息内容
+        let infoContent = `
+            <div style="padding: 10px; min-width: 200px;">
+                <h3 style="margin: 0 0 10px 0; color: #333;">${cameraName}</h3>
+                <p style="margin: 5px 0;"><strong>摄像头ID:</strong> ${cameraId}</p>
+                <p style="margin: 5px 0;"><strong>类型:</strong> ${details.camera_type === 1 ? 'AI识别' : '普通'}</p>
+        `;
+
+        if (videoUrl !== '暂无视频流') {
+            infoContent += `
+                <p style="margin: 5px 0;"><strong>视频流URL:</strong></p>
+                <p style="margin: 5px 0; word-break: break-all; font-size: 12px;">${videoUrl}</p>
+                <button onclick="window.open('${videoUrl}', '_blank')" style="margin-top: 10px; padding: 5px 15px; background: #4A90E2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    打开视频流
+                </button>
+            `;
+        } else {
+            infoContent += `<p style="margin: 5px 0; color: #999;">暂无视频流</p>`;
+        }
+
+        infoContent += `</div>`;
+
+        // 创建信息窗口
+        const infoWindow = new AMap.InfoWindow({
+            content: infoContent,
+            offset: new AMap.Pixel(0, -30)
+        });
+
+        // 找到对应的标记
+        const marker = cameraMarkers.find(m => m.getExtData().cameraId === cameraId);
+        if (marker) {
+            infoWindow.open(map, marker.getPosition());
+        }
+
+        console.log('[摄像头] 视频流URL:', videoUrl);
+
+    } catch (error) {
+        console.error('[摄像头] 显示摄像头信息失败:', error);
+        alert('显示摄像头信息失败');
     }
 }
