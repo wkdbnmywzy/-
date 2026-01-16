@@ -927,13 +927,22 @@ function displayKMLFeatures(features, fileName) {
 
     // 保存 polylines 到全局变量（供车辆管理器使用）
     window.polylines = window.polylines || [];
+    let polylineCount = 0;
     layerMarkers.forEach(marker => {
-        // 检查是否是 Polyline 类型
-        if (marker && marker.CLASS_NAME === 'AMap.Polyline') {
+        // 获取 ExtData 检查类型
+        const extData = marker.getExtData ? marker.getExtData() : null;
+        // 注意：ExtData 的 type 是中文 '线'，不是英文 'line'
+        const isPolyline = extData && extData.type === '线';
+
+        // 检查是否是 Polyline 类型（通过 ExtData 的 type 属性判断）
+        if (isPolyline) {
             window.polylines.push(marker);
+            polylineCount++;
         }
     });
-    console.log('[KML-Handler] 已保存', window.polylines.length, '条路线到全局变量');
+    console.log('[KML-Handler] layerMarkers总数:', layerMarkers.length,
+                '其中Polyline数量:', polylineCount,
+                '已保存到window.polylines:', window.polylines.length, '条路线');
 
     // 禁用自动聚焦到用户位置，保持KML区域视图
     if (typeof disableAutoCenter !== 'undefined') {

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电子围栏 API 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #2a86ff;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #2a86ff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #1a76ef;
+        }
+        .result {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚧 电子围栏 API 测试工具</h1>
+
+    <!-- 1. 获取项目围栏列表 -->
+    <div class="test-section">
+        <h2>1. 获取项目的电子围栏列表</h2>
+        <div class="form-group">
+            <label>项目ID:</label>
+            <input type="text" id="projectId1" placeholder="输入项目ID">
+        </div>
+        <button onclick="getProjectFences()">获取围栏列表</button>
+        <div id="result1" class="result" style="display:none;"></div>
+    </div>
+
+    <!-- 2. 检查定位器围栏命中 -->
+    <div class="test-section">
+        <h2>2. 检查车辆是否在围栏内</h2>
+        <div class="form-group">
+            <label>纬度 (Latitude):</label>
+            <input type="number" step="0.000001" id="latitude" placeholder="例如: 30.123456">
+        </div>
+        <div class="form-group">
+            <label>经度 (Longitude):</label>
+            <input type="number" step="0.000001" id="longitude" placeholder="例如: 120.123456">
+        </div>
+        <button onclick="checkFence()">检查围栏</button>
+        <div id="result2" class="result" style="display:none;"></div>
+    </div>
+
+    <!-- 3. 创建电子围栏 -->
+    <div class="test-section">
+        <h2>3. 创建电子围栏</h2>
+        <div class="form-group">
+            <label>项目ID:</label>
+            <input type="text" id="projectId2" placeholder="输入项目ID">
+        </div>
+        <div class="form-group">
+            <label>围栏名称:</label>
+            <input type="text" id="fenceName" placeholder="例如: 禁行区域A">
+        </div>
+        <div class="form-group">
+            <label>围栏坐标 (JSON格式，数组的数组):</label>
+            <textarea id="fenceCoords" rows="5" placeholder='例如: [[120.1, 30.1], [120.2, 30.1], [120.2, 30.2], [120.1, 30.2]]'></textarea>
+        </div>
+        <button onclick="createFence()">创建围栏</button>
+        <div id="result3" class="result" style="display:none;"></div>
+    </div>
+
+    <!-- 4. 获取围栏详情 -->
+    <div class="test-section">
+        <h2>4. 获取围栏详情</h2>
+        <div class="form-group">
+            <label>围栏ID:</label>
+            <input type="text" id="fenceId" placeholder="输入围栏ID">
+        </div>
+        <button onclick="getFenceDetail()">获取详情</button>
+        <div id="result4" class="result" style="display:none;"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://115.159.67.12:8088/api/map';
+
+        // 获取token（需要先登录）
+        function getToken() {
+            return sessionStorage.getItem('authToken') || '';
+        }
+
+        // 获取项目围栏列表
+        async function getProjectFences() {
+            const projectId = document.getElementById('projectId1').value.trim();
+            if (!projectId) {
+                showResult('result1', '请输入项目ID', 'error');
+                return;
+            }
+
+            try {
+                const url = `${API_BASE_URL}/fence-polygons/project/${projectId}`;
+                console.log('请求URL:', url);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
+
+                const result = await response.json();
+                showResult('result1', JSON.stringify(result, null, 2), response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('result1', `错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 检查围栏
+        async function checkFence() {
+            const latitude = document.getElementById('latitude').value.trim();
+            const longitude = document.getElementById('longitude').value.trim();
+
+            if (!latitude || !longitude) {
+                showResult('result2', '请输入经纬度', 'error');
+                return;
+            }
+
+            try {
+                const url = `${API_BASE_URL}/fence-polygons/check?latitude=${latitude}&longitude=${longitude}`;
+                console.log('请求URL:', url);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
+
+                const result = await response.json();
+                showResult('result2', JSON.stringify(result, null, 2), response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('result2', `错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 创建围栏
+        async function createFence() {
+            const projectId = document.getElementById('projectId2').value.trim();
+            const fenceName = document.getElementById('fenceName').value.trim();
+            const coordsText = document.getElementById('fenceCoords').value.trim();
+
+            if (!projectId || !fenceName || !coordsText) {
+                showResult('result3', '请填写所有字段', 'error');
+                return;
+            }
+
+            try {
+                const coordinates = JSON.parse(coordsText);
+
+                const requestBody = {
+                    projectId: projectId,
+                    name: fenceName,
+                    coordinates: coordinates,
+                    type: 'fence'
+                };
+
+                const url = `${API_BASE_URL}/fence-polygons`;
+                console.log('请求URL:', url);
+                console.log('请求体:', requestBody);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const result = await response.json();
+                showResult('result3', JSON.stringify(result, null, 2), response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('result3', `错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 获取围栏详情
+        async function getFenceDetail() {
+            const fenceId = document.getElementById('fenceId').value.trim();
+
+            if (!fenceId) {
+                showResult('result4', '请输入围栏ID', 'error');
+                return;
+            }
+
+            try {
+                const url = `${API_BASE_URL}/fence-polygons/${fenceId}`;
+                console.log('请求URL:', url);
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
+
+                const result = await response.json();
+                showResult('result4', JSON.stringify(result, null, 2), response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('result4', `错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 显示结果
+        function showResult(elementId, text, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = text;
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+        }
+    </script>
+</body>
+</html>

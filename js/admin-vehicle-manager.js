@@ -10,7 +10,7 @@ const AdminVehicleManager = (function() {
 
     // API配置
     const API_CONFIG = {
-        baseURL: 'https://dmap.cscec3bxjy.cn/api/transport',
+        baseURL: 'http://115.159.67.12:8086/api/transport',
         endpoints: {
             tempVehicles: '/temp-vehicle/project-vehicles',    // 临时车辆
             fixedVehicles: '/tracker/project-locations'         // 固定车辆（设备位置）
@@ -237,8 +237,58 @@ const AdminVehicleManager = (function() {
             // 在地图上显示车辆
             displayVehiclesOnMap();
 
+            // 检查车辆是否在电子围栏内
+            checkVehiclesInFence();
+
         } catch (error) {
             console.error('[车辆管理器] 加载车辆数据失败:', error);
+        }
+    }
+
+    /**
+     * 检查所有车辆是否在围栏内
+     */
+    async function checkVehiclesInFence() {
+        // 检查围栏管理器是否可用
+        if (typeof AdminFenceManager === 'undefined') {
+            return;
+        }
+
+        try {
+            // 准备车辆列表
+            const vehicles = [];
+
+            // 临时车辆
+            vehicleData.temp.forEach(vehicle => {
+                if (vehicle.latitude && vehicle.longitude) {
+                    vehicles.push({
+                        vehicleId: vehicle.plateNumber || 'unknown',
+                        latitude: vehicle.latitude,
+                        longitude: vehicle.longitude,
+                        type: 'temp'
+                    });
+                }
+            });
+
+            // 固定车辆
+            vehicleData.fixed.forEach(vehicle => {
+                if (vehicle.latitude && vehicle.longitude) {
+                    vehicles.push({
+                        vehicleId: vehicle.deviceId || 'unknown',
+                        latitude: vehicle.latitude,
+                        longitude: vehicle.longitude,
+                        type: 'fixed'
+                    });
+                }
+            });
+
+            if (vehicles.length > 0) {
+                // 批量检查
+                await AdminFenceManager.checkMultipleVehicles(vehicles);
+            }
+
+        } catch (error) {
+            console.error('[车辆管理器] 检查围栏失败:', error);
         }
     }
 

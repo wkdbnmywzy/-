@@ -382,6 +382,12 @@ async function loadProjectMapData() {
                     console.log('[管理端] 初始化车辆管理器');
                     AdminVehicleManager.init(map);
                 }
+
+                // 初始化围栏管理器
+                if (typeof AdminFenceManager !== 'undefined' && map && projectId) {
+                    console.log('[管理端] 初始化围栏管理器');
+                    AdminFenceManager.init(map, projectId);
+                }
             }, 500);
         } else {
             console.warn('[管理端] 无地图数据或displayKMLFeatures不可用');

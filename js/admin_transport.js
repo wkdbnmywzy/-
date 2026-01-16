@@ -1,5 +1,11 @@
 // 运输管理页面 JavaScript
 
+// API 基础 URL
+const API_BASE_URL = 'http://115.159.67.12:8086/api/transport';
+
+// 当前查看的任务ID
+let currentViewTaskId = null;
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 检查登录状态
@@ -897,40 +903,42 @@ function renderTaskList(tasks) {
  * 初始化任务列表交互（气泡菜单）
  */
 function initTaskListInteractions() {
-    const listBody = document.querySelector('#task-tab .list-body');
+    const listBodies = document.querySelectorAll('#task-tab .list-body');
     const popover = document.getElementById('taskActionPopover');
     const deleteBtn = document.getElementById('popoverDeleteBtn');
     const viewBtn = document.getElementById('popoverViewBtn');
 
-    if (!listBody || !popover) return;
+    if (listBodies.length === 0 || !popover) return;
 
     let currentTaskId = null;
 
-    // 列表项点击事件委托
-    listBody.addEventListener('click', function(e) {
-        // 如果点击的是列表项本身或其子元素
-        const item = e.target.closest('.list-item');
-        if (!item) return;
+    // 为所有列表添加点击事件委托
+    listBodies.forEach(listBody => {
+        listBody.addEventListener('click', function(e) {
+            // 如果点击的是列表项本身或其子元素
+            const item = e.target.closest('.list-item');
+            if (!item) return;
 
-        e.stopPropagation(); // 阻止冒泡
+            e.stopPropagation(); // 阻止冒泡
 
-        // 获取任务ID
-        currentTaskId = item.dataset.taskId;
-        
-        // 定位气泡
-        const rect = item.getBoundingClientRect();
-        // 气泡宽度约为140px
-        const popoverWidth = 140; 
-        
-        // 计算位置：居中显示
-        let left = rect.left + (rect.width / 2) - (popoverWidth / 2);
-        let top = rect.top + (rect.height / 2) - 20; // 稍微上移
+            // 获取任务ID
+            currentTaskId = item.dataset.taskId;
 
-        // 强制使用fixed定位，基于视口
-        popover.style.position = 'fixed';
-        popover.style.left = `${left}px`;
-        popover.style.top = `${top}px`;
-        popover.style.display = 'block';
+            // 定位气泡
+            const rect = item.getBoundingClientRect();
+            // 气泡宽度约为140px
+            const popoverWidth = 140;
+
+            // 计算位置：居中显示
+            let left = rect.left + (rect.width / 2) - (popoverWidth / 2);
+            let top = rect.top + (rect.height / 2) - 20; // 稍微上移
+
+            // 强制使用fixed定位，基于视口
+            popover.style.position = 'fixed';
+            popover.style.left = `${left}px`;
+            popover.style.top = `${top}px`;
+            popover.style.display = 'block';
+        });
     });
 
     // 点击气泡选项：查看/修改
@@ -946,18 +954,13 @@ function initTaskListInteractions() {
 
     // 点击气泡选项：删除
     if (deleteBtn) {
-        deleteBtn.addEventListener('click', function(e) {
+        deleteBtn.addEventListener('click', async function(e) {
             e.stopPropagation();
             popover.style.display = 'none';
             // 简单确认
             if (confirm('确定要删除该任务吗？')) {
                 console.log('删除任务:', currentTaskId);
-                // 这里可以调用API删除，然后刷新列表
-                // deleteTransportTask(currentTaskId).then(loadTaskData);
-                alert('删除成功');
-                // 暂时刷新已移除页面上的元素
-                const item = document.querySelector(`.list-item[data-task-id="${currentTaskId}"]`);
-                if (item) item.remove();
+                await deleteTask(currentTaskId);
             }
         });
     }
@@ -987,11 +990,23 @@ function initPageInteractions() {
     
     // 查看任务页面按钮
     document.getElementById('viewCancelBtn')?.addEventListener('click', () => hidePage('viewTaskPage'));
-    document.getElementById('viewSaveBtn')?.addEventListener('click', () => {
-        // TODO: 收集表单数据并保存
-        alert('保存成功');
-        hidePage('viewTaskPage');
-        loadTaskData(); // 刷新列表
+    document.getElementById('viewSaveBtn')?.addEventListener('click', async () => {
+        // 收集表单数据并保存
+        if (!currentViewTaskId) {
+            alert('未找到任务ID');
+            return;
+        }
+
+        const formData = collectViewTaskFormData();
+        if (!formData) {
+            return; // 验证失败，collectViewTaskFormData已显示错误提示
+        }
+
+        const success = await updateTask(currentViewTaskId, formData);
+        if (success) {
+            hidePage('viewTaskPage');
+            loadTaskData(); // 刷新列表
+        }
     });
     
     // 返回按钮通用处理
@@ -1355,7 +1370,7 @@ async function createNewTask() {
         console.log('[新增任务] 请求body:', requestBody);
 
         // 5. 发送POST请求
-        const url = 'https://dmap.cscec3bxjy.cn/api/transport/tasks';
+        const url = `${API_BASE_URL}/tasks`;
         const headers = {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
@@ -1396,6 +1411,230 @@ async function createNewTask() {
         console.error('[新增任务] 创建失败:', error);
         alert('创建任务时发生错误，请稍后重试');
     }
+}
+
+/**
+ * 获取任务详情
+ */
+async function fetchTaskDetail(taskId) {
+    try {
+        console.log('[任务详情] 获取任务详情:', taskId);
+
+        const token = sessionStorage.getItem('authToken') || '';
+        const url = `${API_BASE_URL}/tasks/${taskId}`;
+        const headers = {
+            'Authorization': `Bearer ${token}`
+        };
+
+        console.log('[任务详情] 请求URL:', url);
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: headers
+        });
+
+        console.log('[任务详情] 响应状态:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[任务详情] 请求失败:', errorText);
+            alert(`获取任务详情失败: ${response.status} ${response.statusText}`);
+            return null;
+        }
+
+        const result = await response.json();
+        console.log('[任务详情] API响应:', result);
+
+        if (result.code === 200 && result.data) {
+            return result.data;
+        } else {
+            alert(`获取任务详情失败: ${result.message || '未知错误'}`);
+            return null;
+        }
+
+    } catch (error) {
+        console.error('[任务详情] 获取失败:', error);
+        alert('获取任务详情时发生错误，请稍后重试');
+        return null;
+    }
+}
+
+/**
+ * 删除任务
+ */
+async function deleteTask(taskId) {
+    try {
+        console.log('[删除任务] 开始删除任务:', taskId);
+
+        const token = sessionStorage.getItem('authToken') || '';
+        const url = `${API_BASE_URL}/tasks/${taskId}`;
+        const headers = {
+            'Authorization': `Bearer ${token}`
+        };
+
+        console.log('[删除任务] 请求URL:', url);
+
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers: headers
+        });
+
+        console.log('[删除任务] 响应状态:', response.status);
+
+        // DELETE 请求成功时可能返回 200 或 204
+        if (response.ok) {
+            // 如果是 204 No Content，不解析 JSON
+            if (response.status === 204) {
+                console.log('[删除任务] 删除成功 (204 No Content)');
+                alert('删除成功');
+                // 刷新任务列表
+                await loadTaskData();
+                return;
+            }
+
+            // 尝试解析 JSON 响应
+            const result = await response.json();
+            console.log('[删除任务] API响应:', result);
+
+            if (result.code === 200 || result.code === 0 || !result.code) {
+                alert('删除成功');
+                // 刷新任务列表
+                await loadTaskData();
+            } else {
+                alert(`删除任务失败: ${result.message || '未知错误'}`);
+            }
+        } else {
+            const errorText = await response.text();
+            console.error('[删除任务] 请求失败:', errorText);
+            alert(`删除任务失败: ${response.status} ${response.statusText}`);
+        }
+
+    } catch (error) {
+        console.error('[删除任务] 删除失败:', error);
+        alert('删除任务时发生错误，请稍后重试');
+    }
+}
+
+/**
+ * 更新任务
+ */
+async function updateTask(taskId, taskData) {
+    try {
+        console.log('[更新任务] 开始更新任务:', taskId);
+
+        const token = sessionStorage.getItem('authToken') || '';
+        const url = `${API_BASE_URL}/tasks/${taskId}`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        };
+
+        console.log('[更新任务] 请求URL:', url);
+        console.log('[更新任务] 请求body:', taskData);
+
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify(taskData)
+        });
+
+        console.log('[更新任务] 响应状态:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[更新任务] 请求失败:', errorText);
+            alert(`更新任务失败: ${response.status} ${response.statusText}`);
+            return false;
+        }
+
+        const result = await response.json();
+        console.log('[更新任务] API响应:', result);
+
+        if (result.code === 200) {
+            alert('保存成功');
+            return true;
+        } else {
+            alert(`更新任务失败: ${result.message || '未知错误'}`);
+            return false;
+        }
+
+    } catch (error) {
+        console.error('[更新任务] 更新失败:', error);
+        alert('更新任务时发生错误，请稍后重试');
+        return false;
+    }
+}
+
+/**
+ * 收集查看任务页面的表单数据并验证
+ * @returns {Object|null} 表单数据对象，验证失败返回null
+ */
+function collectViewTaskFormData() {
+    const viewTaskPage = document.getElementById('viewTaskPage');
+    if (!viewTaskPage) {
+        alert('未找到表单');
+        return null;
+    }
+
+    // 获取项目ID和用户信息
+    const projectId = getProjectId();
+    const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+    const publisherId = currentUser.userId || currentUser.id || '';
+
+    // 获取表单输入值 (根据查看任务页面的表单结构调整选择器)
+    const locatorSelect = document.getElementById('viewLocator');
+    const plateNumber = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(2) input')?.value.trim();
+    const driverName = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(3) input')?.value.trim();
+    const phone = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(4) input')?.value.trim();
+    const taskTypeSelect = document.getElementById('viewTaskType');
+    const taskDetail = viewTaskPage.querySelector('.form-section:nth-child(4) .form-item:nth-child(2) textarea')?.value.trim();
+    const startPointSelect = document.getElementById('viewStartPoint');
+    const endPointSelect = document.getElementById('viewEndPoint');
+
+    // 验证必填字段
+    if (!plateNumber) {
+        alert('请输入车牌号');
+        return null;
+    }
+    if (!driverName) {
+        alert('请输入司机姓名');
+        return null;
+    }
+    if (!phone) {
+        alert('请输入联系电话');
+        return null;
+    }
+
+    // 获取时间选择器的值
+    const entryStartTime = viewTaskPage.querySelector('#viewEntryStartTime')?.value || '';
+    const entryEndTime = viewTaskPage.querySelector('#viewEntryEndTime')?.value || '';
+    const exitStartTime = viewTaskPage.querySelector('#viewExitStartTime')?.value || '';
+    const exitEndTime = viewTaskPage.querySelector('#viewExitEndTime')?.value || '';
+
+    // 构建请求body
+    const requestBody = {
+        driver_name: driverName,
+        phone: phone,
+        plate_number: plateNumber,
+        vehicle_type: 0,
+        vehicle_id: locatorSelect ? parseInt(locatorSelect.value) || 0 : 0,
+        task_type: taskTypeSelect ? parseInt(taskTypeSelect.value) || 0 : 0,
+        task_name: taskTypeSelect ? taskTypeSelect.options[taskTypeSelect.selectedIndex]?.text || '' : '',
+        task_detail: taskDetail || '',
+        start_point: startPointSelect ? parseInt(startPointSelect.value) || 0 : 0,
+        end_point: endPointSelect ? parseInt(endPointSelect.value) || 0 : 0,
+        task_location_id: 0,
+        entry_start_time: entryStartTime,
+        entry_end_time: entryEndTime,
+        exit_start_time: exitStartTime,
+        exit_end_time: exitEndTime,
+        project_id: projectId,
+        publisher_id: publisherId,
+        publish_date: new Date().toISOString(),
+        status: 0
+    };
+
+    return requestBody;
 }
 
 /**
@@ -1532,14 +1771,104 @@ function clearTaskForm() {
 /**
  * 打开查看/修改页面并填充数据
  */
-function openViewTaskPage(taskId) {
+async function openViewTaskPage(taskId) {
     console.log('打开任务详情:', taskId);
 
-    // 模拟填充数据，实际应该从API获取
-    // fetchTaskDetail(taskId).then(data => fillForm(data));
+    // 保存当前任务ID
+    currentViewTaskId = taskId;
 
     // 显示页面
     showPage('viewTaskPage');
+
+    // 从API获取任务详情并填充表单
+    const taskData = await fetchTaskDetail(taskId);
+    if (taskData) {
+        fillViewTaskForm(taskData);
+    }
+}
+
+/**
+ * 填充查看任务页面的表单数据
+ */
+function fillViewTaskForm(taskData) {
+    console.log('[填充表单] 填充任务数据:', taskData);
+
+    const viewTaskPage = document.getElementById('viewTaskPage');
+    if (!viewTaskPage) {
+        console.error('[填充表单] 未找到查看任务页面');
+        return;
+    }
+
+    // 填充定位器选择框
+    const locatorSelect = document.getElementById('viewLocator');
+    if (locatorSelect && taskData.vehicle_id) {
+        locatorSelect.value = taskData.vehicle_id;
+    }
+
+    // 填充车牌号
+    const plateNumberInput = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(2) input');
+    if (plateNumberInput && taskData.plate_number) {
+        plateNumberInput.value = taskData.plate_number;
+    }
+
+    // 填充司机姓名
+    const driverNameInput = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(3) input');
+    if (driverNameInput && taskData.driver_name) {
+        driverNameInput.value = taskData.driver_name;
+    }
+
+    // 填充联系电话
+    const phoneInput = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(4) input');
+    if (phoneInput && taskData.phone) {
+        phoneInput.value = taskData.phone;
+    }
+
+    // 填充任务类型
+    const taskTypeSelect = document.getElementById('viewTaskType');
+    if (taskTypeSelect && taskData.task_type !== undefined) {
+        taskTypeSelect.value = taskData.task_type;
+    }
+
+    // 填充任务详情
+    const taskDetailTextarea = viewTaskPage.querySelector('.form-section:nth-child(4) .form-item:nth-child(2) textarea');
+    if (taskDetailTextarea && taskData.task_detail) {
+        taskDetailTextarea.value = taskData.task_detail;
+    }
+
+    // 填充起点
+    const startPointSelect = document.getElementById('viewStartPoint');
+    if (startPointSelect && taskData.start_point) {
+        startPointSelect.value = taskData.start_point;
+    }
+
+    // 填充终点
+    const endPointSelect = document.getElementById('viewEndPoint');
+    if (endPointSelect && taskData.end_point) {
+        endPointSelect.value = taskData.end_point;
+    }
+
+    // 填充时间选择器
+    const entryStartTimeInput = viewTaskPage.querySelector('#viewEntryStartTime');
+    if (entryStartTimeInput && taskData.entry_start_time) {
+        entryStartTimeInput.value = taskData.entry_start_time;
+    }
+
+    const entryEndTimeInput = viewTaskPage.querySelector('#viewEntryEndTime');
+    if (entryEndTimeInput && taskData.entry_end_time) {
+        entryEndTimeInput.value = taskData.entry_end_time;
+    }
+
+    const exitStartTimeInput = viewTaskPage.querySelector('#viewExitStartTime');
+    if (exitStartTimeInput && taskData.exit_start_time) {
+        exitStartTimeInput.value = taskData.exit_start_time;
+    }
+
+    const exitEndTimeInput = viewTaskPage.querySelector('#viewExitEndTime');
+    if (exitEndTimeInput && taskData.exit_end_time) {
+        exitEndTimeInput.value = taskData.exit_end_time;
+    }
+
+    console.log('[填充表单] 表单数据填充完成');
 }
 
 /**
