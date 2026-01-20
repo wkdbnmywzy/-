@@ -42,7 +42,7 @@ function initMap() {
 
     // 创建地图实例
     map = new AMap.Map('map-container', {
-        zoom: 15,
+        zoom: 19,
         center: projectCenter || [114.305215, 30.593099], // 优先使用项目中心，否则默认武汉
         mapStyle: 'amap://styles/normal',
         viewMode: '2D',
@@ -533,7 +533,14 @@ function initEventListeners() {
         item.addEventListener('click', function() {
             const filterType = this.querySelector('span').textContent;
             console.log('筛选:', filterType);
-            // TODO: 实现筛选功能
+
+            // 如果是车辆筛选，切换车辆图例显示
+            if (filterType === '车辆') {
+                if (typeof AdminVehicleManager !== 'undefined') {
+                    AdminVehicleManager.toggleVehicleLegend();
+                }
+            }
+            // TODO: 实现任务类型和任务状态筛选功能
         });
     });
     
@@ -675,6 +682,9 @@ async function showCameraLayer() {
 
         console.log('[摄像头] 获取到摄像头数量:', cameras.length);
 
+        // 保存摄像头数据到全局变量
+        window.camerasData = cameras;
+
         // 在地图上显示摄像头
         await displayCamerasOnMap(cameras);
 
@@ -684,6 +694,21 @@ async function showCameraLayer() {
         const cameraBtn = document.getElementById('camera-btn');
         if (cameraBtn) {
             cameraBtn.classList.add('active');
+        }
+
+        // 监听地图缩放事件，重新加载摄像头标记
+        if (!window.cameraZoomListener) {
+            window.cameraZoomListener = function() {
+                if (isCameraLayerVisible && window.camerasData) {
+                    console.log('[摄像头] 地图缩放，重新加载标记');
+                    // 先清除旧标记
+                    cameraMarkers.forEach(marker => marker.setMap(null));
+                    cameraMarkers = [];
+                    // 重新显示
+                    displayCamerasOnMap(window.camerasData);
+                }
+            };
+            map.on('zoomend', window.cameraZoomListener);
         }
 
         console.log('[摄像头] 摄像头图层显示完成');
@@ -844,7 +869,12 @@ async function displayCamerasOnMap(cameras) {
             // 获取摄像头的点位ID
             const pointId = camera.point_id || camera.pointId;
             if (!pointId) {
-                console.warn('[摄像头] 摄像头缺少point_id:', camera);
+                console.warn('[摄像头] 摄像头缺少point_id，跳过显示:', {
+                    id: camera.id,
+                    name: camera.camera_name,
+                    point_id: camera.point_id,
+                    完整数据: camera
+                });
                 continue;
             }
 
@@ -954,7 +984,7 @@ async function displayCamerasOnMap(cameras) {
             const marker = new AMap.Marker({
                 position: [position.longitude, position.latitude],
                 content: cameraContent,
-                offset: new AMap.Pixel(0, -8), // 向上偏移，让箭头指向准确位置
+                anchor: 'bottom-center',
                 extData: {
                     type: 'camera',
                     cameraId: camera.id,
@@ -966,7 +996,7 @@ async function displayCamerasOnMap(cameras) {
             // 添加点击事件
             marker.on('click', function() {
                 const data = this.getExtData();
-                showCameraInfo(data.cameraId, data.cameraName);
+                showCameraInfo(data.cameraId, data.cameraName, camera);
             });
 
             // 添加到地图
@@ -1021,28 +1051,26 @@ async function getCameraDetails(cameraId) {
  * 显示摄像头信息窗口
  * @param {string} cameraId - 摄像头ID
  * @param {string} cameraName - 摄像头名称
+ * @param {Object} cameraData - 摄像头数据（包含start_id, end_id, c_point）
  */
-async function showCameraInfo(cameraId, cameraName) {
+async function showCameraInfo(cameraId, cameraName, cameraData) {
     console.log('[摄像头] 点击摄像头:', cameraId, cameraName);
 
     try {
-        // 获取摄像头详情（包含视频流URL）
-        const details = await getCameraDetails(cameraId);
-
-        if (!details) {
-            alert('无法获取摄像头详情');
-            return;
+        // 处理路段状态
+        if (cameraData.start_id && cameraData.end_id && cameraData.c_point) {
+            await updateRoadSegmentStatus(cameraData.start_id, cameraData.end_id, cameraData.c_point);
         }
 
         // 获取视频流URL
-        const videoUrl = details.url || details.video_url || details.stream_url || '暂无视频流';
+        const videoUrl = cameraData.video_stream_url || cameraData.url || '暂无视频流';
 
         // 构建信息内容
         let infoContent = `
             <div style="padding: 10px; min-width: 200px;">
                 <h3 style="margin: 0 0 10px 0; color: #333;">${cameraName}</h3>
                 <p style="margin: 5px 0;"><strong>摄像头ID:</strong> ${cameraId}</p>
-                <p style="margin: 5px 0;"><strong>类型:</strong> ${details.camera_type === 1 ? 'AI识别' : '普通'}</p>
+                <p style="margin: 5px 0;"><strong>类型:</strong> ${cameraData.camera_type === 1 ? 'AI识别' : '普通'}</p>
         `;
 
         if (videoUrl !== '暂无视频流') {
@@ -1077,4 +1105,96 @@ async function showCameraInfo(cameraId, cameraName) {
         console.error('[摄像头] 显示摄像头信息失败:', error);
         alert('显示摄像头信息失败');
     }
+}
+
+/**
+ * 更新路段状态颜色
+ * @param {number} startId - 起点ID
+ * @param {number} endId - 终点ID
+ * @param {number} cPoint - 检测点ID
+ */
+async function updateRoadSegmentStatus(startId, endId, cPoint) {
+    try {
+        console.log('[路段状态] start_id:', startId, 'end_id:', endId, 'c_point:', cPoint);
+
+        // 获取c_point的状态
+        const pointDetails = await getPointDetails(cPoint);
+        if (!pointDetails) return;
+
+        const pointCol = pointDetails.point_col;
+        console.log('[路段状态] point_col:', pointCol);
+
+        // 根据point_col确定颜色
+        let color = '#9AE59D'; // 默认绿色
+        if (pointCol === 'A00') {
+            color = '#00FF00'; // 畅通-绿色
+        } else if (pointCol === 'A01') {
+            color = '#FFFF00'; // 缓行-黄色
+        } else if (pointCol === 'A02') {
+            color = '#FF0000'; // 拥堵-红色
+        } else if (pointCol === 'A03') {
+            color = '#808080'; // 阻断-灰色
+        }
+
+        console.log('[路段状态] 线段颜色:', color);
+
+        // 查找并更新start_id到end_id之间的线段
+        updatePolylineColor(startId, endId, color);
+
+    } catch (error) {
+        console.error('[路段状态] 更新失败:', error);
+    }
+}
+
+/**
+ * 获取点详情
+ * @param {number} pointId - 点ID
+ * @returns {Promise<Object|null>}
+ */
+async function getPointDetails(pointId) {
+    try {
+        const url = `https://dmap.cscec3bxjy.cn/api/map/points-with-icons/${pointId}`;
+        console.log('[点详情] 请求URL:', url);
+
+        const token = sessionStorage.getItem('authToken') || '';
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) return null;
+
+        const data = await response.json();
+        if (data.code === 200 && data.data) {
+            return data.data;
+        }
+        return null;
+    } catch (error) {
+        console.error('[点详情] 获取失败:', error);
+        return null;
+    }
+}
+
+/**
+ * 更新线段颜色
+ * @param {number} startId - 起点ID
+ * @param {number} endId - 终点ID
+ * @param {string} color - 颜色
+ */
+function updatePolylineColor(startId, endId, color) {
+    if (!window.polylines || window.polylines.length === 0) {
+        console.warn('[路段状态] 没有线段数据');
+        return;
+    }
+
+    window.polylines.forEach(polyline => {
+        const extData = polyline.getExtData();
+        if (extData && extData.startPointId == startId && extData.endPointId == endId) {
+            polyline.setOptions({ strokeColor: color });
+            console.log('[路段状态] 更新线段颜色:', startId, '->', endId, color);
+        }
+    });
 }

@@ -71,6 +71,9 @@ function initEventListeners() {
     // 初始化统计卡片展开/收起功能
     initStatsCardToggle();
 
+    // 初始化日期选择器
+    initVehicleDateSelector();
+
     // 加载车辆进出数据
     loadVehicleData();
 }
@@ -177,6 +180,142 @@ function initStatsCardToggle() {
 }
 
 /**
+ * 初始化车辆进出日期选择器
+ */
+function initVehicleDateSelector() {
+    const dateSelector = document.getElementById('vehicleDateSelector');
+    if (!dateSelector) return;
+
+    dateSelector.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showVehicleDatePicker();
+    });
+}
+
+/**
+ * 显示车辆进出日期选择器（一周内的日期）
+ */
+function showVehicleDatePicker() {
+    // 创建日期选择弹窗
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+
+    const picker = document.createElement('div');
+    picker.style.cssText = `
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        width: 80%;
+        max-width: 300px;
+        max-height: 400px;
+        overflow-y: auto;
+    `;
+
+    // 生成最近7天的日期选项
+    const dates = [];
+    const today = new Date();
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        dates.push(date);
+    }
+
+    // 创建日期选项列表
+    let html = '<div style="font-size: 18px; font-weight: bold; margin-bottom: 15px; text-align: center;">选择日期</div>';
+    dates.forEach((date, index) => {
+        const dateStr = formatDateYYYYMMDD(date);
+        const displayText = index === 0 ? '今日' : formatDateDisplay(date);
+        html += `
+            <div class="date-option" data-date="${dateStr}" style="
+                padding: 12px;
+                margin: 8px 0;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                cursor: pointer;
+                text-align: center;
+                transition: all 0.2s;
+            ">
+                ${displayText} (${dateStr})
+            </div>
+        `;
+    });
+
+    picker.innerHTML = html;
+    overlay.appendChild(picker);
+    document.body.appendChild(overlay);
+
+    // 添加悬停效果
+    const options = picker.querySelectorAll('.date-option');
+    options.forEach(option => {
+        option.addEventListener('mouseenter', function() {
+            this.style.background = '#f0f0f0';
+        });
+        option.addEventListener('mouseleave', function() {
+            this.style.background = 'white';
+        });
+        option.addEventListener('click', function() {
+            const selectedDate = this.dataset.date;
+            const displayText = this.textContent.split('(')[0].trim();
+            onVehicleDateSelected(selectedDate, displayText);
+            document.body.removeChild(overlay);
+        });
+    });
+
+    // 点击遮罩关闭
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            document.body.removeChild(overlay);
+        }
+    });
+}
+
+/**
+ * 当选择日期后的回调
+ */
+function onVehicleDateSelected(dateStr, displayText) {
+    console.log('[日期选择] 选择了日期:', dateStr, displayText);
+
+    // 更新显示文本
+    const dateTextEl = document.getElementById('vehicleDateText');
+    if (dateTextEl) {
+        dateTextEl.textContent = displayText;
+    }
+
+    // 重新加载该日期的车辆数据
+    loadVehicleData(dateStr);
+}
+
+/**
+ * 格式化日期显示（如：01月20日）
+ */
+function formatDateDisplay(date) {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${month}月${day}日`;
+}
+
+/**
+ * 格式化日期为 YYYY-MM-DD 格式
+ */
+function formatDateYYYYMMDD(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
  * 测试获取任务地点详情
  * @param {number} locationId - 地点ID
  */
@@ -247,8 +386,9 @@ const VEHICLE_TYPE_MAP = {
 /**
  * 加载车辆进出数据
  * 使用专门的车辆进出统计API
+ * @param {string} dateStr - 可选的日期参数 (YYYY-MM-DD)，不传则默认为今日
  */
-async function loadVehicleData() {
+async function loadVehicleData(dateStr) {
     try {
         console.log('[车辆进出] 开始加载车辆数据...');
 
@@ -275,7 +415,16 @@ async function loadVehicleData() {
         const baseURL = 'http://115.159.67.12:8086/api/transport/statistics';
 
         // 获取Dashboard数据（包含车辆列表）
-        const dashboardUrl = `${baseURL}/dashboard?projectId=${projectId}`;
+        let dashboardUrl = `${baseURL}/dashboard?projectId=${projectId}`;
+
+        // 如果传入了日期参数，添加到URL
+        if (dateStr) {
+            dashboardUrl += `&date_from=${dateStr}&date_to=${dateStr}`;
+            console.log('[车辆进出] 查询日期:', dateStr);
+        } else {
+            console.log('[车辆进出] 查询今日数据');
+        }
+
         console.log('[车辆进出] 请求Dashboard API:', dashboardUrl);
 
         const dashboardResponse = await fetch(dashboardUrl, {

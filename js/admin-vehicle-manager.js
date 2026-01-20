@@ -152,6 +152,9 @@ const AdminVehicleManager = (function() {
 
         if (vehicleToggleBtn && vehicleLegend) {
             vehicleToggleBtn.addEventListener('click', function() {
+                // 获取筛选栏
+                const filterBar = document.querySelector('.admin-filter-bar');
+
                 // 获取当前显示状态
                 const currentDisplay = window.getComputedStyle(vehicleLegend).display;
                 const isVisible = currentDisplay !== 'none';
@@ -160,13 +163,15 @@ const AdminVehicleManager = (function() {
                 if (isVisible) {
                     // 当前可见 → 隐藏
                     vehicleLegend.style.display = 'none';
+                    if (filterBar) filterBar.style.display = 'none';
                     vehicleToggleBtn.classList.remove('active');
-                    console.log('[车辆管理器] 隐藏车辆图例');
+                    console.log('[车辆管理器] 隐藏车辆图例和筛选栏');
                 } else {
                     // 当前隐藏 → 显示
                     vehicleLegend.style.display = 'block';
+                    if (filterBar) filterBar.style.display = 'flex';
                     vehicleToggleBtn.classList.add('active');
-                    console.log('[车辆管理器] 显示车辆图例');
+                    console.log('[车辆管理器] 显示车辆图例和筛选栏');
                 }
             });
         }
@@ -255,40 +260,149 @@ const AdminVehicleManager = (function() {
         }
 
         try {
-            // 准备车辆列表
-            const vehicles = [];
-
             // 临时车辆
-            vehicleData.temp.forEach(vehicle => {
+            for (const vehicle of vehicleData.temp) {
                 if (vehicle.latitude && vehicle.longitude) {
-                    vehicles.push({
-                        vehicleId: vehicle.plateNumber || 'unknown',
-                        latitude: vehicle.latitude,
-                        longitude: vehicle.longitude,
-                        type: 'temp'
+                    const vehicleId = vehicle.plateNumber || 'unknown';
+                    const result = await AdminFenceManager.checkVehicleInFence(
+                        vehicle.latitude,
+                        vehicle.longitude,
+                        vehicleId
+                    );
+
+                    // 找到对应的标记
+                    const marker = vehicleMarkers.temp.find(m => {
+                        const extData = m.getExtData();
+                        return extData && extData.vehicleId === vehicleId;
                     });
+
+                    if (marker) {
+                        if (result.inFence) {
+                            startVehicleBlink(marker);
+                        } else {
+                            stopVehicleBlink(marker);
+                        }
+                    }
                 }
-            });
+            }
 
             // 固定车辆
-            vehicleData.fixed.forEach(vehicle => {
+            for (const vehicle of vehicleData.fixed) {
                 if (vehicle.latitude && vehicle.longitude) {
-                    vehicles.push({
-                        vehicleId: vehicle.deviceId || 'unknown',
-                        latitude: vehicle.latitude,
-                        longitude: vehicle.longitude,
-                        type: 'fixed'
-                    });
-                }
-            });
+                    const vehicleId = vehicle.deviceId || 'unknown';
+                    const result = await AdminFenceManager.checkVehicleInFence(
+                        vehicle.latitude,
+                        vehicle.longitude,
+                        vehicleId
+                    );
 
-            if (vehicles.length > 0) {
-                // 批量检查
-                await AdminFenceManager.checkMultipleVehicles(vehicles);
+                    // 找到对应的标记
+                    const marker = vehicleMarkers.fixed.find(m => {
+                        const extData = m.getExtData();
+                        return extData && extData.vehicleId === vehicleId;
+                    });
+
+                    if (marker) {
+                        if (result.inFence) {
+                            startVehicleBlink(marker);
+                        } else {
+                            stopVehicleBlink(marker);
+                        }
+                    }
+                }
             }
 
         } catch (error) {
             console.error('[车辆管理器] 检查围栏失败:', error);
+        }
+    }
+
+    /**
+     * 开始车辆标记闪烁（红色警告）
+     * @param {AMap.Marker} marker - 车辆标记
+     */
+    function startVehicleBlink(marker) {
+        const extData = marker.getExtData();
+
+        // 如果已经在闪烁，不重复启动
+        if (extData.isViolating) {
+            return;
+        }
+
+        console.log('[车辆管理器] 车辆违规，开始闪烁:', extData.vehicleId);
+
+        extData.isViolating = true;
+        marker.setExtData(extData);
+
+        // 创建红色闪烁效果
+        let isRed = false;
+        const originalIcon = marker.getIcon();
+
+        // 创建红色覆盖层图标
+        const redIcon = new AMap.Icon({
+            size: new AMap.Size(40, 40),
+            image: originalIcon.getImageUrl(),
+            imageSize: new AMap.Size(40, 40)
+        });
+
+        extData.blinkTimer = setInterval(() => {
+            if (isRed) {
+                // 恢复原色
+                marker.setIcon(originalIcon);
+                marker.setzIndex(100);
+            } else {
+                // 变红色并提升层级
+                marker.setIcon(redIcon);
+                marker.setzIndex(200);
+
+                // 添加红色滤镜效果
+                const content = marker.getContent();
+                if (content) {
+                    content.style.filter = 'hue-rotate(0deg) saturate(2) brightness(1.2)';
+                    content.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
+                } else {
+                    // 如果是图标标记，通过DOM操作添加红色效果
+                    const markerDom = marker.getDom();
+                    if (markerDom) {
+                        markerDom.style.filter = isRed ? 'none' : 'drop-shadow(0 0 10px red) brightness(1.5) saturate(2)';
+                    }
+                }
+            }
+            isRed = !isRed;
+        }, 500); // 每500ms闪烁一次
+
+        extData.blinkTimer = extData.blinkTimer;
+        marker.setExtData(extData);
+    }
+
+    /**
+     * 停止车辆标记闪烁
+     * @param {AMap.Marker} marker - 车辆标记
+     */
+    function stopVehicleBlink(marker) {
+        const extData = marker.getExtData();
+
+        if (!extData.isViolating) {
+            return;
+        }
+
+        console.log('[车辆管理器] 车辆离开围栏，停止闪烁:', extData.vehicleId);
+
+        // 清除定时器
+        if (extData.blinkTimer) {
+            clearInterval(extData.blinkTimer);
+            extData.blinkTimer = null;
+        }
+
+        extData.isViolating = false;
+        marker.setExtData(extData);
+
+        // 恢复原始样式
+        marker.setzIndex(100);
+        const markerDom = marker.getDom();
+        if (markerDom) {
+            markerDom.style.filter = 'none';
+            markerDom.style.boxShadow = 'none';
         }
     }
 
@@ -475,6 +589,9 @@ const AdminVehicleManager = (function() {
         markersArray.forEach(marker => {
             const extData = marker.getExtData();
             if (extData && !processedIds.has(extData.vehicleId)) {
+                // 停止闪烁
+                stopVehicleBlink(marker);
+                // 从地图移除
                 map.remove(marker);
             }
         });
@@ -541,8 +658,13 @@ const AdminVehicleManager = (function() {
      */
     function removeAllMarkersByType(type) {
         vehicleMarkers[type].forEach(marker => {
-            if (marker && map) {
-                map.remove(marker);
+            if (marker) {
+                // 停止闪烁
+                stopVehicleBlink(marker);
+                // 从地图移除
+                if (map) {
+                    map.remove(marker);
+                }
             }
         });
         vehicleMarkers[type] = [];
@@ -602,7 +724,9 @@ const AdminVehicleManager = (function() {
             const vehicleId = type === 'temp' ? vehicle.plateNumber : vehicle.deviceId;
             marker.setExtData({
                 vehicleId: vehicleId,
-                type: type
+                type: type,
+                isViolating: false,
+                blinkTimer: null
             });
 
             // 添加信息窗口
@@ -849,16 +973,26 @@ const AdminVehicleManager = (function() {
     function clearVehicleMarkers() {
         // 清除临时车标记
         vehicleMarkers.temp.forEach(marker => {
-            if (marker && map) {
-                map.remove(marker);
+            if (marker) {
+                // 停止闪烁
+                stopVehicleBlink(marker);
+                // 从地图移除
+                if (map) {
+                    map.remove(marker);
+                }
             }
         });
         vehicleMarkers.temp = [];
 
         // 清除固定车标记
         vehicleMarkers.fixed.forEach(marker => {
-            if (marker && map) {
-                map.remove(marker);
+            if (marker) {
+                // 停止闪烁
+                stopVehicleBlink(marker);
+                // 从地图移除
+                if (map) {
+                    map.remove(marker);
+                }
             }
         });
         vehicleMarkers.fixed = [];

@@ -26,7 +26,7 @@
     left: 16px;
     right: 16px;
     z-index: 100;
-    display: flex;
+    display: none;
     gap: 8px;
 }
 

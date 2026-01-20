@@ -236,6 +236,102 @@ const AdminFenceManager = (function() {
     }
 
     /**
+     * 检查点是否在多边形内（射线法）
+     * @param {Array} point - 点坐标 [lng, lat]
+     * @param {Array} polygon - 多边形坐标数组 [[lng, lat], ...]
+     * @returns {boolean}
+     */
+    function isPointInPolygon(point, polygon) {
+        const x = point[0];
+        const y = point[1];
+        let inside = false;
+
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i][0];
+            const yi = polygon[i][1];
+            const xj = polygon[j][0];
+            const yj = polygon[j][1];
+
+            const intersect = ((yi > y) !== (yj > y)) &&
+                (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+
+        return inside;
+    }
+
+    /**
+     * 检查车辆是否在围栏内（本地判断）
+     * @param {number} latitude - 纬度
+     * @param {number} longitude - 经度
+     * @param {string} vehicleId - 车辆ID（用于追踪状态）
+     * @returns {Object} - 检查结果
+     */
+    function checkVehicleInFenceLocal(latitude, longitude, vehicleId) {
+        const point = [longitude, latitude];
+
+        for (const fence of fenceData) {
+            try {
+                // 解析围栏坐标
+                let coordinates = [];
+                if (fence.coordinates) {
+                    coordinates = fence.coordinates;
+                } else if (fence.polygon) {
+                    coordinates = fence.polygon;
+                } else if (fence.path) {
+                    coordinates = fence.path;
+                } else if (fence.pg_position) {
+                    if (typeof fence.pg_position === 'string') {
+                        coordinates = JSON.parse(fence.pg_position);
+                    } else {
+                        coordinates = fence.pg_position;
+                    }
+                }
+
+                if (!coordinates || coordinates.length < 3) continue;
+
+                // 转换为 [lng, lat] 格式
+                const path = coordinates.map(coord => {
+                    if (Array.isArray(coord)) {
+                        return [coord[0], coord[1]];
+                    } else if (coord.lng && coord.lat) {
+                        return [coord.lng, coord.lat];
+                    }
+                    return null;
+                }).filter(p => p !== null);
+
+                if (path.length < 3) continue;
+
+                // 判断点是否在多边形内
+                if (isPointInPolygon(point, path)) {
+                    const fenceId = fence.id || fence.fenceId;
+                    const fenceName = fence.name || fence.fenceName || '电子围栏';
+
+                    // 检查是否已经发出过警告
+                    if (!hasWarned(vehicleId, fenceId)) {
+                        // 触发警告
+                        triggerFenceWarning(vehicleId, fenceId, fenceName, latitude, longitude);
+                        // 记录已警告
+                        markWarned(vehicleId, fenceId);
+                    }
+
+                    return {
+                        inFence: true,
+                        fenceId: fenceId,
+                        fenceName: fenceName
+                    };
+                }
+            } catch (error) {
+                console.error('[围栏管理器] 检查围栏失败:', error, fence);
+            }
+        }
+
+        // 车辆不在任何围栏内，清除警告状态
+        clearWarned(vehicleId);
+        return { inFence: false };
+    }
+
+    /**
      * 检查车辆是否在围栏内（使用API）
      * @param {number} latitude - 纬度
      * @param {number} longitude - 经度
@@ -243,6 +339,12 @@ const AdminFenceManager = (function() {
      * @returns {Promise<Object>} - 检查结果
      */
     async function checkVehicleInFence(latitude, longitude, vehicleId) {
+        // 优先使用本地判断
+        if (fenceData && fenceData.length > 0) {
+            return checkVehicleInFenceLocal(latitude, longitude, vehicleId);
+        }
+
+        // 如果没有本地数据，使用API
         try {
             const token = sessionStorage.getItem('authToken') || '';
             const url = `${API_CONFIG.mapServiceURL}${API_CONFIG.endpoints.checkFence}?latitude=${latitude}&longitude=${longitude}`;
