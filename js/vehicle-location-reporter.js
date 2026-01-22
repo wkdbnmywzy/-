@@ -7,7 +7,7 @@
 
 // 位置上报配置
 const LocationReporterConfig = {
-    reportInterval: 4000,           // 上报间隔（毫秒）4秒
+    reportInterval: 2000,           // 上报间隔（毫秒）2秒
     apiUrl: 'https://dmap.cscec3bxjy.cn/api/transport/temp-vehicle/report',
     enabled: true,                  // 是否启用上报
     maxRetries: 3,                  // 最大重试次数
@@ -55,14 +55,14 @@ function initVehicleLocationReporter() {
         return;
     }
 
-    if (!projectSelection.project || !projectSelection.project.projectid) {
+    if (!projectSelection.project || !projectSelection.project.projectCode) {
         console.warn('[位置上报器] 缺少项目ID，无法上报');
         return;
     }
 
     // 保存信息
     reporterState.currentUser = currentUser;
-    reporterState.projectId = projectSelection.project.projectid;
+    reporterState.projectId = projectSelection.project.projectCode;
 
     console.log('[位置上报器] 初始化成功');
     console.log('[位置上报器] 车牌号:', currentUser.licensePlate);
@@ -161,6 +161,9 @@ async function reportVehicleLocation() {
             time: new Date().toLocaleTimeString()
         });
 
+        // 获取车辆方向角度（如果在导航中）
+        const heading = window.currentMapRotation || 0;
+
         // 发送上报请求
         const response = await fetch(LocationReporterConfig.apiUrl, {
             method: 'POST',
@@ -171,7 +174,8 @@ async function reportVehicleLocation() {
                 latitude,
                 longitude,
                 plateNumber,
-                projectId
+                projectId,
+                heading  // 车辆方向角度（相对正北）
             })
         });
 
@@ -204,16 +208,25 @@ async function reportVehicleLocation() {
  */
 function getCurrentGPSPosition() {
     return new Promise((resolve, reject) => {
-        // 优先使用全局的GPS位置（来自地图实时定位）
+        // 优先使用导航吸附后的位置（如果在导航中）
+        if (window.NavCore && typeof window.NavCore.getStatus === 'function') {
+            const navStatus = window.NavCore.getStatus();
+            if (navStatus.isNavigating && window.snappedPosition) {
+                // 使用吸附后的高精度位置
+                resolve({
+                    latitude: window.snappedPosition[1],
+                    longitude: window.snappedPosition[0]
+                });
+                return;
+            }
+        }
+
+        // 如果不在导航中，使用全局的GPS位置
         if (window.lastGpsPosIndex) {
             const lnglat = window.lastGpsPosIndex;
-
-            // lastGpsPosIndex 是数组 [经度, 纬度]
-            // 如果是高德地图坐标系，需要转换回WGS84（或直接使用，取决于后端要求）
-            // 这里假设后端接受GCJ02坐标系（高德坐标系）
             resolve({
-                latitude: lnglat[1],   // 数组第二个元素是纬度
-                longitude: lnglat[0]   // 数组第一个元素是经度
+                latitude: lnglat[1],
+                longitude: lnglat[0]
             });
             return;
         }

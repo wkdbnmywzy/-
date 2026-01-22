@@ -37,6 +37,9 @@ const NavCore = (function() {
     let lastTurningPointIndex = -1; // 上一次触发旋转的转向点索引
     let currentMapRotation = 0;    // 当前地图旋转角度（记录状态，避免重复旋转）
 
+    // 暴露地图旋转角度给位置上报器（管理端用这个角度显示车辆）
+    window.currentMapRotation = 0;
+
     // 分段导航相关
     let currentSegmentIndex = 0;   // 当前路段索引（0=起点到途径点1/终点，1=途径点1到途径点2...）
     let segmentRanges = [];        // 每段在点集中的索引范围 [{start, end, name}, ...]
@@ -2585,6 +2588,8 @@ const NavCore = (function() {
                     console.log(`[地图旋转] 当前=${currentRotation.toFixed(1)}°, 目标=${smoothedBearing.toFixed(1)}°, 差值=${angleDiff.toFixed(1)}°`);
                 }
                 NavRenderer.setHeadingUpMode(position, smoothedBearing, true);
+                currentMapRotation = smoothedBearing;
+                window.currentMapRotation = smoothedBearing;  // 暴露给位置上报器
                 lastRotationTime = now;
             }
         } catch (e) {
@@ -3766,7 +3771,8 @@ const NavCore = (function() {
         cleanup,
         getRouteData: () => routeData,
         getNavigationPath: () => navigationPath,
-        getCurrentSpeed
+        getCurrentSpeed,
+        onGPSUpdate  // 暴露给虚拟GPS使用
     };
 })();
 

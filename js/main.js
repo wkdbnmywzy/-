@@ -279,14 +279,12 @@ async function loadMapDataFromAPI() {
         
         if (projectSelection) {
             const selection = JSON.parse(projectSelection);
-            projectName = selection.project;
-            
-            // 从用户的项目列表中找到选择的项目，获取项目ID和经纬度
-            const userProjects = currentUser.projects || [];
-            const selectedProject = userProjects.find(p => p.projectName === projectName);
-            
-            if (selectedProject) {
-                projectId = selectedProject.projectCode || selectedProject.id;
+            const selectedProject = selection.project;
+
+            if (selectedProject && selectedProject.projectCode) {
+                projectId = selectedProject.projectCode;
+                projectName = selectedProject.projectName;
+
                 // 项目经纬度（如果有的话）
                 if (selectedProject.longitude && selectedProject.latitude) {
                     projectCenter = [selectedProject.longitude, selectedProject.latitude];

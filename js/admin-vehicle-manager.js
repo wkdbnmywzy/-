@@ -10,7 +10,7 @@ const AdminVehicleManager = (function() {
 
     // API配置
     const API_CONFIG = {
-        baseURL: 'http://115.159.67.12:8086/api/transport',
+        baseURL: 'https://dmap.cscec3bxjy.cn/api/transport',
         endpoints: {
             tempVehicles: '/temp-vehicle/project-vehicles',    // 临时车辆
             fixedVehicles: '/tracker/project-locations'         // 固定车辆（设备位置）
@@ -48,7 +48,7 @@ const AdminVehicleManager = (function() {
     // 定时刷新
     let refreshTimer = null;
     let currentProjectId = null; // 当前项目ID
-    const REFRESH_INTERVAL = 5000; // 刷新间隔5秒（与司机端上报间隔接近）
+    const REFRESH_INTERVAL = 2000; // 刷新间隔2秒（与司机端上报间隔一致）
 
     /**
      * 初始化车辆管理器
@@ -609,47 +609,43 @@ const AdminVehicleManager = (function() {
     function updateVehicleMarker(marker, vehicle, type) {
         let lng = vehicle.longitude;
         let lat = vehicle.latitude;
+        let heading = vehicle.heading;  // 从后端获取的方向角度
 
         // 验证坐标有效性
         if (!lng || !lat || isNaN(lng) || isNaN(lat)) {
             return;
         }
 
-        // 应用路线吸附并获取行进方向
-        const snappedResult = snapToRouteWithDirection([lng, lat]);
-        let angle = 0;
-
-        if (snappedResult) {
-            lng = snappedResult.position[0];
-            lat = snappedResult.position[1];
-            angle = snappedResult.angle || 0;
-        }
-
         const newPosition = [lng, lat];
         const oldPosition = marker.getPosition();
 
-        // 计算移动距离
-        const distance = calculateDistance(
-            oldPosition.lat, oldPosition.lng,
-            lat, lng
-        );
-
-        // 如果距离很小（<1米），直接设置位置，否则使用动画
-        if (distance < 1) {
-            marker.setPosition(newPosition);
-            marker.setAngle(angle);
+        // 如果后端提供了方向角度，直接使用
+        let angle = 0;
+        if (heading !== undefined && heading !== null && !isNaN(heading)) {
+            angle = heading;
         } else {
-            // 使用moveAlong实现平滑移动（5秒完成，与刷新间隔一致）
-            marker.moveAlong([oldPosition, newPosition], {
-                duration: 5000,
-                autoRotation: false // 不自动旋转，使用我们计算的角度
-            });
+            // 如果没有方向角度，根据移动方向计算
+            const distance = calculateDistance(
+                oldPosition.lat, oldPosition.lng,
+                lat, lng
+            );
 
-            // 更新角度（平滑过渡）
-            setTimeout(() => {
-                marker.setAngle(angle);
-            }, 2500); // 中途更新角度
+            if (distance > 0.5) {
+                const dLng = (lng - oldPosition.lng) * Math.PI / 180;
+                const lat1 = oldPosition.lat * Math.PI / 180;
+                const lat2 = lat * Math.PI / 180;
+                const y = Math.sin(dLng) * Math.cos(lat2);
+                const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+                angle = Math.atan2(y, x) * 180 / Math.PI;
+            } else {
+                // 距离太小，保持原角度
+                angle = marker.getAngle() || 0;
+            }
         }
+
+        // 直接设置位置和角度
+        marker.setPosition(newPosition);
+        marker.setAngle(angle);
     }
 
     /**
@@ -801,7 +797,7 @@ const AdminVehicleManager = (function() {
             return null;
         }
 
-        const SNAP_THRESHOLD = 10; // 吸附阈值10米（与导航常规吸附阈值一致）
+        const SNAP_THRESHOLD = 1; // 吸附阈值1米（仅用于纠正小误差）
         let minDistance = Infinity;
         let closestSegment = null;
         let closestProjection = null;

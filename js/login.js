@@ -1431,8 +1431,10 @@ function initProjectSelection() {
                 if (!projectsData[province]) {
                     projectsData[province] = [];
                 }
-                if (project.projectName && !projectsData[province].includes(project.projectName)) {
-                    projectsData[province].push(project.projectName);
+                // 保存完整的项目对象，而不是只保存项目名称
+                const existingProject = projectsData[province].find(p => p.projectName === project.projectName);
+                if (!existingProject) {
+                    projectsData[province].push(project);
                 }
             });
             console.log('[项目选择器] 分组后的项目数据:', projectsData);
@@ -1505,7 +1507,8 @@ function initProjectSelection() {
             this.items.forEach((item, index) => {
                 const itemElement = document.createElement('div');
                 itemElement.className = 'picker-item';
-                itemElement.textContent = item;
+                // 如果item是对象，显示projectName；如果是字符串，直接显示
+                itemElement.textContent = typeof item === 'object' ? item.projectName : item;
                 itemElement.dataset.index = index;
                 this.element.appendChild(itemElement);
             });
