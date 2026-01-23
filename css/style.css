@@ -2256,6 +2256,24 @@ body {
 }
 
 /* 区块点位卡片弹窗样式 */
+.area-block-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.area-block-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
 .area-block-panel {
     position: fixed;
     bottom: -100%;

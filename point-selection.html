@@ -96,6 +96,7 @@
     </div>
 
     <!-- 区块点位卡片弹窗 -->
+    <div class="area-block-overlay" id="area-block-overlay"></div>
     <div class="area-block-panel" id="area-block-panel">
         <div class="area-block-header">
             <div class="area-block-title" id="area-block-name">区块名称</div>
@@ -371,6 +372,7 @@
     // 显示区块点位卡片
     function showAreaBlockPanel(blockName) {
         const panel = document.getElementById('area-block-panel');
+        const overlay = document.getElementById('area-block-overlay');
         const blockNameEl = document.getElementById('area-block-name');
         const pointsListEl = document.getElementById('area-block-points-list');
 
@@ -406,9 +408,11 @@
             pointsListEl.appendChild(item);
         });
 
-        // 显示面板（添加 active 类触发滑入动画）
+        // 显示遮罩层和面板（添加 active 类触发动画）
+        overlay.style.display = 'block';
         panel.style.display = 'flex';
         setTimeout(() => {
+            overlay.classList.add('active');
             panel.classList.add('active');
         }, 10);
     }
@@ -416,9 +420,14 @@
     // 关闭区块点位卡片
     function closeAreaBlockPanel() {
         const panel = document.getElementById('area-block-panel');
+        const overlay = document.getElementById('area-block-overlay');
+
         panel.classList.remove('active');
+        overlay.classList.remove('active');
+
         setTimeout(() => {
             panel.style.display = 'none';
+            overlay.style.display = 'none';
         }, 300); // 等待动画完成
     }
 
@@ -450,14 +459,10 @@
             closeBtn.addEventListener('click', closeAreaBlockPanel);
         }
 
-        // 点击面板外部关闭（可选）
-        const panel = document.getElementById('area-block-panel');
-        if (panel) {
-            panel.addEventListener('click', (e) => {
-                if (e.target === panel) {
-                    closeAreaBlockPanel();
-                }
-            });
+        // 点击遮罩层关闭
+        const overlay = document.getElementById('area-block-overlay');
+        if (overlay) {
+            overlay.addEventListener('click', closeAreaBlockPanel);
         }
     }
 
