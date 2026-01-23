@@ -977,6 +977,12 @@ function displayKMLFeatures(features, fileName) {
     // 更新图层列表
     updateKmlLayerList();
 
+    // 自动加载道路状态颜色（司机端）
+    if (typeof autoLoadDriverRoadStatus === 'function') {
+        console.log('[KML-Handler] 开始加载司机端道路状态...');
+        autoLoadDriverRoadStatus();
+    }
+
     // 检查是否有待处理的选中位置（从搜索页返回）
     if (window.pendingSelectedLocation) {
         console.log('KML加载完成，处理待选中的位置:', window.pendingSelectedLocation);

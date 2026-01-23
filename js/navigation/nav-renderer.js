@@ -948,6 +948,39 @@ const NavRenderer = (function() {
             });
 
             console.log('[NavRenderer] KML数据已加载，图层数:', kmlLayers.length);
+
+            // 保存 polylines 到全局变量（供道路状态管理使用）
+            window.polylines = [];
+            console.log('[NavRenderer] displayMarkers 总数:', displayMarkers.length);
+
+            displayMarkers.forEach((marker, index) => {
+                // 调试：输出每个 marker 的类型信息
+                if (index < 3) {
+                    console.log('[NavRenderer] marker[' + index + ']:', {
+                        CLASS_NAME: marker.CLASS_NAME,
+                        constructorName: marker.constructor ? marker.constructor.name : 'undefined',
+                        type: typeof marker,
+                        keys: Object.keys(marker).slice(0, 5)
+                    });
+                }
+
+                // 尝试多种方式识别 Polyline
+                const isPolyline = marker.CLASS_NAME === 'AMap.Polyline' ||
+                    (marker.constructor && marker.constructor.name === 'Polyline') ||
+                    (marker.constructor && marker.constructor.name === 'bo') || // AMap 压缩后的类名
+                    (typeof marker.getPath === 'function'); // 有 getPath 方法的就是 Polyline
+
+                if (isPolyline) {
+                    window.polylines.push(marker);
+                }
+            });
+            console.log('[NavRenderer] 保存了', window.polylines.length, '条 polylines');
+
+            // 自动加载道路状态颜色（导航页面）
+            if (typeof autoLoadDriverRoadStatus === 'function') {
+                console.log('[NavRenderer] 开始加载道路状态...');
+                autoLoadDriverRoadStatus();
+            }
         } catch (e) {
             console.error('[NavRenderer] 加载KML数据失败:', e);
         }

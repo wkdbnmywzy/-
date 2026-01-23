@@ -327,7 +327,23 @@ const NavCore = (function() {
      */
     function onMapComplete() {
         loadKMLData();
-        loadRouteData();
+
+        // 等待道路状态加载完成后再加载路线
+        window.onRoadStatusLoaded = function() {
+            console.log('[NavCore] 道路状态加载完成，开始加载路线...');
+            loadRouteData();
+            // 清除回调，避免重复调用
+            window.onRoadStatusLoaded = null;
+        };
+
+        // 设置超时，如果5秒内道路状态没有加载完成，也继续加载路线
+        setTimeout(function() {
+            if (window.onRoadStatusLoaded) {
+                console.warn('[NavCore] 道路状态加载超时，直接加载路线');
+                loadRouteData();
+                window.onRoadStatusLoaded = null;
+            }
+        }, 5000);
     }
 
     /**
