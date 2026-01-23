@@ -49,6 +49,13 @@ function buildKMLGraph() {
             const extData = marker.getExtData();
 
             if (extData && extData.type === '线') {
+                // 检查路段颜色,灰色路段不可通行
+                const strokeColor = marker.getOptions ? marker.getOptions().strokeColor : null;
+                if (strokeColor === '#808080') {
+                    console.log(`跳过灰色路段(不可通行): ${extData.name}`);
+                    return;
+                }
+
                 // 确保 marker 有 getPath 方法（是 Polyline 对象）
                 if (typeof marker.getPath !== 'function') {
                     console.warn('Marker 没有 getPath 方法，跳过:', marker);

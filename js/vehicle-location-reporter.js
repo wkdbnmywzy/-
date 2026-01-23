@@ -8,7 +8,7 @@
 // 位置上报配置
 const LocationReporterConfig = {
     reportInterval: 2000,           // 上报间隔（毫秒）2秒
-    apiUrl: 'https://dmap.cscec3bxjy.cn/api/transport/temp-vehicle/report',
+    apiUrl: 'http://115.159.67.12:8086/api/transport/temp-vehicle/report',
     enabled: true,                  // 是否启用上报
     maxRetries: 3,                  // 最大重试次数
     retryDelay: 2000               // 重试延迟（毫秒）
@@ -162,7 +162,7 @@ async function reportVehicleLocation() {
         });
 
         // 获取车辆方向角度（如果在导航中）
-        const heading = window.currentMapRotation || 0;
+        const direction = window.currentMapRotation || 0;
 
         // 发送上报请求
         const response = await fetch(LocationReporterConfig.apiUrl, {
@@ -175,7 +175,7 @@ async function reportVehicleLocation() {
                 longitude,
                 plateNumber,
                 projectId,
-                heading  // 车辆方向角度（相对正北）
+                direction  // 车辆方向角度（相对正北）
             })
         });
 

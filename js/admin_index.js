@@ -388,6 +388,10 @@ async function loadProjectMapData() {
                     console.log('[管理端] 初始化围栏管理器');
                     AdminFenceManager.init(map, projectId);
                 }
+
+                // 默认显示摄像头图层
+                console.log('[管理端] 默认显示摄像头图层');
+                showCameraLayer();
             }, 500);
         } else {
             console.warn('[管理端] 无地图数据或displayKMLFeatures不可用');
@@ -676,7 +680,7 @@ async function showCameraLayer() {
         // 获取摄像头列表
         const cameras = await fetchCameras(projectId);
         if (!cameras || cameras.length === 0) {
-            alert('该项目暂无摄像头数据');
+            console.warn('[摄像头] 该项目暂无摄像头数据');
             return;
         }
 
@@ -695,6 +699,15 @@ async function showCameraLayer() {
         if (cameraBtn) {
             cameraBtn.classList.add('active');
         }
+
+        // 自动更新所有摄像头控制的路段颜色
+        console.log('[摄像头] 开始自动更新所有路段颜色...');
+        for (const camera of cameras) {
+            if (camera.start_id && camera.end_id && camera.c_point) {
+                await updateRoadSegmentStatus(camera.start_id, camera.end_id, camera.c_point);
+            }
+        }
+        console.log('[摄像头] 所有路段颜色更新完成');
 
         // 监听地图缩放事件，重新加载摄像头标记
         if (!window.cameraZoomListener) {
@@ -715,7 +728,6 @@ async function showCameraLayer() {
 
     } catch (error) {
         console.error('[摄像头] 显示摄像头图层失败:', error);
-        alert('加载摄像头数据失败');
     }
 }
 
@@ -1054,12 +1066,21 @@ async function getCameraDetails(cameraId) {
  * @param {Object} cameraData - 摄像头数据（包含start_id, end_id, c_point）
  */
 async function showCameraInfo(cameraId, cameraName, cameraData) {
-    console.log('[摄像头] 点击摄像头:', cameraId, cameraName);
+    console.log('[摄像头] ========== 点击摄像头 ==========');
+    console.log('[摄像头] cameraId:', cameraId);
+    console.log('[摄像头] cameraName:', cameraName);
+    console.log('[摄像头] cameraData 完整数据:', cameraData);
+    console.log('[摄像头] start_id:', cameraData.start_id);
+    console.log('[摄像头] end_id:', cameraData.end_id);
+    console.log('[摄像头] c_point:', cameraData.c_point);
 
     try {
         // 处理路段状态
         if (cameraData.start_id && cameraData.end_id && cameraData.c_point) {
+            console.log('[摄像头] ✓ 摄像头有路段控制数据，开始更新路段状态...');
             await updateRoadSegmentStatus(cameraData.start_id, cameraData.end_id, cameraData.c_point);
+        } else {
+            console.warn('[摄像头] ✗ 摄像头缺少路段控制数据，跳过路段状态更新');
         }
 
         // 获取视频流URL
@@ -1115,34 +1136,67 @@ async function showCameraInfo(cameraId, cameraName, cameraData) {
  */
 async function updateRoadSegmentStatus(startId, endId, cPoint) {
     try {
-        console.log('[路段状态] start_id:', startId, 'end_id:', endId, 'c_point:', cPoint);
+        console.log('[路段状态] ========== 开始更新路段状态 ==========');
+        console.log('[路段状态] start_id:', startId, '类型:', typeof startId);
+        console.log('[路段状态] end_id:', endId, '类型:', typeof endId);
+        console.log('[路段状态] c_point:', cPoint, '类型:', typeof cPoint);
 
         // 获取c_point的状态
         const pointDetails = await getPointDetails(cPoint);
-        if (!pointDetails) return;
+        console.log('[路段状态] 点详情完整数据:', JSON.stringify(pointDetails, null, 2));
 
-        const pointCol = pointDetails.point_col;
-        console.log('[路段状态] point_col:', pointCol);
-
-        // 根据point_col确定颜色
-        let color = '#9AE59D'; // 默认绿色
-        if (pointCol === 'A00') {
-            color = '#00FF00'; // 畅通-绿色
-        } else if (pointCol === 'A01') {
-            color = '#FFFF00'; // 缓行-黄色
-        } else if (pointCol === 'A02') {
-            color = '#FF0000'; // 拥堵-红色
-        } else if (pointCol === 'A03') {
-            color = '#808080'; // 阻断-灰色
+        if (!pointDetails) {
+            console.warn('[路段状态] ✗ 未获取到点详情，无法更新路段颜色');
+            return;
         }
 
-        console.log('[路段状态] 线段颜色:', color);
+        const pointCol = pointDetails.point_col;
+        console.log('[路段状态] point_col 原始值:', pointCol, '类型:', typeof pointCol);
 
-        // 查找并更新start_id到end_id之间的线段
-        updatePolylineColor(startId, endId, color);
+        // 根据point_col确定颜色 (0-4)
+        let color = '#9AE59D'; // 默认绿色
+        if (pointCol === 0 || pointCol === '0') {
+            color = '#00FF00'; // 畅通-绿色
+            console.log('[路段状态] ✓ 匹配到状态: 畅通(0) -> 绿色');
+        } else if (pointCol === 1 || pointCol === '1') {
+            color = '#FFFF00'; // 缓行-黄色
+            console.log('[路段状态] ✓ 匹配到状态: 缓行(1) -> 黄色');
+        } else if (pointCol === 2 || pointCol === '2') {
+            color = '#FF0000'; // 拥堵-红色
+            console.log('[路段状态] ✓ 匹配到状态: 拥堵(2) -> 红色');
+        } else if (pointCol === 3 || pointCol === '3') {
+            color = '#808080'; // 阻断-灰色
+            console.log('[路段状态] ✓ 匹配到状态: 阻断(3) -> 灰色');
+        } else if (pointCol === 4 || pointCol === '4') {
+            color = '#000000'; // 未知-黑色
+            console.log('[路段状态] ✓ 匹配到状态: 未知(4) -> 黑色');
+        } else {
+            console.warn('[路段状态] ✗ 未知的point_col值:', pointCol, '使用默认绿色');
+        }
+
+        console.log('[路段状态] 最终使用颜色:', color);
+
+        // 获取起点和终点的坐标
+        const startPoint = await getPointDetails(startId);
+        const endPoint = await getPointDetails(endId);
+
+        if (!startPoint || !endPoint) {
+            console.warn('[路段状态] ✗ 无法获取起点或终点坐标');
+            return;
+        }
+
+        const startCoord = [startPoint.longitude, startPoint.latitude];
+        const endCoord = [endPoint.longitude, endPoint.latitude];
+
+        console.log('[路段状态] 起点坐标:', startCoord);
+        console.log('[路段状态] 终点坐标:', endCoord);
+
+        // 通过坐标查找并更新线段
+        updatePolylineColorByCoords(startCoord, endCoord, color);
+        console.log('[路段状态] ========== 路段状态更新完成 ==========');
 
     } catch (error) {
-        console.error('[路段状态] 更新失败:', error);
+        console.error('[路段状态] ✗ 更新失败:', error);
     }
 }
 
@@ -1153,7 +1207,7 @@ async function updateRoadSegmentStatus(startId, endId, cPoint) {
  */
 async function getPointDetails(pointId) {
     try {
-        const url = `https://dmap.cscec3bxjy.cn/api/map/points-with-icons/${pointId}`;
+        const url = `http://115.159.67.12:8088/api/map/points/${pointId}`;
         console.log('[点详情] 请求URL:', url);
 
         const token = sessionStorage.getItem('authToken') || '';
@@ -1165,36 +1219,88 @@ async function getPointDetails(pointId) {
             }
         });
 
-        if (!response.ok) return null;
+        console.log('[点详情] 响应状态:', response.status);
+
+        if (!response.ok) {
+            console.warn('[点详情] ✗ 请求失败，状态码:', response.status);
+            return null;
+        }
 
         const data = await response.json();
+        console.log('[点详情] API返回完整数据:', JSON.stringify(data, null, 2));
+
         if (data.code === 200 && data.data) {
+            console.log('[点详情] ✓ 成功获取点详情');
             return data.data;
         }
+
+        console.warn('[点详情] ✗ 数据格式不正确，code:', data.code);
         return null;
     } catch (error) {
-        console.error('[点详情] 获取失败:', error);
+        console.error('[点详情] ✗ 获取失败:', error);
         return null;
     }
 }
 
 /**
- * 更新线段颜色
- * @param {number} startId - 起点ID
- * @param {number} endId - 终点ID
+ * 通过坐标更新线段颜色
+ * @param {Array} startCoord - 起点坐标 [lng, lat]
+ * @param {Array} endCoord - 终点坐标 [lng, lat]
  * @param {string} color - 颜色
  */
-function updatePolylineColor(startId, endId, color) {
+function updatePolylineColorByCoords(startCoord, endCoord, color) {
+    console.log('[路段颜色] ========== 通过坐标查找线段 ==========');
+
     if (!window.polylines || window.polylines.length === 0) {
-        console.warn('[路段状态] 没有线段数据');
+        console.warn('[路段颜色] ✗ 没有线段数据');
         return;
     }
 
-    window.polylines.forEach(polyline => {
-        const extData = polyline.getExtData();
-        if (extData && extData.startPointId == startId && extData.endPointId == endId) {
-            polyline.setOptions({ strokeColor: color });
-            console.log('[路段状态] 更新线段颜色:', startId, '->', endId, color);
+    console.log('[路段颜色] 总线段数:', window.polylines.length);
+    console.log('[路段颜色] 起点坐标:', startCoord);
+    console.log('[路段颜色] 终点坐标:', endCoord);
+    console.log('[路段颜色] 目标颜色:', color);
+
+    const COORD_THRESHOLD = 0.00001; // 坐标匹配阈值（约1米）
+    let foundCount = 0;
+
+    window.polylines.forEach((polyline, index) => {
+        const path = polyline.getPath();
+        if (!path || path.length < 2) return;
+
+        const lineStart = [path[0].lng, path[0].lat];
+        const lineEnd = [path[path.length - 1].lng, path[path.length - 1].lat];
+
+        // 检查线段是否在起点和终点之间
+        const isInRange = isPointBetween(lineStart, startCoord, endCoord, COORD_THRESHOLD) ||
+                          isPointBetween(lineEnd, startCoord, endCoord, COORD_THRESHOLD);
+
+        if (isInRange) {
+            polyline.setOptions({
+                strokeColor: color,
+                zIndex: 15
+            });
+            foundCount++;
+            console.log(`[路段颜色] ✓ 更新线段[${index}] 颜色:`, color);
         }
     });
+
+    if (foundCount === 0) {
+        console.warn('[路段颜色] ✗ 未找到匹配的线段！');
+    } else {
+        console.log(`[路段颜色] ✓ 共更新了 ${foundCount} 条线段`);
+    }
+
+    console.log('[路段颜色] ========== 查找线段完成 ==========');
+}
+
+/**
+ * 判断点是否在两点之间（或接近其中一点）
+ */
+function isPointBetween(point, start, end, threshold) {
+    // 检查是否接近起点或终点
+    const distToStart = Math.sqrt(Math.pow(point[0] - start[0], 2) + Math.pow(point[1] - start[1], 2));
+    const distToEnd = Math.sqrt(Math.pow(point[0] - end[0], 2) + Math.pow(point[1] - end[1], 2));
+
+    return distToStart < threshold || distToEnd < threshold;
 }

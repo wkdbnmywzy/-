@@ -10,7 +10,7 @@ const AdminVehicleManager = (function() {
 
     // API配置
     const API_CONFIG = {
-        baseURL: 'https://dmap.cscec3bxjy.cn/api/transport',
+        baseURL: 'http://115.159.67.12:8086/api/transport',
         endpoints: {
             tempVehicles: '/temp-vehicle/project-vehicles',    // 临时车辆
             fixedVehicles: '/tracker/project-locations'         // 固定车辆（设备位置）
@@ -149,12 +149,22 @@ const AdminVehicleManager = (function() {
         // 车辆切换按钮
         const vehicleToggleBtn = document.getElementById('vehicle-toggle-btn');
         const vehicleLegend = document.getElementById('vehicle-legend');
+        const filterBar = document.querySelector('.admin-filter-bar');
+
+        // 默认显示车辆图例和筛选栏
+        if (vehicleLegend) {
+            vehicleLegend.style.display = 'block';
+        }
+        if (filterBar) {
+            filterBar.style.display = 'flex';
+        }
+        if (vehicleToggleBtn) {
+            vehicleToggleBtn.classList.add('active');
+        }
+        console.log('[车辆管理器] 默认显示车辆图例和筛选栏');
 
         if (vehicleToggleBtn && vehicleLegend) {
             vehicleToggleBtn.addEventListener('click', function() {
-                // 获取筛选栏
-                const filterBar = document.querySelector('.admin-filter-bar');
-
                 // 获取当前显示状态
                 const currentDisplay = window.getComputedStyle(vehicleLegend).display;
                 const isVisible = currentDisplay !== 'none';
@@ -486,15 +496,24 @@ const AdminVehicleManager = (function() {
 
             const result = await response.json();
             console.log('[车辆管理器] 固定车辆API响应:', result);
+            console.log('[车辆管理器] 固定车辆第一条数据:', result.data?.[0]);
 
             // 解析返回数据
             if (result.code === 200 && result.data) {
-                return result.data.map(item => ({
-                    type: 'fixed',
-                    deviceId: item.direction || 'unknown',  // 使用direction字段作为标识
-                    latitude: item.latitude,
-                    longitude: item.longitude
-                }));
+                return result.data.map(item => {
+                    // 固定车使用WGS84坐标,需要转换为GCJ02(高德坐标系)
+                    const [gcjLng, gcjLat] = wgs84ToGcj02(item.Longitude, item.Latitude);
+
+                    return {
+                        type: 'fixed',
+                        deviceId: item.TrackerID || 'unknown',
+                        plateNumber: item.PlateNumber,
+                        latitude: gcjLat,
+                        longitude: gcjLng,
+                        direction: item.Direction,
+                        updatedAt: item.UpdatedAt
+                    };
+                });
             }
 
             return [];
@@ -609,7 +628,7 @@ const AdminVehicleManager = (function() {
     function updateVehicleMarker(marker, vehicle, type) {
         let lng = vehicle.longitude;
         let lat = vehicle.latitude;
-        let heading = vehicle.heading;  // 从后端获取的方向角度
+        let direction = vehicle.direction;  // 从后端获取的方向角度
 
         // 验证坐标有效性
         if (!lng || !lat || isNaN(lng) || isNaN(lat)) {
@@ -621,8 +640,8 @@ const AdminVehicleManager = (function() {
 
         // 如果后端提供了方向角度，直接使用
         let angle = 0;
-        if (heading !== undefined && heading !== null && !isNaN(heading)) {
-            angle = heading;
+        if (direction !== undefined && direction !== null && !isNaN(direction)) {
+            angle = direction;
         } else {
             // 如果没有方向角度，根据移动方向计算
             const distance = calculateDistance(
@@ -699,18 +718,22 @@ const AdminVehicleManager = (function() {
                 ? 'images/工地数字导航小程序切图/管理/2X/运输管理/临时车.png'
                 : 'images/工地数字导航小程序切图/管理/2X/运输管理/固定车.png';
 
+            // 图标尺寸: 原始39x75, 缩小到0.7倍
+            const iconSize = new AMap.Size(39 * 0.7, 75 * 0.7);  // 27.3 x 52.5
+            const iconOffset = new AMap.Pixel(-39 * 0.7 / 2, -75 * 0.7 / 2);  // -13.65, -26.25
+
             // 创建图标
             const icon = new AMap.Icon({
-                size: new AMap.Size(40, 40),
+                size: iconSize,
                 image: iconUrl,
-                imageSize: new AMap.Size(40, 40)
+                imageSize: iconSize
             });
 
             // 创建标记（带旋转角度）
             const marker = new AMap.Marker({
                 position: [lng, lat],
                 icon: icon,
-                offset: new AMap.Pixel(-20, -20),
+                offset: iconOffset,
                 angle: angle, // 设置车头方向
                 zIndex: 100,
                 map: map
@@ -728,7 +751,7 @@ const AdminVehicleManager = (function() {
             // 添加信息窗口
             const infoContent = type === 'temp'
                 ? `<div style="padding:10px;"><strong>临时车辆</strong><br/>车牌：${vehicle.plateNumber}<br/>更新时间：${vehicle.updatedAt || '未知'}</div>`
-                : `<div style="padding:10px;"><strong>固定车辆</strong><br/>设备ID：${vehicle.deviceId}</div>`;
+                : `<div style="padding:10px;"><strong>固定车辆</strong><br/>车牌：${vehicle.plateNumber || '未知'}<br/>设备ID：${vehicle.deviceId}<br/>更新时间：${vehicle.updatedAt || '未知'}</div>`;
 
             const infoWindow = new AMap.InfoWindow({
                 content: infoContent,

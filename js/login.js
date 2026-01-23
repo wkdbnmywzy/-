@@ -1370,10 +1370,16 @@ function initProjectSelection() {
     if (confirmProjectBtn) {
         confirmProjectBtn.addEventListener('click', function() {
             if (selectedProvince && selectedProject) {
-                // 保存项目选择
+                // 获取完整的项目对象
+                const projectObj = typeof selectedProject === 'object' ? selectedProject : null;
+                const projectName = projectObj ? projectObj.projectName : selectedProject;
+                const projectCode = projectObj ? projectObj.projectCode : null;
+
+                // 保存项目选择（包含projectCode）
                 const projectSelection = {
                     province: selectedProvince,
-                    project: selectedProject,
+                    project: projectName,
+                    projectCode: projectCode,
                     timestamp: new Date().toISOString()
                 };
                 sessionStorage.setItem('projectSelection', JSON.stringify(projectSelection));

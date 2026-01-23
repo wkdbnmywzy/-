@@ -118,9 +118,9 @@ const VirtualGPS = {
             }
 
             // 获取车辆方向角度
-            const heading = window.currentMapRotation || 0;
+            const direction = window.currentMapRotation || 0;
 
-            const response = await fetch('https://dmap.cscec3bxjy.cn/api/transport/temp-vehicle/report', {
+            const response = await fetch('http://115.159.67.12:8086/api/transport/temp-vehicle/report', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -128,7 +128,7 @@ const VirtualGPS = {
                     longitude: position[0],
                     plateNumber: plateNumber,
                     projectId: projectId,
-                    heading: heading  // 车辆方向角度
+                    direction: direction  // 车辆方向角度
                 })
             });
 
