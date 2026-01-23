@@ -389,9 +389,9 @@ async function loadProjectMapData() {
                     AdminFenceManager.init(map, projectId);
                 }
 
-                // 默认显示摄像头图层
-                console.log('[管理端] 默认显示摄像头图层');
-                showCameraLayer();
+                // 【新增】自动加载道路状态颜色（不显示摄像头标记）
+                console.log('[管理端] 自动加载道路状态颜色...');
+                autoLoadRoadStatus();
             }, 500);
         } else {
             console.warn('[管理端] 无地图数据或displayKMLFeatures不可用');
@@ -754,6 +754,57 @@ function hideCameraLayer() {
     }
 
     console.log('[摄像头] 摄像头图层已隐藏');
+}
+
+/**
+ * 自动加载并显示道路状态颜色（不显示摄像头标记）
+ * 用于司机端和管理端在地图加载时自动显示道路状态
+ */
+async function autoLoadRoadStatus() {
+    try {
+        console.log('[道路状态] ========== 开始自动加载道路状态 ==========');
+
+        // 获取当前项目ID
+        const projectId = getCurrentProjectId();
+        if (!projectId) {
+            console.warn('[道路状态] 未找到项目ID，无法加载道路状态');
+            return;
+        }
+
+        console.log('[道路状态] 当前项目ID:', projectId);
+
+        // 获取摄像头列表（用于获取路段状态）
+        const cameras = await fetchCameras(projectId);
+        if (!cameras || cameras.length === 0) {
+            console.warn('[道路状态] 该项目暂无摄像头数据，无法更新道路状态');
+            return;
+        }
+
+        console.log('[道路状态] 获取到摄像头数量:', cameras.length);
+
+        // 只更新路段颜色，不显示摄像头标记
+        console.log('[道路状态] 开始更新所有路段颜色...');
+        let updatedCount = 0;
+        for (const camera of cameras) {
+            if (camera.start_id && camera.end_id && camera.c_point) {
+                await updateRoadSegmentStatus(camera.start_id, camera.end_id, camera.c_point);
+                updatedCount++;
+            }
+        }
+        console.log(`[道路状态] ✓ 路段颜色更新完成，共更新 ${updatedCount} 个路段`);
+
+        // 重新构建KML图，确保灰色道路不参与路线规划
+        if (typeof buildKMLGraph === 'function') {
+            console.log('[道路状态] 重新构建KML图，排除灰色道路...');
+            buildKMLGraph();
+            console.log('[道路状态] ✓ KML图重新构建完成');
+        }
+
+        console.log('[道路状态] ========== 道路状态加载完成 ==========');
+
+    } catch (error) {
+        console.error('[道路状态] 自动加载道路状态失败:', error);
+    }
 }
 
 /**
@@ -1243,13 +1294,13 @@ async function getPointDetails(pointId) {
 }
 
 /**
- * 通过坐标更新线段颜色
+ * 通过坐标更新线段颜色（优化版：使用最短路径算法精确显色）
  * @param {Array} startCoord - 起点坐标 [lng, lat]
  * @param {Array} endCoord - 终点坐标 [lng, lat]
  * @param {string} color - 颜色
  */
 function updatePolylineColorByCoords(startCoord, endCoord, color) {
-    console.log('[路段颜色] ========== 通过坐标查找线段 ==========');
+    console.log('[路段颜色] ========== 通过最短路径算法精确显色 ==========');
 
     if (!window.polylines || window.polylines.length === 0) {
         console.warn('[路段颜色] ✗ 没有线段数据');
@@ -1261,46 +1312,268 @@ function updatePolylineColorByCoords(startCoord, endCoord, color) {
     console.log('[路段颜色] 终点坐标:', endCoord);
     console.log('[路段颜色] 目标颜色:', color);
 
-    const COORD_THRESHOLD = 0.00001; // 坐标匹配阈值（约1米）
-    let foundCount = 0;
-
-    window.polylines.forEach((polyline, index) => {
-        const path = polyline.getPath();
-        if (!path || path.length < 2) return;
-
-        const lineStart = [path[0].lng, path[0].lat];
-        const lineEnd = [path[path.length - 1].lng, path[path.length - 1].lat];
-
-        // 检查线段是否在起点和终点之间
-        const isInRange = isPointBetween(lineStart, startCoord, endCoord, COORD_THRESHOLD) ||
-                          isPointBetween(lineEnd, startCoord, endCoord, COORD_THRESHOLD);
-
-        if (isInRange) {
-            polyline.setOptions({
-                strokeColor: color,
-                zIndex: 15
-            });
-            foundCount++;
-            console.log(`[路段颜色] ✓ 更新线段[${index}] 颜色:`, color);
-        }
-    });
-
-    if (foundCount === 0) {
-        console.warn('[路段颜色] ✗ 未找到匹配的线段！');
-    } else {
-        console.log(`[路段颜色] ✓ 共更新了 ${foundCount} 条线段`);
+    // 1. 构建图结构（如果还没有构建）
+    if (!window.roadGraph) {
+        console.log('[路段颜色] 构建道路图结构...');
+        window.roadGraph = buildRoadGraph(window.polylines);
+        console.log('[路段颜色] ✓ 道路图构建完成，节点数:', Object.keys(window.roadGraph.nodes).length);
     }
 
-    console.log('[路段颜色] ========== 查找线段完成 ==========');
+    // 2. 在图中查找起点和终点对应的节点
+    const COORD_THRESHOLD = 0.00001; // 坐标匹配阈值（约1米）
+    const startNodeId = findNearestNode(window.roadGraph.nodes, startCoord, COORD_THRESHOLD);
+    const endNodeId = findNearestNode(window.roadGraph.nodes, endCoord, COORD_THRESHOLD);
+
+    if (!startNodeId || !endNodeId) {
+        console.warn('[路段颜色] ✗ 未找到起点或终点对应的节点');
+        console.warn('[路段颜色] 起点节点:', startNodeId);
+        console.warn('[路段颜色] 终点节点:', endNodeId);
+        return;
+    }
+
+    console.log('[路段颜色] ✓ 找到起点节点:', startNodeId);
+    console.log('[路段颜色] ✓ 找到终点节点:', endNodeId);
+
+    // 3. 使用 Dijkstra 算法计算最短路径
+    const path = dijkstraShortestPath(window.roadGraph, startNodeId, endNodeId);
+
+    if (!path || path.length === 0) {
+        console.warn('[路段颜色] ✗ 未找到从起点到终点的路径');
+        return;
+    }
+
+    console.log('[路段颜色] ✓ 最短路径节点序列:', path);
+
+    // 4. 根据路径中的节点，更新相应的线段颜色
+    let updatedCount = 0;
+    for (let i = 0; i < path.length - 1; i++) {
+        const fromNode = path[i];
+        const toNode = path[i + 1];
+
+        // 查找连接这两个节点的线段
+        const polylineIndices = window.roadGraph.edges[fromNode]?.[toNode];
+
+        if (polylineIndices && polylineIndices.length > 0) {
+            polylineIndices.forEach(index => {
+                const polyline = window.polylines[index];
+                if (polyline) {
+                    polyline.setOptions({
+                        strokeColor: color,
+                        zIndex: 15
+                    });
+                    updatedCount++;
+                    console.log(`[路段颜色] ✓ 更新线段[${index}] (${fromNode} -> ${toNode}) 颜色:`, color);
+                }
+            });
+        }
+    }
+
+    if (updatedCount === 0) {
+        console.warn('[路段颜色] ✗ 未更新任何线段');
+    } else {
+        console.log(`[路段颜色] ✓ 共更新了 ${updatedCount} 条线段`);
+    }
+
+    console.log('[路段颜色] ========== 精确显色完成 ==========');
 }
 
 /**
- * 判断点是否在两点之间（或接近其中一点）
+ * 构建道路图结构
+ * @param {Array} polylines - 线段数组
+ * @returns {Object} { nodes: {nodeId: [lng, lat]}, edges: {fromNode: {toNode: [polylineIndices]}} }
  */
-function isPointBetween(point, start, end, threshold) {
-    // 检查是否接近起点或终点
-    const distToStart = Math.sqrt(Math.pow(point[0] - start[0], 2) + Math.pow(point[1] - start[1], 2));
-    const distToEnd = Math.sqrt(Math.pow(point[0] - end[0], 2) + Math.pow(point[1] - end[1], 2));
+function buildRoadGraph(polylines) {
+    const nodes = {}; // nodeId -> [lng, lat]
+    const edges = {}; // fromNode -> toNode -> [polylineIndices]
+    const MERGE_THRESHOLD = 0.000001; // 节点合并阈值（约0.1米）
 
-    return distToStart < threshold || distToEnd < threshold;
+    polylines.forEach((polyline, polylineIndex) => {
+        const path = polyline.getPath();
+        if (!path || path.length < 2) return;
+
+        // 提取起点和终点
+        const start = [path[0].lng, path[0].lat];
+        const end = [path[path.length - 1].lng, path[path.length - 1].lat];
+
+        // 查找或创建起点节点
+        const startNodeId = findOrCreateNode(nodes, start, MERGE_THRESHOLD);
+        // 查找或创建终点节点
+        const endNodeId = findOrCreateNode(nodes, end, MERGE_THRESHOLD);
+
+        // 添加边（双向）
+        addEdge(edges, startNodeId, endNodeId, polylineIndex);
+        addEdge(edges, endNodeId, startNodeId, polylineIndex);
+    });
+
+    return { nodes, edges };
+}
+
+/**
+ * 查找或创建节点
+ * @param {Object} nodes - 节点集合
+ * @param {Array} coord - 坐标 [lng, lat]
+ * @param {number} threshold - 合并阈值
+ * @returns {string} 节点ID
+ */
+function findOrCreateNode(nodes, coord, threshold) {
+    // 查找是否有距离很近的节点（可以合并）
+    for (const [nodeId, nodeCoord] of Object.entries(nodes)) {
+        const dist = Math.sqrt(
+            Math.pow(coord[0] - nodeCoord[0], 2) +
+            Math.pow(coord[1] - nodeCoord[1], 2)
+        );
+        if (dist < threshold) {
+            return nodeId;
+        }
+    }
+
+    // 创建新节点
+    const nodeId = `${coord[0].toFixed(6)}_${coord[1].toFixed(6)}`;
+    nodes[nodeId] = coord;
+    return nodeId;
+}
+
+/**
+ * 添加边
+ * @param {Object} edges - 边集合
+ * @param {string} fromNode - 起点节点ID
+ * @param {string} toNode - 终点节点ID
+ * @param {number} polylineIndex - 线段索引
+ */
+function addEdge(edges, fromNode, toNode, polylineIndex) {
+    if (!edges[fromNode]) {
+        edges[fromNode] = {};
+    }
+    if (!edges[fromNode][toNode]) {
+        edges[fromNode][toNode] = [];
+    }
+    edges[fromNode][toNode].push(polylineIndex);
+}
+
+/**
+ * 查找距离最近的节点
+ * @param {Object} nodes - 节点集合
+ * @param {Array} coord - 坐标 [lng, lat]
+ * @param {number} threshold - 阈值
+ * @returns {string|null} 节点ID
+ */
+function findNearestNode(nodes, coord, threshold) {
+    let nearestNodeId = null;
+    let minDist = Infinity;
+
+    for (const [nodeId, nodeCoord] of Object.entries(nodes)) {
+        const dist = Math.sqrt(
+            Math.pow(coord[0] - nodeCoord[0], 2) +
+            Math.pow(coord[1] - nodeCoord[1], 2)
+        );
+        if (dist < minDist) {
+            minDist = dist;
+            nearestNodeId = nodeId;
+        }
+    }
+
+    // 只有距离小于阈值才返回
+    if (minDist < threshold) {
+        return nearestNodeId;
+    }
+
+    return null;
+}
+
+/**
+ * Dijkstra 最短路径算法
+ * @param {Object} graph - 图结构 { nodes, edges }
+ * @param {string} startNode - 起点节点ID
+ * @param {string} endNode - 终点节点ID
+ * @returns {Array|null} 路径节点序列
+ */
+function dijkstraShortestPath(graph, startNode, endNode) {
+    const distances = {}; // 节点 -> 从起点到该节点的最短距离
+    const previous = {};  // 节点 -> 前驱节点
+    const unvisited = new Set(Object.keys(graph.nodes));
+
+    // 初始化距离
+    for (const node of unvisited) {
+        distances[node] = Infinity;
+    }
+    distances[startNode] = 0;
+
+    while (unvisited.size > 0) {
+        // 找到未访问节点中距离最小的节点
+        let currentNode = null;
+        let minDist = Infinity;
+        for (const node of unvisited) {
+            if (distances[node] < minDist) {
+                minDist = distances[node];
+                currentNode = node;
+            }
+        }
+
+        if (currentNode === null || minDist === Infinity) {
+            // 无法到达任何未访问节点
+            break;
+        }
+
+        // 如果到达终点，提前结束
+        if (currentNode === endNode) {
+            break;
+        }
+
+        unvisited.delete(currentNode);
+
+        // 更新相邻节点的距离
+        const neighbors = graph.edges[currentNode] || {};
+        for (const [neighbor, polylineIndices] of Object.entries(neighbors)) {
+            if (!unvisited.has(neighbor)) continue;
+
+            // 计算边的长度（使用线段的实际长度）
+            const edgeLength = calculateEdgeLength(
+                graph.nodes[currentNode],
+                graph.nodes[neighbor]
+            );
+
+            const altDistance = distances[currentNode] + edgeLength;
+            if (altDistance < distances[neighbor]) {
+                distances[neighbor] = altDistance;
+                previous[neighbor] = currentNode;
+            }
+        }
+    }
+
+    // 如果无法到达终点
+    if (distances[endNode] === Infinity) {
+        console.warn('[Dijkstra] 无法从起点到达终点');
+        return null;
+    }
+
+    // 回溯路径
+    const path = [];
+    let current = endNode;
+    while (current !== undefined) {
+        path.unshift(current);
+        current = previous[current];
+    }
+
+    return path;
+}
+
+/**
+ * 计算边的长度（Haversine距离）
+ * @param {Array} coord1 - 坐标1 [lng, lat]
+ * @param {Array} coord2 - 坐标2 [lng, lat]
+ * @returns {number} 距离（米）
+ */
+function calculateEdgeLength(coord1, coord2) {
+    const R = 6371000; // 地球半径（米）
+    const lat1 = coord1[1] * Math.PI / 180;
+    const lat2 = coord2[1] * Math.PI / 180;
+    const dLat = (coord2[1] - coord1[1]) * Math.PI / 180;
+    const dLng = (coord2[0] - coord1[0]) * Math.PI / 180;
+
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
 }

@@ -183,8 +183,26 @@
             // 2. 初始化UI
             NavUI.init();
 
-            // 3. 恢复路线规划数据（从其他页面跳转回来时）
-            NavUI.restoreRoutePlanningData();
+            // 3. 等待地图完全加载后再恢复路线规划数据
+            // 【关键修复】避免在地图未完成初始化时就尝试显示路线导致 Pixel(NaN, NaN) 错误
+            const map = window.NavRenderer ? window.NavRenderer.getMap() : null;
+            if (map) {
+                // 监听地图完成事件
+                map.on('complete', function() {
+                    console.log('[导航页面] 地图加载完成事件触发');
+                    // 延迟执行，确保地图渲染完成
+                    setTimeout(function() {
+                        console.log('[导航页面] 开始恢复路线规划数据...');
+                        NavUI.restoreRoutePlanningData();
+                    }, 300);
+                });
+            } else {
+                // 如果无法获取地图对象，使用延迟作为备选方案
+                console.warn('[导航页面] 无法获取地图对象，使用延迟备选方案');
+                setTimeout(function() {
+                    NavUI.restoreRoutePlanningData();
+                }, 1500);
+            }
 
             console.log('导航系统初始化完成');
         });

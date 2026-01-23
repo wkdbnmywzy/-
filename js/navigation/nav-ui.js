@@ -918,13 +918,83 @@ const NavUI = (function() {
                 waypointsContainer.innerHTML = '';
             }
 
-            // 5. 触发路线规划（手动调用KML路线规划）
+            // 5. 等待KML数据加载完成后再规划路线
+            console.log('[任务导航] 等待KML数据加载...');
+
+            // 延迟执行，等待 NavCore.loadRouteData() 加载KML数据
+            // loadRouteData 会在地图complete事件中被调用
+            setTimeout(() => {
+                console.log('[任务导航] 检查KML数据加载状态...');
+
+                // 检查KML数据是否已加载
+                if (!window.kmlLayers || window.kmlLayers.length === 0) {
+                    console.warn('[任务导航] KML数据还未加载，继续等待...');
+                    // 如果还没加载，再等一会
+                    setTimeout(() => {
+                        attemptRoutePlanning(taskNavData);
+                    }, 1000);
+                } else {
+                    attemptRoutePlanning(taskNavData);
+                }
+            }, 500);
+
+        } catch (error) {
+            console.error('[任务导航] 处理任务导航失败:', error);
+            alert('加载任务导航失败: ' + error.message);
+            // 清除无效数据
+            sessionStorage.removeItem('taskNavigationData');
+        }
+    }
+
+    /**
+     * 尝试规划路线（内部函数，由handleTaskNavigation调用）
+     * @param {Object} taskNavData - 任务导航数据
+     */
+    function attemptRoutePlanning(taskNavData) {
+        try {
             console.log('[任务导航] 开始规划路线...');
+
+            // 检查地图对象是否已初始化
+            // 导航页面的地图对象通过 NavRenderer.getMap() 获取
+            const map = window.NavRenderer && typeof window.NavRenderer.getMap === 'function'
+                ? window.NavRenderer.getMap()
+                : null;
+
+            if (!map) {
+                console.warn('[任务导航] 地图对象未初始化，等待500ms后重试...');
+                // 地图还在初始化中，等待后重试
+                setTimeout(() => {
+                    attemptRoutePlanning(taskNavData);
+                }, 500);
+                return;
+            }
+
+            console.log('[任务导航] ✓ 地图对象已初始化');
+
+            // 【关键修复】等待地图容器尺寸确定（避免 Pixel(NaN, NaN) 错误）
+            const mapContainer = document.getElementById('navigation-map-container');
+            if (!mapContainer || mapContainer.offsetWidth === 0 || mapContainer.offsetHeight === 0) {
+                console.warn('[任务导航] 地图容器尺寸未确定，等待500ms后重试...');
+                setTimeout(() => {
+                    attemptRoutePlanning(taskNavData);
+                }, 500);
+                return;
+            }
+
+            console.log('[任务导航] ✓ 地图容器尺寸:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
 
             // 确保KML图已构建
             if (typeof buildKMLGraph === 'function' && (!window.kmlGraph || !window.kmlNodes || window.kmlNodes.length === 0)) {
                 console.log('[任务导航] 构建KML图...');
                 buildKMLGraph();
+            }
+
+            // 再次检查KML数据
+            if (!window.kmlLayers || window.kmlLayers.length === 0) {
+                console.error('[任务导航] KML数据未加载，无法规划路线');
+                alert('地图数据未加载完成，请稍后再试');
+                sessionStorage.removeItem('taskNavigationData');
+                return;
             }
 
             // 调用KML路线规划
@@ -936,36 +1006,36 @@ const NavUI = (function() {
                 routeResult = planKMLRoute(startCoord, endCoord);
 
                 if (routeResult && routeResult.path && routeResult.path.length >= 2) {
-                    console.log('[任务导航] 路线规划成功，路径点数:', routeResult.path.length);
+                    console.log('[任务导航] ✓ 路线规划成功，路径点数:', routeResult.path.length);
 
-                    // 显示路线
-                    if (typeof displayKMLRoute === 'function') {
-                        displayKMLRoute(routeResult);
-                    }
+                    // 【关键修复】延迟显示路线，确保地图完全准备好
+                    setTimeout(() => {
+                        try {
+                            if (typeof displayKMLRoute === 'function') {
+                                displayKMLRoute(routeResult);
+                            }
+                            console.log('[任务导航] ✓ 路线规划完成，等待用户点击"开始导航"按钮');
+                        } catch (displayError) {
+                            console.error('[任务导航] 显示路线失败:', displayError);
+                        }
+                    }, 200);
+
+                    // 清除任务导航数据，避免刷新时重复执行
+                    sessionStorage.removeItem('taskNavigationData');
                 } else {
                     console.error('[任务导航] 路线规划失败');
                     alert('无法规划路线，请检查起点和终点是否在道路上');
                     sessionStorage.removeItem('taskNavigationData');
-                    return;
                 }
             } else {
                 console.error('[任务导航] 未找到路线规划函数');
                 alert('路线规划功能不可用');
                 sessionStorage.removeItem('taskNavigationData');
-                return;
             }
 
-            // 6. 路线规划完成，清除任务导航数据
-            // 用户需要手动点击"开始导航"按钮
-            console.log('[任务导航] ✓ 路线规划完成，等待用户点击"开始导航"按钮');
-
-            // 清除任务导航数据，避免刷新时重复执行
-            sessionStorage.removeItem('taskNavigationData');
-
         } catch (error) {
-            console.error('[任务导航] 处理任务导航失败:', error);
-            alert('加载任务导航失败: ' + error.message);
-            // 清除无效数据
+            console.error('[任务导航] 规划路线失败:', error);
+            alert('路线规划失败: ' + error.message);
             sessionStorage.removeItem('taskNavigationData');
         }
     }

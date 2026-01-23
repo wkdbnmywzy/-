@@ -80,6 +80,9 @@ const NavRenderer = (function() {
             const mapOptions = Object.assign({}, defaultOptions, options);
             map = new AMap.Map(containerId, mapOptions);
 
+            // 将地图对象也设置到全局，供其他模块使用（如kml-route-planning.js）
+            window.map = map;
+
             return map;
         } catch (e) {
             console.error('[NavRenderer] 地图初始化失败:', e);

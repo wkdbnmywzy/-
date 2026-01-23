@@ -1372,8 +1372,15 @@ function initProjectSelection() {
             if (selectedProvince && selectedProject) {
                 // 获取完整的项目对象
                 const projectObj = typeof selectedProject === 'object' ? selectedProject : null;
+                console.log('[项目选择] selectedProject类型:', typeof selectedProject);
+                console.log('[项目选择] selectedProject完整对象:', selectedProject);
+                console.log('[项目选择] projectObj:', projectObj);
+
                 const projectName = projectObj ? projectObj.projectName : selectedProject;
-                const projectCode = projectObj ? projectObj.projectCode : null;
+                const projectCode = projectObj ? (projectObj.projectCode || projectObj.id) : null;
+
+                console.log('[项目选择] 提取的projectName:', projectName);
+                console.log('[项目选择] 提取的projectCode:', projectCode);
 
                 // 保存项目选择（包含projectCode）
                 const projectSelection = {
@@ -1382,6 +1389,7 @@ function initProjectSelection() {
                     projectCode: projectCode,
                     timestamp: new Date().toISOString()
                 };
+                console.log('[项目选择] 将保存到sessionStorage的数据:', projectSelection);
                 sessionStorage.setItem('projectSelection', JSON.stringify(projectSelection));
 
                 // 检查是否是管理员

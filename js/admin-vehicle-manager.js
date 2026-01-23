@@ -151,17 +151,17 @@ const AdminVehicleManager = (function() {
         const vehicleLegend = document.getElementById('vehicle-legend');
         const filterBar = document.querySelector('.admin-filter-bar');
 
-        // 默认显示车辆图例和筛选栏
+        // 【修改】默认隐藏车辆图例和筛选栏，按钮为非选中状态
         if (vehicleLegend) {
-            vehicleLegend.style.display = 'block';
+            vehicleLegend.style.display = 'none';
         }
         if (filterBar) {
-            filterBar.style.display = 'flex';
+            filterBar.style.display = 'none';
         }
         if (vehicleToggleBtn) {
-            vehicleToggleBtn.classList.add('active');
+            vehicleToggleBtn.classList.remove('active');
         }
-        console.log('[车辆管理器] 默认显示车辆图例和筛选栏');
+        console.log('[车辆管理器] 默认隐藏车辆图例和筛选栏');
 
         if (vehicleToggleBtn && vehicleLegend) {
             vehicleToggleBtn.addEventListener('click', function() {

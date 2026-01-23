@@ -272,29 +272,45 @@ async function loadMapDataFromAPI() {
         // 1. 获取项目选择信息
         const projectSelection = sessionStorage.getItem('projectSelection');
         const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-        
+
         let projectId = null;
         let projectName = '所有项目';
         let projectCenter = null; // 项目中心经纬度
-        
+
         if (projectSelection) {
             const selection = JSON.parse(projectSelection);
-            const selectedProject = selection.project;
+            console.log('[API加载] projectSelection数据:', selection);
 
-            if (selectedProject && selectedProject.projectCode) {
-                projectId = selectedProject.projectCode;
-                projectName = selectedProject.projectName;
-
-                // 项目经纬度（如果有的话）
-                if (selectedProject.longitude && selectedProject.latitude) {
-                    projectCenter = [selectedProject.longitude, selectedProject.latitude];
-                }
-                console.log('[API加载] 选择的项目:', {
-                    name: projectName,
-                    id: projectId,
-                    center: projectCenter
-                });
+            // 优先使用selection中直接保存的projectCode
+            if (selection.projectCode) {
+                projectId = selection.projectCode;
+                projectName = selection.project; // project字段就是项目名称字符串
+                console.log('[API加载] 从projectSelection获取projectCode:', projectId);
             }
+
+            // 如果没有projectCode，尝试从currentUser.projects中查找
+            if (!projectId && selection.project) {
+                const selectedProjectName = selection.project;
+                const userProjects = currentUser.projects || [];
+                const foundProject = userProjects.find(p => p.projectName === selectedProjectName);
+
+                if (foundProject) {
+                    projectId = foundProject.projectCode || foundProject.id;
+                    projectName = foundProject.projectName;
+
+                    // 项目经纬度（如果有的话）
+                    if (foundProject.longitude && foundProject.latitude) {
+                        projectCenter = [foundProject.longitude, foundProject.latitude];
+                    }
+                    console.log('[API加载] 从currentUser.projects查找到项目:', foundProject);
+                }
+            }
+
+            console.log('[API加载] 最终项目信息:', {
+                name: projectName,
+                id: projectId,
+                center: projectCenter
+            });
         }
 
         // 2. 准备请求headers（地图API不需要token认证）

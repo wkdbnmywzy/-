@@ -167,23 +167,41 @@ class TaskManager {
     getProjectId() {
         try {
             const projectSelection = sessionStorage.getItem('projectSelection');
-            const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
 
             if (!projectSelection) {
+                console.warn('[任务页面] 未找到projectSelection');
                 return null;
             }
 
             const selection = JSON.parse(projectSelection);
-            const projectName = selection.project;
+            console.log('[任务页面] projectSelection完整数据:', selection);
 
-            // 从用户的项目列表中找到选择的项目
-            const userProjects = currentUser.projects || [];
-            const selectedProject = userProjects.find(p => p.projectName === projectName);
-
-            if (selectedProject) {
-                return selectedProject.projectCode || selectedProject.id;
+            // 优先使用projectSelection中直接保存的projectCode
+            if (selection.projectCode) {
+                console.log('[任务页面] 从projectSelection获取projectCode:', selection.projectCode);
+                return selection.projectCode;
             }
 
+            // 如果projectSelection中没有projectCode，尝试从currentUser.projects中查找
+            const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+            console.log('[任务页面] currentUser完整数据:', currentUser);
+
+            const projectName = selection.project;
+            console.log('[任务页面] 要查找的项目名称:', projectName);
+
+            const userProjects = currentUser.projects || [];
+            console.log('[任务页面] 用户项目列表:', userProjects);
+
+            const selectedProject = userProjects.find(p => p.projectName === projectName);
+            console.log('[任务页面] 找到的项目:', selectedProject);
+
+            if (selectedProject) {
+                const projectId = selectedProject.projectCode || selectedProject.id;
+                console.log('[任务页面] 从currentUser.projects获取projectId:', projectId);
+                return projectId;
+            }
+
+            console.warn('[任务页面] 无法获取项目ID');
             return null;
         } catch (error) {
             console.error('[任务页面] 获取项目ID失败:', error);

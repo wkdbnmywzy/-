@@ -55,14 +55,37 @@ function initVehicleLocationReporter() {
         return;
     }
 
-    if (!projectSelection.project || !projectSelection.project.projectCode) {
+    // 获取项目ID（优先从projectSelection.projectCode获取）
+    let projectId = null;
+    if (projectSelection.projectCode) {
+        projectId = projectSelection.projectCode;
+        console.log('[位置上报器] 从projectSelection.projectCode获取项目ID:', projectId);
+    } else if (projectSelection.project) {
+        // 兼容旧版本：如果project是对象
+        if (typeof projectSelection.project === 'object' && projectSelection.project.projectCode) {
+            projectId = projectSelection.project.projectCode;
+            console.log('[位置上报器] 从projectSelection.project.projectCode获取项目ID:', projectId);
+        } else {
+            // project是字符串，需要从currentUser.projects中查找
+            const projectName = projectSelection.project;
+            const userProjects = currentUser.projects || [];
+            const foundProject = userProjects.find(p => p.projectName === projectName);
+            if (foundProject) {
+                projectId = foundProject.projectCode || foundProject.id;
+                console.log('[位置上报器] 从currentUser.projects查找到项目ID:', projectId);
+            }
+        }
+    }
+
+    if (!projectId) {
         console.warn('[位置上报器] 缺少项目ID，无法上报');
+        console.warn('[位置上报器] projectSelection:', projectSelection);
         return;
     }
 
     // 保存信息
     reporterState.currentUser = currentUser;
-    reporterState.projectId = projectSelection.project.projectCode;
+    reporterState.projectId = projectId;
 
     console.log('[位置上报器] 初始化成功');
     console.log('[位置上报器] 车牌号:', currentUser.licensePlate);
@@ -162,7 +185,19 @@ async function reportVehicleLocation() {
         });
 
         // 获取车辆方向角度（如果在导航中）
-        const direction = window.currentMapRotation || 0;
+        // 注意：后端要求direction不能为0，如果没有方向数据则使用1作为默认值
+        const direction = window.currentMapRotation || 1;
+
+        // 构建请求数据（注意：后端Go接口要求首字母大写）
+        const requestData = {
+            Latitude: latitude,
+            Longitude: longitude,
+            PlateNumber: plateNumber,
+            ProjectId: projectId,
+            Direction: direction  // 车辆方向角度（相对正北），不能为0
+        };
+
+        console.log('[位置上报器] 发送请求数据:', JSON.stringify(requestData, null, 2));
 
         // 发送上报请求
         const response = await fetch(LocationReporterConfig.apiUrl, {
@@ -170,17 +205,20 @@ async function reportVehicleLocation() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                latitude,
-                longitude,
-                plateNumber,
-                projectId,
-                direction  // 车辆方向角度（相对正北）
-            })
+            body: JSON.stringify(requestData)
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            // 尝试读取错误响应
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                console.error('[位置上报器] 服务器返回错误:', errorData);
+                errorMessage += ` - ${JSON.stringify(errorData)}`;
+            } catch (e) {
+                // 无法解析JSON错误信息
+            }
+            throw new Error(errorMessage);
         }
 
         const result = await response.json();
