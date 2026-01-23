@@ -95,6 +95,21 @@
         </div>
     </div>
 
+    <!-- 区块点位卡片弹窗 -->
+    <div class="area-block-panel" id="area-block-panel">
+        <div class="area-block-header">
+            <div class="area-block-title" id="area-block-name">区块名称</div>
+            <button class="area-block-close-btn" id="area-block-close-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="area-block-content">
+            <div class="area-block-points-list" id="area-block-points-list">
+                <!-- 区块内的点位列表将动态插入 -->
+            </div>
+        </div>
+    </div>
+
     <!-- 只引用必要的脚本 -->
     <script src="js/point-selection.js"></script>
 
@@ -276,7 +291,7 @@
         });
     }
 
-    // 根据KML点渲染“建筑/区域”分类标签
+    // 根据KML点渲染"建筑/区域"分类标签
     function renderCategoryTags() {
         const buildingContainer = document.getElementById('building-tags');
         const areaContainer = document.getElementById('area-tags');
@@ -304,42 +319,148 @@
         points.forEach(p => { if (p && p.name) uniqueByName.set(p.name, p); });
         const uniquePoints = Array.from(uniqueByName.values());
 
-        // 简单规则分类：包含“楼/栋/馆/中心/大厦/宿舍/办公”为建筑；包含“区/堆场/加工/材料/停车/广场/场”为区域
-        const buildingRegex = /(楼|栋|馆|中心|大厦|宿舍|办公|库|车库)/;
-        const areaRegex = /(区|堆场|加工|材料|停车|广场|场)/;
-
         const buildings = [];
-        const areas = [];
+        const areaBlocksMap = new Map(); // 用于存储区块名称和对应的点位
 
         uniquePoints.forEach(p => {
             const name = p.name || '';
-            if (areaRegex.test(name) && !buildingRegex.test(name)) {
-                areas.push(name);
-            } else if (buildingRegex.test(name)) {
-                buildings.push(name);
+            // 判断是否为区块点（名称中包含 '-'）
+            if (name.includes('-')) {
+                // 提取区块名称（'-' 之前的部分）
+                const blockName = name.substring(0, name.indexOf('-'));
+                if (!areaBlocksMap.has(blockName)) {
+                    areaBlocksMap.set(blockName, []);
+                }
+                areaBlocksMap.get(blockName).push(p);
             } else {
-                // 未匹配的名称：优先归入建筑，避免遗漏
+                // 非区块点归入建筑
                 buildings.push(name);
             }
         });
 
-        // 渲染标签的辅助函数
-        const appendTags = (container, names) => {
-            // 最多展示30个，避免过多
-            names.slice(0, 30).forEach(n => {
+        // 渲染建筑标签（非区块点）
+        if (buildings.length === 0) {
+            buildingContainer.innerHTML = '<span class="picker-tag" style="opacity:.5; pointer-events:none;">暂无数据</span>';
+        } else {
+            buildings.slice(0, 30).forEach(n => {
                 const span = document.createElement('span');
                 span.className = 'picker-tag';
                 span.textContent = n;
-                container.appendChild(span);
+                buildingContainer.appendChild(span);
             });
-            if (names.length === 0) {
-                container.innerHTML = '<span class="picker-tag" style="opacity:.5; pointer-events:none;">暂无数据</span>';
-            }
-        };
+        }
 
-        appendTags(buildingContainer, buildings);
-        appendTags(areaContainer, areas);
+        // 渲染区块标签（区块名称）
+        const areaBlocks = Array.from(areaBlocksMap.keys());
+        if (areaBlocks.length === 0) {
+            areaContainer.innerHTML = '<span class="picker-tag" style="opacity:.5; pointer-events:none;">暂无数据</span>';
+        } else {
+            areaBlocks.slice(0, 30).forEach(blockName => {
+                const span = document.createElement('span');
+                span.className = 'picker-tag picker-tag-area';
+                span.textContent = blockName;
+                span.dataset.blockName = blockName; // 存储区块名称
+                areaContainer.appendChild(span);
+            });
+        }
+
+        // 存储区块数据供后续使用
+        window.areaBlocksData = areaBlocksMap;
     }
+
+    // 显示区块点位卡片
+    function showAreaBlockPanel(blockName) {
+        const panel = document.getElementById('area-block-panel');
+        const blockNameEl = document.getElementById('area-block-name');
+        const pointsListEl = document.getElementById('area-block-points-list');
+
+        if (!window.areaBlocksData || !window.areaBlocksData.has(blockName)) {
+            console.error('未找到区块数据:', blockName);
+            return;
+        }
+
+        // 设置区块名称
+        blockNameEl.textContent = blockName;
+
+        // 获取区块下的点位
+        const points = window.areaBlocksData.get(blockName);
+
+        // 清空并渲染点位列表
+        pointsListEl.innerHTML = '';
+        points.forEach(point => {
+            const item = document.createElement('div');
+            item.className = 'area-block-point-item';
+            item.innerHTML = `
+                <div class="area-block-point-name">${point.name}</div>
+                <button class="area-block-point-btn" data-point-name="${point.name}">
+                    选择
+                </button>
+            `;
+
+            // 绑定选择按钮事件
+            const btn = item.querySelector('.area-block-point-btn');
+            btn.addEventListener('click', () => {
+                selectBlockPoint(point.name);
+            });
+
+            pointsListEl.appendChild(item);
+        });
+
+        // 显示面板（添加 active 类触发滑入动画）
+        panel.style.display = 'flex';
+        setTimeout(() => {
+            panel.classList.add('active');
+        }, 10);
+    }
+
+    // 关闭区块点位卡片
+    function closeAreaBlockPanel() {
+        const panel = document.getElementById('area-block-panel');
+        panel.classList.remove('active');
+        setTimeout(() => {
+            panel.style.display = 'none';
+        }, 300); // 等待动画完成
+    }
+
+    // 选择区块内的点位
+    function selectBlockPoint(pointName) {
+        console.log('选择区块点位:', pointName);
+
+        // 获取当前激活的输入框
+        const activeInput = getCurrentActiveInput();
+        if (activeInput) {
+            activeInput.value = pointName;
+            console.log('已将点位填入输入框:', pointName);
+        }
+
+        // 关闭卡片
+        closeAreaBlockPanel();
+
+        // 调用 point-selection.js 中的选择标签位置逻辑（如果存在）
+        if (typeof selectTagLocation === 'function') {
+            selectTagLocation(pointName);
+        }
+    }
+
+    // 初始化区块卡片事件
+    function initAreaBlockPanel() {
+        // 关闭按钮事件
+        const closeBtn = document.getElementById('area-block-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeAreaBlockPanel);
+        }
+
+        // 点击面板外部关闭（可选）
+        const panel = document.getElementById('area-block-panel');
+        if (panel) {
+            panel.addEventListener('click', (e) => {
+                if (e.target === panel) {
+                    closeAreaBlockPanel();
+                }
+            });
+        }
+    }
+
 
     // 获取当前激活的输入框
     function getCurrentActiveInput() {
@@ -406,12 +527,33 @@
         // 渲染分类标签（建筑/区域）
         renderCategoryTags();
 
+        // 初始化区块卡片
+        initAreaBlockPanel();
+
+        // 初始化区块标签点击事件
+        initAreaTagsClickEvent();
+
         // 初始化标签切换
         initTabSwitching();
 
         // 【已移除】"我的位置"点击事件由 point-selection.js 统一处理
         // 避免重复绑定导致起点终点同时被更新
     });
+
+    // 初始化区块标签点击事件
+    function initAreaTagsClickEvent() {
+        // 使用事件委托监听区块标签点击
+        const areaContainer = document.getElementById('area-tags');
+        if (areaContainer) {
+            areaContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('picker-tag-area')) {
+                    const blockName = e.target.dataset.blockName || e.target.textContent;
+                    console.log('点击区块标签:', blockName);
+                    showAreaBlockPanel(blockName);
+                }
+            });
+        }
+    }
 
     // 初始化标签切换功能
     function initTabSwitching() {

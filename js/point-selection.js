@@ -551,6 +551,13 @@ function unlockAndRestoreInputType() {
 // 分类标签点击事件
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('picker-tag')) {
+        // 如果是区块标签（picker-tag-area），不执行选择逻辑，由区块卡片处理
+        if (e.target.classList.contains('picker-tag-area')) {
+            console.log('点击区块标签，跳过默认选择逻辑');
+            return;
+        }
+
+        // 建筑标签：执行原有的选择逻辑
         // 先锁定当前输入类型
         lockCurrentInputType();
         const tagName = e.target.textContent;

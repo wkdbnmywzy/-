@@ -104,13 +104,8 @@ const APIDataConverter = {
             return null;
         }
 
-        // 解析名称 - API使用 point_name
+        // 解析名称 - API使用 point_name，保留完整名称（包含区块前缀）
         let name = point.point_name || point.name || '未命名点';
-        // 去掉"区块名-"前缀（如：A区-入口 → 入口）
-        const dashIndex = name.indexOf('-');
-        if (dashIndex !== -1) {
-            name = name.substring(dashIndex + 1);
-        }
 
         // 根据icon_id获取本地图标路径
         const iconInfo = this.getIconByIconId(point.icon_id);

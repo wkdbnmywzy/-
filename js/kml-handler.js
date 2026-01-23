@@ -863,6 +863,12 @@ function displayKMLFeatures(features, fileName) {
         const featureCoordinates = [feature.geometry.coordinates];
         allCoordinates.push(...featureCoordinates);
 
+        // 首页过滤：不显示名称中包含'-'的区块点位（但数据已加载）
+        if (feature.name && feature.name.includes('-')) {
+            console.log('首页过滤区块点位:', feature.name);
+            return; // 跳过显示，但数据仍在 points 数组中
+        }
+
         // 使用图标标记
         const marker = new AMap.Marker({
             position: feature.geometry.coordinates,
