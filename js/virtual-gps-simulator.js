@@ -108,8 +108,18 @@ const VirtualGPS = {
                 const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
                 const projectSelection = JSON.parse(sessionStorage.getItem('projectSelection') || '{}');
 
-                plateNumber = currentUser.licensePlate;
-                projectId = projectSelection.project?.projectCode;
+                plateNumber = plateNumber || currentUser.licensePlate;
+
+                // 优先从projectSelection.projectCode获取，其次从project对象获取
+                if (!projectId) {
+                    if (projectSelection.projectCode) {
+                        projectId = projectSelection.projectCode;
+                    } else if (projectSelection.projectId) {
+                        projectId = projectSelection.projectId;
+                    } else if (typeof projectSelection.project === 'object' && projectSelection.project?.projectCode) {
+                        projectId = projectSelection.project.projectCode;
+                    }
+                }
             }
 
             if (!plateNumber || !projectId) {

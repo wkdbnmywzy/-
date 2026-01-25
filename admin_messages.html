@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>消息中心</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <style>
+        .message-page {
+            min-height: 100vh;
+            background-color: #f5f7fa;
+            padding-bottom: 20px;
+        }
+
+        /* 顶部导航栏 */
+        .message-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: linear-gradient(135deg, #2a86ff 0%, #1a6fdd 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            z-index: 100;
+        }
+
+        .back-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .header-title {
+            flex: 1;
+            text-align: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 500;
+            margin-right: 40px;
+        }
+
+        .header-action {
+            color: white;
+            font-size: 14px;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* 消息列表容器 */
+        .message-container {
+            padding-top: 66px;
+            padding-left: 16px;
+            padding-right: 16px;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 16px;
+            color: #ddd;
+        }
+
+        .empty-state p {
+            font-size: 16px;
+        }
+
+        /* 消息项 - 类似短信样式 */
+        .message-item {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .message-item:active {
+            transform: scale(0.98);
+            background: #f8f9fa;
+        }
+
+        .message-item.unread {
+            border-left: 4px solid #2a86ff;
+        }
+
+        .message-item.unread::before {
+            content: '';
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 8px;
+            height: 8px;
+            background: #ff4d4f;
+            border-radius: 50%;
+        }
+
+        .message-header-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .message-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .message-icon.alert-red {
+            background: #ffebee;
+            color: #f44336;
+        }
+
+        .message-icon.alert-orange {
+            background: #fff3e0;
+            color: #ff9800;
+        }
+
+        .message-icon i {
+            font-size: 20px;
+        }
+
+        .message-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .message-content {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+            margin-top: 8px;
+            padding-left: 52px;
+        }
+
+        /* 消息详情弹窗 */
+        .message-detail-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .message-detail-overlay.show {
+            display: flex;
+        }
+
+        .message-detail-card {
+            background: white;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .detail-header {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-header .message-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 12px;
+        }
+
+        .detail-header .message-icon i {
+            font-size: 28px;
+        }
+
+        .detail-title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .detail-time {
+            text-align: center;
+            font-size: 13px;
+            color: #999;
+        }
+
+        .detail-body {
+            padding: 20px;
+        }
+
+        .detail-content {
+            font-size: 15px;
+            color: #333;
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+
+        .detail-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .detail-info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .detail-info-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-info-label {
+            color: #999;
+            font-size: 14px;
+        }
+
+        .detail-info-value {
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .detail-footer {
+            padding: 16px 20px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            gap: 12px;
+        }
+
+        .detail-btn {
+            flex: 1;
+            height: 44px;
+            border-radius: 22px;
+            border: none;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .detail-btn.close-btn {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .detail-btn.delete-btn {
+            background: #ffebee;
+            color: #f44336;
+        }
+
+        .detail-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* 日期分组 */
+        .date-group {
+            margin-bottom: 20px;
+        }
+
+        .date-label {
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="message-page">
+        <!-- 顶部导航 -->
+        <div class="message-header">
+            <button class="back-btn" id="back-btn">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="header-title">消息中心</div>
+            <button class="header-action" id="mark-all-read">全部已读</button>
+        </div>
+
+        <!-- 消息列表 -->
+        <div class="message-container" id="message-container">
+            <!-- 动态生成消息列表 -->
+        </div>
+
+        <!-- 消息详情弹窗 -->
+        <div class="message-detail-overlay" id="message-detail-overlay">
+            <div class="message-detail-card">
+                <div class="detail-header">
+                    <div class="message-icon alert-red" id="detail-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="detail-title" id="detail-title">警告标题</div>
+                    <div class="detail-time" id="detail-time">2024-01-01 12:00</div>
+                </div>
+                <div class="detail-body">
+                    <div class="detail-content" id="detail-content">
+                        消息内容
+                    </div>
+                    <div class="detail-info">
+                        <div class="detail-info-item">
+                            <span class="detail-info-label">车辆</span>
+                            <span class="detail-info-value" id="detail-vehicle">-</span>
+                        </div>
+                        <div class="detail-info-item">
+                            <span class="detail-info-label">围栏</span>
+                            <span class="detail-info-value" id="detail-fence">-</span>
+                        </div>
+                        <div class="detail-info-item">
+                            <span class="detail-info-label">位置</span>
+                            <span class="detail-info-value" id="detail-location">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-footer">
+                    <button class="detail-btn close-btn" id="detail-close">关闭</button>
+                    <button class="detail-btn delete-btn" id="detail-delete">删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/admin-message-manager.js"></script>
+    <script>
+        // 当前查看的消息
+        let currentMessage = null;
+
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            renderMessages();
+            bindEvents();
+        });
+
+        // 绑定事件
+        function bindEvents() {
+            // 返回按钮
+            document.getElementById('back-btn').addEventListener('click', function() {
+                window.location.href = 'admin_profile.html';
+            });
+
+            // 全部已读
+            document.getElementById('mark-all-read').addEventListener('click', function() {
+                AdminMessageManager.markAllAsRead();
+                renderMessages();
+            });
+
+            // 关闭详情
+            document.getElementById('detail-close').addEventListener('click', closeDetail);
+            document.getElementById('message-detail-overlay').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeDetail();
+                }
+            });
+
+            // 删除消息
+            document.getElementById('detail-delete').addEventListener('click', function() {
+                if (currentMessage) {
+                    AdminMessageManager.deleteMessage(currentMessage.id);
+                    closeDetail();
+                    renderMessages();
+                }
+            });
+        }
+
+        // 渲染消息列表
+        function renderMessages() {
+            const container = document.getElementById('message-container');
+            const messages = AdminMessageManager.getMessages();
+
+            if (messages.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>暂无消息</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 按日期分组
+            const grouped = groupMessagesByDate(messages);
+            let html = '';
+
+            for (const [date, msgs] of Object.entries(grouped)) {
+                html += `<div class="date-group">`;
+                html += `<div class="date-label">${date}</div>`;
+
+                for (const msg of msgs) {
+                    const isUnread = !msg.read;
+                    const iconClass = msg.type === 'fence_enter_prohibit' ? 'alert-red' : 'alert-orange';
+                    const iconName = msg.type === 'fence_enter_prohibit' ? 'exclamation-triangle' : 'exclamation-circle';
+
+                    html += `
+                        <div class="message-item ${isUnread ? 'unread' : ''}" data-id="${msg.id}">
+                            <div class="message-header-row">
+                                <div class="message-icon ${iconClass}">
+                                    <i class="fas fa-${iconName}"></i>
+                                </div>
+                                <div class="message-info">
+                                    <div class="message-title">${msg.title}</div>
+                                    <div class="message-time">${AdminMessageManager.formatTime(msg.timestamp)}</div>
+                                </div>
+                            </div>
+                            <div class="message-content">${msg.content}</div>
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+            }
+
+            container.innerHTML = html;
+
+            // 绑定点击事件
+            container.querySelectorAll('.message-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const msgId = this.dataset.id;
+                    const msg = messages.find(m => m.id === msgId);
+                    if (msg) {
+                        showDetail(msg);
+                    }
+                });
+            });
+        }
+
+        // 按日期分组
+        function groupMessagesByDate(messages) {
+            const groups = {};
+            const today = new Date().toDateString();
+            const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+            messages.forEach(msg => {
+                const msgDate = new Date(msg.timestamp).toDateString();
+                let label;
+
+                if (msgDate === today) {
+                    label = '今天';
+                } else if (msgDate === yesterday) {
+                    label = '昨天';
+                } else {
+                    label = new Date(msg.timestamp).toLocaleDateString('zh-CN', {
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                }
+
+                if (!groups[label]) {
+                    groups[label] = [];
+                }
+                groups[label].push(msg);
+            });
+
+            return groups;
+        }
+
+        // 显示详情
+        function showDetail(msg) {
+            currentMessage = msg;
+
+            // 标记为已读
+            AdminMessageManager.markAsRead(msg.id);
+
+            // 更新UI
+            const iconEl = document.getElementById('detail-icon');
+            const isRed = msg.type === 'fence_enter_prohibit';
+            iconEl.className = `message-icon ${isRed ? 'alert-red' : 'alert-orange'}`;
+            iconEl.innerHTML = `<i class="fas fa-${isRed ? 'exclamation-triangle' : 'exclamation-circle'}"></i>`;
+
+            document.getElementById('detail-title').textContent = msg.title;
+            document.getElementById('detail-time').textContent = new Date(msg.timestamp).toLocaleString('zh-CN');
+            document.getElementById('detail-content').textContent = msg.content;
+            document.getElementById('detail-vehicle').textContent = msg.vehicleId || '-';
+            document.getElementById('detail-fence').textContent = msg.fenceName || '-';
+
+            if (msg.latitude && msg.longitude) {
+                document.getElementById('detail-location').textContent =
+                    `${msg.latitude.toFixed(6)}, ${msg.longitude.toFixed(6)}`;
+            } else {
+                document.getElementById('detail-location').textContent = '-';
+            }
+
+            document.getElementById('message-detail-overlay').classList.add('show');
+
+            // 刷新列表显示（更新已读状态）
+            renderMessages();
+        }
+
+        // 关闭详情
+        function closeDetail() {
+            document.getElementById('message-detail-overlay').classList.remove('show');
+            currentMessage = null;
+        }
+    </script>
+</body>
+</html>

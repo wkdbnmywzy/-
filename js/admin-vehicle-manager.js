@@ -277,7 +277,8 @@ const AdminVehicleManager = (function() {
                     const result = await AdminFenceManager.checkVehicleInFence(
                         vehicle.latitude,
                         vehicle.longitude,
-                        vehicleId
+                        vehicleId,
+                        'temp'  // 临时车
                     );
 
                     // 找到对应的标记
@@ -303,7 +304,8 @@ const AdminVehicleManager = (function() {
                     const result = await AdminFenceManager.checkVehicleInFence(
                         vehicle.latitude,
                         vehicle.longitude,
-                        vehicleId
+                        vehicleId,
+                        'fixed'  // 固定车
                     );
 
                     // 找到对应的标记
@@ -332,7 +334,10 @@ const AdminVehicleManager = (function() {
      * @param {AMap.Marker} marker - 车辆标记
      */
     function startVehicleBlink(marker) {
+        if (!marker) return;
+
         const extData = marker.getExtData();
+        if (!extData) return;
 
         // 如果已经在闪烁，不重复启动
         if (extData.isViolating) {
@@ -342,46 +347,30 @@ const AdminVehicleManager = (function() {
         console.log('[车辆管理器] 车辆违规，开始闪烁:', extData.vehicleId);
 
         extData.isViolating = true;
+        extData.originalIcon = marker.getIcon(); // 保存原始图标
         marker.setExtData(extData);
 
-        // 创建红色闪烁效果
-        let isRed = false;
-        const originalIcon = marker.getIcon();
-
-        // 创建红色覆盖层图标
-        const redIcon = new AMap.Icon({
-            size: new AMap.Size(40, 40),
-            image: originalIcon.getImageUrl(),
-            imageSize: new AMap.Size(40, 40)
-        });
+        // 创建闪烁效果（通过改变透明度和层级实现）
+        let isHighlight = false;
 
         extData.blinkTimer = setInterval(() => {
-            if (isRed) {
-                // 恢复原色
-                marker.setIcon(originalIcon);
-                marker.setzIndex(100);
-            } else {
-                // 变红色并提升层级
-                marker.setIcon(redIcon);
-                marker.setzIndex(200);
-
-                // 添加红色滤镜效果
-                const content = marker.getContent();
-                if (content) {
-                    content.style.filter = 'hue-rotate(0deg) saturate(2) brightness(1.2)';
-                    content.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
-                } else {
-                    // 如果是图标标记，通过DOM操作添加红色效果
-                    const markerDom = marker.getDom();
-                    if (markerDom) {
-                        markerDom.style.filter = isRed ? 'none' : 'drop-shadow(0 0 10px red) brightness(1.5) saturate(2)';
+            try {
+                if (isHighlight) {
+                    // 恢复正常
+                    marker.setzIndex(100);
+                    if (extData.originalIcon) {
+                        marker.setIcon(extData.originalIcon);
                     }
+                } else {
+                    // 高亮状态 - 提升层级
+                    marker.setzIndex(300);
                 }
+                isHighlight = !isHighlight;
+            } catch (e) {
+                console.warn('[车辆管理器] 闪烁效果异常:', e.message);
             }
-            isRed = !isRed;
-        }, 500); // 每500ms闪烁一次
+        }, 500);
 
-        extData.blinkTimer = extData.blinkTimer;
         marker.setExtData(extData);
     }
 
@@ -390,9 +379,10 @@ const AdminVehicleManager = (function() {
      * @param {AMap.Marker} marker - 车辆标记
      */
     function stopVehicleBlink(marker) {
-        const extData = marker.getExtData();
+        if (!marker) return;
 
-        if (!extData.isViolating) {
+        const extData = marker.getExtData();
+        if (!extData || !extData.isViolating) {
             return;
         }
 
@@ -405,15 +395,14 @@ const AdminVehicleManager = (function() {
         }
 
         extData.isViolating = false;
-        marker.setExtData(extData);
 
-        // 恢复原始样式
-        marker.setzIndex(100);
-        const markerDom = marker.getDom();
-        if (markerDom) {
-            markerDom.style.filter = 'none';
-            markerDom.style.boxShadow = 'none';
+        // 恢复原始图标和层级
+        if (extData.originalIcon) {
+            marker.setIcon(extData.originalIcon);
         }
+        marker.setzIndex(100);
+
+        marker.setExtData(extData);
     }
 
     /**

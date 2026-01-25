@@ -4,25 +4,28 @@
 document.addEventListener('DOMContentLoaded', function() {
     // 检查登录状态
     checkLoginStatus();
-    
+
     // 加载用户信息
     loadUserInfo();
-    
+
     // 初始化事件监听
     initEventListeners();
+
+    // 更新消息中心未读数量
+    updateMessageBadge();
 });
 
 // 检查登录状态
 function checkLoginStatus() {
     const isLoggedIn = sessionStorage.getItem('isLoggedIn');
     const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-    
+
     if (!isLoggedIn || currentUser.role !== 'manager') {
         // 未登录或不是管理员，跳转到登录页
         window.location.href = 'login.html';
         return;
     }
-    
+
     console.log('管理员已登录:', currentUser);
 }
 
@@ -30,7 +33,7 @@ function checkLoginStatus() {
 function loadUserInfo() {
     const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
     const driverNameElement = document.querySelector('.driver-name');
-    
+
     if (driverNameElement && currentUser.username) {
         driverNameElement.textContent = currentUser.username;
     }
@@ -60,6 +63,41 @@ function initEventListeners() {
             console.log('[切换项目] 显示项目选择卡片');
             showAdminProjectSelection();
         });
+    }
+
+    // 消息中心按钮
+    const messageCenterBtn = document.getElementById('message-center');
+    if (messageCenterBtn) {
+        messageCenterBtn.addEventListener('click', function() {
+            console.log('[消息中心] 打开消息中心');
+            window.location.href = 'admin_messages.html';
+        });
+    }
+
+    // 监听消息更新事件
+    window.addEventListener('messageUpdated', function(e) {
+        updateMessageBadge();
+    });
+}
+
+// 更新消息中心未读数量
+function updateMessageBadge() {
+    const badge = document.getElementById('message-badge');
+    if (!badge) return;
+
+    // 检查消息管理器是否可用
+    if (typeof AdminMessageManager === 'undefined') {
+        badge.style.display = 'none';
+        return;
+    }
+
+    const unreadCount = AdminMessageManager.getUnreadCount();
+
+    if (unreadCount > 0) {
+        badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
     }
 }
 

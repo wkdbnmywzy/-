@@ -316,6 +316,21 @@
     text-align: center;
 }
 
+/* 消息中心徽标 */
+.message-badge {
+    background: #ff4d4f;
+    color: white;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-right: 8px;
+    min-width: 20px;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .menu-arrow {
     color: #999;
     font-size: 14px;
@@ -334,7 +349,8 @@
     margin: 30px 15px;
 }
 
-.switch-project {
+.switch-project,
+.message-center {
     display: flex;
     align-items: center;
     padding: 14px 20px;
@@ -343,23 +359,33 @@
     box-shadow: 0px 0px 4px 0px rgba(13,121,210,0.3);
     cursor: pointer;
     transition: all 0.18s;
+    margin-bottom: 12px;
 }
 
-.switch-project .menu-icon {
+.switch-project:last-child,
+.message-center:last-child {
+    margin-bottom: 0;
+}
+
+.switch-project .menu-icon,
+.message-center .menu-icon {
     width: 14px;
     height: 14px;
     object-fit: contain;
     margin-right: 10px;
 }
 
-.switch-project .menu-text {
+.switch-project .menu-text,
+.message-center .menu-text {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     line-height: 1.2;
+    flex: 1;
 }
 
-.switch-project .label {
+.switch-project .label,
+.message-center .label {
     font-size: 15px;
     color: #333;
     font-weight: 600;
@@ -371,18 +397,21 @@
     margin-top: 4px;
 }
 
-.switch-project .menu-arrow {
+.switch-project .menu-arrow,
+.message-center .menu-arrow {
     margin-left: auto;
     color: #999;
     font-size: 14px;
 }
 
-.switch-project:active {
+.switch-project:active,
+.message-center:active {
     transform: scale(0.995);
 }
 
 @media (max-width: 375px) {
-    .switch-project .menu-icon {
+    .switch-project .menu-icon,
+    .message-center .menu-icon {
         width: 32px;
         height: 32px;
     }

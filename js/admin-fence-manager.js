@@ -1,8 +1,14 @@
 /**
  * 管理端电子围栏管理模块
- * 功能：管理电子围栏，检测车辆进入围栏区域并发出警告
- * 作者：系统自动生成
- * 日期：2026-01-16
+ * 功能：管理电子围栏，检测车辆进入/离开围栏区域并发出警告
+ *
+ * 报警规则：
+ * - 禁行区(prohibit)：任何车辆进入都报警
+ * - 工地范围(fence)：固定车离开时报警
+ *
+ * 检测机制：
+ * - 本地射线法：每2秒实时检测
+ * - 后端接口校准：每30秒验证一次
  */
 
 const AdminFenceManager = (function() {
@@ -17,6 +23,9 @@ const AdminFenceManager = (function() {
             checkFence: '/fence-polygons/check'
         }
     };
+
+    // 校准配置
+    const CALIBRATION_INTERVAL = 30000; // 后端校准间隔30秒
 
     // 围栏数据
     let fenceData = [];
@@ -33,8 +42,15 @@ const AdminFenceManager = (function() {
     // 初始化标志
     let isInitialized = false;
 
-    // 车辆围栏状态记录（用于避免重复警告）
-    let vehicleFenceStatus = new Map(); // key: vehicleId, value: Set<fenceId>
+    // 车辆围栏状态记录 - 改进版
+    // key: vehicleId, value: Map<fenceId, { inFence: boolean, fenceType: string, fenceName: string }>
+    let vehicleFenceStatus = new Map();
+
+    // 校准定时器
+    let calibrationTimer = null;
+
+    // 待校准的车辆列表
+    let vehiclesToCalibrate = [];
 
     /**
      * 初始化电子围栏管理器
@@ -59,6 +75,9 @@ const AdminFenceManager = (function() {
         // 加载围栏数据
         loadFenceData(projectId);
 
+        // 启动后端校准定时器
+        startCalibration();
+
         isInitialized = true;
     }
 
@@ -68,6 +87,20 @@ const AdminFenceManager = (function() {
      */
     async function loadFenceData(projectId) {
         try {
+            // 尝试从缓存加载
+            const cacheKey = `fenceData_${projectId}`;
+            const cachedData = sessionStorage.getItem(cacheKey);
+            const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
+            const CACHE_DURATION = 5 * 60 * 1000; // 缓存5分钟
+
+            if (cachedData && cacheTime && (Date.now() - parseInt(cacheTime)) < CACHE_DURATION) {
+                console.log('[围栏管理器] 使用缓存的围栏数据');
+                fenceData = JSON.parse(cachedData);
+                console.log('[围栏管理器] 缓存围栏数量:', fenceData.length);
+                displayFencesOnMap();
+                return;
+            }
+
             console.log('[围栏管理器] 加载围栏数据...');
 
             const token = sessionStorage.getItem('authToken') || '';
@@ -98,6 +131,25 @@ const AdminFenceManager = (function() {
                 fenceData = result.data;
                 console.log('[围栏管理器] 加载围栏数量:', fenceData.length);
 
+                // 缓存围栏数据
+                const cacheKey = `fenceData_${projectId}`;
+                sessionStorage.setItem(cacheKey, JSON.stringify(fenceData));
+                sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+                // 打印第一个围栏的完整结构，便于调试
+                if (fenceData.length > 0) {
+                    console.log('[围栏管理器] 第一个围栏完整数据:', JSON.stringify(fenceData[0], null, 2));
+                }
+
+                // 打印每个围栏的详细信息
+                fenceData.forEach((fence, index) => {
+                    // 后端字段映射：area_type (0=工地范围/fence, 1=禁行区/prohibit)
+                    const areaType = fence.area_type;
+                    const fenceType = areaType === 1 ? 'prohibit' : 'fence';
+                    const fenceName = fence.polygon_name || fence.name || fence.fenceName || '未命名';
+                    console.log(`[围栏管理器] 围栏${index + 1}: ${fenceName}, area_type=${areaType}, 映射类型: ${fenceType}`);
+                });
+
                 // 在地图上显示围栏
                 displayFencesOnMap();
             } else {
@@ -112,7 +164,7 @@ const AdminFenceManager = (function() {
     }
 
     /**
-     * 在地图上显示电子围栏
+     * 在地图上显示电子围栏（区分类型颜色）
      */
     function displayFencesOnMap() {
         if (!map) {
@@ -125,67 +177,35 @@ const AdminFenceManager = (function() {
 
         fenceData.forEach(fence => {
             try {
-                // 解析围栏坐标
-                let coordinates = [];
-
-                // 假设API返回的坐标格式为 [[lng, lat], [lng, lat], ...]
-                // 或者 {coordinates: [[lng, lat], ...]}
-                if (fence.coordinates) {
-                    coordinates = fence.coordinates;
-                } else if (fence.polygon) {
-                    coordinates = fence.polygon;
-                } else if (fence.path) {
-                    coordinates = fence.path;
-                } else if (fence.pg_position) {
-                    // 处理 pg_position 字段（可能是 JSON 字符串）
-                    try {
-                        if (typeof fence.pg_position === 'string') {
-                            coordinates = JSON.parse(fence.pg_position);
-                        } else {
-                            coordinates = fence.pg_position;
-                        }
-                    } catch (e) {
-                        console.error('[围栏管理器] 解析 pg_position 失败:', e, fence.pg_position);
-                    }
-                }
-
-                if (!coordinates || coordinates.length < 3) {
+                const path = parseFenceCoordinates(fence);
+                if (!path || path.length < 3) {
                     console.warn('[围栏管理器] 围栏坐标无效:', fence);
                     return;
                 }
 
-                // 转换为高德地图格式 [lng, lat]
-                const path = coordinates.map(coord => {
-                    if (Array.isArray(coord)) {
-                        return [coord[0], coord[1]];
-                    } else if (coord.lng && coord.lat) {
-                        return [coord.lng, coord.lat];
-                    }
-                    return null;
-                }).filter(p => p !== null);
+                // 使用统一的字段解析
+                const { id: fenceId, name: fenceName, type: fenceType } = parseFenceFields(fence);
 
-                if (path.length < 3) {
-                    console.warn('[围栏管理器] 转换后的坐标不足:', fence);
-                    return;
-                }
+                // 根据围栏类型设置不同颜色
+                const colors = getFenceColors(fenceType);
 
                 // 创建多边形覆盖物
                 const polygon = new AMap.Polygon({
                     path: path,
-                    strokeColor: '#FF0000',  // 红色边框
+                    strokeColor: colors.stroke,
                     strokeWeight: 2,
                     strokeOpacity: 0.9,
-                    fillColor: '#FF0000',    // 红色填充
-                    fillOpacity: 0.05,       // 降低填充透明度，使底图更清晰
-                    zIndex: 50,
+                    fillColor: colors.fill,
+                    fillOpacity: 0.1,
+                    zIndex: 5,
                     bubble: true
                 });
 
                 // 设置扩展数据
                 polygon.setExtData({
-                    fenceId: fence.id || fence.fenceId,
-                    fenceName: fence.name || fence.fenceName || '电子围栏',
-                    fenceType: fence.type || fence.fenceType || 'fence'
+                    fenceId: fenceId,
+                    fenceName: fenceName,
+                    fenceType: fenceType
                 });
 
                 // 添加到地图
@@ -194,11 +214,12 @@ const AdminFenceManager = (function() {
                 // 添加点击事件
                 polygon.on('click', function() {
                     const extData = polygon.getExtData();
+                    const typeLabel = extData.fenceType === 'prohibit' ? '禁行区' : '工地范围';
                     const infoContent = `
                         <div style="padding:10px;">
                             <strong>${extData.fenceName}</strong><br/>
                             <span style="color:#999;">ID: ${extData.fenceId}</span><br/>
-                            <span style="color:#999;">类型: ${extData.fenceType === 'fence' ? '电子围栏' : '禁行区'}</span>
+                            <span style="color:${colors.stroke};">类型: ${typeLabel}</span>
                         </div>
                     `;
 
@@ -207,7 +228,6 @@ const AdminFenceManager = (function() {
                         offset: new AMap.Pixel(0, -10)
                     });
 
-                    // 获取多边形中心点
                     const bounds = polygon.getBounds();
                     const center = bounds.getCenter();
                     infoWindow.open(map, center);
@@ -221,6 +241,91 @@ const AdminFenceManager = (function() {
         });
 
         console.log('[围栏管理器] 地图上已显示围栏:', fencePolygons.length);
+    }
+
+    /**
+     * 解析围栏字段（统一处理后端不同的字段名）
+     * @param {Object} fence - 围栏原始数据
+     * @returns {Object} - { id, name, type }
+     */
+    function parseFenceFields(fence) {
+        // ID
+        const id = fence.id || fence.fenceId || fence.polygon_id;
+
+        // 名称：优先 polygon_name，其次 name/fenceName
+        const name = fence.polygon_name || fence.name || fence.fenceName || '电子围栏';
+
+        // 类型：area_type 数字映射 (0=工地范围, 1=禁行区)
+        // 或者直接使用 type/fenceType 字符串
+        let type = 'fence'; // 默认工地范围
+        if (fence.area_type !== undefined) {
+            type = fence.area_type === 1 ? 'prohibit' : 'fence';
+        } else if (fence.type) {
+            type = fence.type;
+        } else if (fence.fenceType) {
+            type = fence.fenceType;
+        }
+
+        return { id, name, type };
+    }
+
+    /**
+     * 根据围栏类型获取颜色
+     * @param {string} fenceType - 围栏类型
+     * @returns {Object} - { stroke, fill }
+     */
+    function getFenceColors(fenceType) {
+        if (fenceType === 'prohibit') {
+            // 禁行区 - 红色
+            return { stroke: '#FF0000', fill: '#FF0000' };
+        } else {
+            // 工地范围 - 蓝色
+            return { stroke: '#2196F3', fill: '#2196F3' };
+        }
+    }
+
+    /**
+     * 解析围栏坐标
+     * @param {Object} fence - 围栏数据
+     * @returns {Array} - [[lng, lat], ...]
+     */
+    function parseFenceCoordinates(fence) {
+        let coordinates = [];
+
+        if (fence.coordinates) {
+            coordinates = fence.coordinates;
+        } else if (fence.polygon) {
+            coordinates = fence.polygon;
+        } else if (fence.path) {
+            coordinates = fence.path;
+        } else if (fence.pg_position) {
+            try {
+                if (typeof fence.pg_position === 'string') {
+                    coordinates = JSON.parse(fence.pg_position);
+                } else {
+                    coordinates = fence.pg_position;
+                }
+            } catch (e) {
+                console.error('[围栏管理器] 解析 pg_position 失败:', e);
+                return null;
+            }
+        }
+
+        if (!coordinates || coordinates.length < 3) {
+            return null;
+        }
+
+        // 转换为 [lng, lat] 格式
+        const path = coordinates.map(coord => {
+            if (Array.isArray(coord)) {
+                return [coord[0], coord[1]];
+            } else if (coord.lng && coord.lat) {
+                return [coord.lng, coord.lat];
+            }
+            return null;
+        }).filter(p => p !== null);
+
+        return path.length >= 3 ? path : null;
     }
 
     /**
@@ -261,97 +366,312 @@ const AdminFenceManager = (function() {
     }
 
     /**
-     * 检查车辆是否在围栏内（本地判断）
+     * 检查单个车辆的围栏状态（核心函数 - 支持进入/离开检测）
      * @param {number} latitude - 纬度
      * @param {number} longitude - 经度
-     * @param {string} vehicleId - 车辆ID（用于追踪状态）
+     * @param {string} vehicleId - 车辆ID
+     * @param {string} vehicleType - 车辆类型：'temp'(临时车) 或 'fixed'(固定车)
      * @returns {Object} - 检查结果
      */
-    function checkVehicleInFenceLocal(latitude, longitude, vehicleId) {
+    function checkVehicleFenceStatus(latitude, longitude, vehicleId, vehicleType = 'temp') {
         const point = [longitude, latitude];
+        const results = [];
 
+        // 获取该车辆之前的围栏状态
+        if (!vehicleFenceStatus.has(vehicleId)) {
+            vehicleFenceStatus.set(vehicleId, new Map());
+        }
+        const previousStatus = vehicleFenceStatus.get(vehicleId);
+
+        // 记录当前在哪些围栏内
+        const currentFenceIds = new Set();
+
+        // 遍历所有围栏检测
         for (const fence of fenceData) {
             try {
-                // 解析围栏坐标
-                let coordinates = [];
-                if (fence.coordinates) {
-                    coordinates = fence.coordinates;
-                } else if (fence.polygon) {
-                    coordinates = fence.polygon;
-                } else if (fence.path) {
-                    coordinates = fence.path;
-                } else if (fence.pg_position) {
-                    if (typeof fence.pg_position === 'string') {
-                        coordinates = JSON.parse(fence.pg_position);
-                    } else {
-                        coordinates = fence.pg_position;
-                    }
-                }
+                const path = parseFenceCoordinates(fence);
+                if (!path) continue;
 
-                if (!coordinates || coordinates.length < 3) continue;
+                // 使用统一的字段解析（支持后端 area_type/polygon_name 字段）
+                const { id: fenceId, name: fenceName, type: fenceType } = parseFenceFields(fence);
 
-                // 转换为 [lng, lat] 格式
-                const path = coordinates.map(coord => {
-                    if (Array.isArray(coord)) {
-                        return [coord[0], coord[1]];
-                    } else if (coord.lng && coord.lat) {
-                        return [coord.lng, coord.lat];
-                    }
-                    return null;
-                }).filter(p => p !== null);
+                const currentlyInFence = isPointInPolygon(point, path);
+                const previouslyInFence = previousStatus.has(fenceId) && previousStatus.get(fenceId).inFence;
 
-                if (path.length < 3) continue;
+                // 检测进入事件
+                if (currentlyInFence && !previouslyInFence) {
+                    // 刚进入围栏
+                    console.log(`[围栏管理器] 车辆 ${vehicleId} 进入 ${fenceName} (类型: ${fenceType})`);
 
-                // 判断点是否在多边形内
-                if (isPointInPolygon(point, path)) {
-                    const fenceId = fence.id || fence.fenceId;
-                    const fenceName = fence.name || fence.fenceName || '电子围栏';
-
-                    // 检查是否已经发出过警告
-                    if (!hasWarned(vehicleId, fenceId)) {
-                        // 触发警告
-                        triggerFenceWarning(vehicleId, fenceId, fenceName, latitude, longitude);
-                        // 记录已警告
-                        markWarned(vehicleId, fenceId);
+                    // 禁行区：任何车辆进入都报警
+                    if (fenceType === 'prohibit') {
+                        triggerFenceWarning(vehicleId, fenceId, fenceName, fenceType, 'enter', latitude, longitude);
                     }
 
-                    return {
-                        inFence: true,
+                    results.push({
+                        event: 'enter',
                         fenceId: fenceId,
-                        fenceName: fenceName
-                    };
+                        fenceName: fenceName,
+                        fenceType: fenceType
+                    });
                 }
+
+                // 检测离开事件
+                if (!currentlyInFence && previouslyInFence) {
+                    // 刚离开围栏
+                    console.log(`[围栏管理器] 车辆 ${vehicleId} 离开 ${fenceName} (类型: ${fenceType})`);
+
+                    // 工地范围：固定车离开报警
+                    if (fenceType === 'fence' && vehicleType === 'fixed') {
+                        triggerFenceWarning(vehicleId, fenceId, fenceName, fenceType, 'leave', latitude, longitude);
+                    }
+
+                    results.push({
+                        event: 'leave',
+                        fenceId: fenceId,
+                        fenceName: fenceName,
+                        fenceType: fenceType
+                    });
+                }
+
+                // 更新状态
+                if (currentlyInFence) {
+                    currentFenceIds.add(fenceId);
+                    previousStatus.set(fenceId, {
+                        inFence: true,
+                        fenceType: fenceType,
+                        fenceName: fenceName
+                    });
+                } else {
+                    previousStatus.delete(fenceId);
+                }
+
             } catch (error) {
                 console.error('[围栏管理器] 检查围栏失败:', error, fence);
             }
         }
 
-        // 车辆不在任何围栏内，清除警告状态
-        clearWarned(vehicleId);
+        // 添加到待校准列表
+        addToCalibrationQueue(vehicleId, latitude, longitude, vehicleType);
+
+        return {
+            vehicleId: vehicleId,
+            vehicleType: vehicleType,
+            events: results,
+            currentFences: Array.from(currentFenceIds)
+        };
+    }
+
+    /**
+     * 兼容旧接口 - 检查车辆是否在围栏内
+     */
+    async function checkVehicleInFence(latitude, longitude, vehicleId, vehicleType = 'temp') {
+        const result = checkVehicleFenceStatus(latitude, longitude, vehicleId, vehicleType);
+
+        // 返回兼容格式
+        if (result.currentFences.length > 0) {
+            const fenceId = result.currentFences[0];
+            const status = vehicleFenceStatus.get(vehicleId)?.get(fenceId);
+            return {
+                inFence: true,
+                fenceId: fenceId,
+                fenceName: status?.fenceName || '电子围栏',
+                fenceType: status?.fenceType || 'fence'
+            };
+        }
         return { inFence: false };
     }
 
     /**
-     * 检查车辆是否在围栏内（使用API）
+     * 批量检查多个车辆
+     * @param {Array} vehicles - 车辆数组，每个元素包含 {vehicleId, latitude, longitude, vehicleType}
+     */
+    function checkMultipleVehicles(vehicles) {
+        return vehicles.map(vehicle =>
+            checkVehicleFenceStatus(
+                vehicle.latitude,
+                vehicle.longitude,
+                vehicle.vehicleId,
+                vehicle.vehicleType || 'temp'
+            )
+        );
+    }
+
+    /**
+     * 触发围栏警告
+     * @param {string} vehicleId - 车辆ID
+     * @param {string} fenceId - 围栏ID
+     * @param {string} fenceName - 围栏名称
+     * @param {string} fenceType - 围栏类型
+     * @param {string} eventType - 事件类型：'enter' 或 'leave'
      * @param {number} latitude - 纬度
      * @param {number} longitude - 经度
-     * @param {string} vehicleId - 车辆ID（用于追踪状态）
-     * @returns {Promise<Object>} - 检查结果
      */
-    async function checkVehicleInFence(latitude, longitude, vehicleId) {
-        // 优先使用本地判断
-        if (fenceData && fenceData.length > 0) {
-            return checkVehicleInFenceLocal(latitude, longitude, vehicleId);
+    function triggerFenceWarning(vehicleId, fenceId, fenceName, fenceType, eventType, latitude, longitude) {
+        const isEnter = eventType === 'enter';
+        const actionText = isEnter ? '进入' : '离开';
+        const fenceTypeText = fenceType === 'prohibit' ? '禁行区' : '工地范围';
+
+        console.warn(`[围栏警告] 车辆 ${vehicleId} ${actionText} ${fenceTypeText} ${fenceName} (${fenceId})`);
+
+        // 1. 存储消息到消息中心
+        if (typeof AdminMessageManager !== 'undefined') {
+            AdminMessageManager.addFenceAlertMessage(
+                vehicleId, fenceId, fenceName, fenceType, eventType, latitude, longitude
+            );
         }
 
-        // 如果没有本地数据，使用API
+        // 2. 地图高亮闪烁
+        highlightFenceOnMap(fenceId, fenceType);
+
+        // 3. 记录日志
+        logFenceEvent(vehicleId, fenceId, fenceName, fenceType, eventType, latitude, longitude);
+    }
+
+    /**
+     * 显示围栏警告提示（已弃用，改为消息中心）
+     */
+    function showFenceAlert(vehicleId, fenceName, fenceType, eventType) {
+        // 不再使用alert，改为消息中心
+        // 保留此函数以备兼容
+    }
+
+    /**
+     * 在地图上高亮围栏
+     */
+    function highlightFenceOnMap(fenceId, fenceType) {
+        const targetPolygon = fencePolygons.find(polygon => {
+            const extData = polygon.getExtData();
+            return extData && extData.fenceId === fenceId;
+        });
+
+        if (targetPolygon) {
+            const originalOptions = targetPolygon.getOptions();
+            const highlightColor = fenceType === 'prohibit' ? '#FF0000' : '#FFA500'; // 红色或橙色
+
+            // 闪烁效果
+            let count = 0;
+            const interval = setInterval(() => {
+                if (count % 2 === 0) {
+                    targetPolygon.setOptions({ fillColor: '#FFFF00', fillOpacity: 0.5 });
+                } else {
+                    targetPolygon.setOptions({ fillColor: highlightColor, fillOpacity: 0.3 });
+                }
+                count++;
+                if (count >= 6) {
+                    clearInterval(interval);
+                    targetPolygon.setOptions({
+                        fillColor: originalOptions.fillColor,
+                        fillOpacity: originalOptions.fillOpacity
+                    });
+                }
+            }, 300);
+        }
+    }
+
+    /**
+     * 记录围栏事件日志
+     */
+    function logFenceEvent(vehicleId, fenceId, fenceName, fenceType, eventType, latitude, longitude) {
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            vehicleId: vehicleId,
+            fenceId: fenceId,
+            fenceName: fenceName,
+            fenceType: fenceType,
+            eventType: eventType === 'enter' ? 'FENCE_ENTRY' : 'FENCE_EXIT',
+            latitude: latitude,
+            longitude: longitude
+        };
+
+        console.log('[围栏事件]', logEntry);
+
+        // 可以将日志发送到后端API
+        // sendFenceEventToServer(logEntry);
+    }
+
+    // ==================== 后端校准机制 ====================
+
+    /**
+     * 添加车辆到校准队列
+     */
+    function addToCalibrationQueue(vehicleId, latitude, longitude, vehicleType) {
+        const existing = vehiclesToCalibrate.find(v => v.vehicleId === vehicleId);
+        if (existing) {
+            existing.latitude = latitude;
+            existing.longitude = longitude;
+            existing.vehicleType = vehicleType;
+        } else {
+            vehiclesToCalibrate.push({ vehicleId, latitude, longitude, vehicleType });
+        }
+    }
+
+    /**
+     * 启动后端校准定时器
+     */
+    function startCalibration() {
+        if (calibrationTimer) {
+            clearInterval(calibrationTimer);
+        }
+
+        calibrationTimer = setInterval(() => {
+            if (vehiclesToCalibrate.length > 0) {
+                console.log('[围栏管理器] 执行后端校准，车辆数:', vehiclesToCalibrate.length);
+                calibrateWithBackend();
+            }
+        }, CALIBRATION_INTERVAL);
+
+        console.log(`[围栏管理器] 后端校准已启动，间隔 ${CALIBRATION_INTERVAL / 1000} 秒`);
+    }
+
+    /**
+     * 停止校准定时器
+     */
+    function stopCalibration() {
+        if (calibrationTimer) {
+            clearInterval(calibrationTimer);
+            calibrationTimer = null;
+        }
+    }
+
+    /**
+     * 使用后端接口校准
+     */
+    async function calibrateWithBackend() {
+        const vehicles = [...vehiclesToCalibrate];
+        vehiclesToCalibrate = []; // 清空队列
+
+        for (const vehicle of vehicles) {
+            try {
+                const result = await checkFenceWithAPI(vehicle.latitude, vehicle.longitude);
+
+                if (result) {
+                    // 比较本地状态和后端结果
+                    const localStatus = vehicleFenceStatus.get(vehicle.vehicleId);
+                    const localInFence = localStatus && localStatus.size > 0;
+                    const backendInFence = result.inFence;
+
+                    if (localInFence !== backendInFence) {
+                        console.warn(`[围栏管理器] 校准发现差异 - 车辆 ${vehicle.vehicleId}: 本地=${localInFence}, 后端=${backendInFence}`);
+                        // 以后端为准，重新检测一次
+                        checkVehicleFenceStatus(vehicle.latitude, vehicle.longitude, vehicle.vehicleId, vehicle.vehicleType);
+                    }
+                }
+            } catch (error) {
+                console.error('[围栏管理器] 校准失败:', error, vehicle);
+            }
+        }
+    }
+
+    /**
+     * 调用后端接口检查围栏
+     */
+    async function checkFenceWithAPI(latitude, longitude) {
         try {
             const token = sessionStorage.getItem('authToken') || '';
             const url = `${API_CONFIG.mapServiceURL}${API_CONFIG.endpoints.checkFence}?latitude=${latitude}&longitude=${longitude}`;
 
-            const headers = {
-                'Content-Type': 'application/json'
-            };
+            const headers = { 'Content-Type': 'application/json' };
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
@@ -362,189 +682,29 @@ const AdminFenceManager = (function() {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // 静默处理，不打印错误（接口可能不支持）
+                return null;
             }
 
             const result = await response.json();
 
             if (result.code === 200 && result.data) {
-                // 如果车辆在围栏内
-                if (result.data.inFence || result.data.isInFence) {
-                    const fenceId = result.data.fenceId || result.data.id;
-                    const fenceName = result.data.fenceName || result.data.name || '电子围栏';
-
-                    // 检查是否已经发出过警告
-                    if (!hasWarned(vehicleId, fenceId)) {
-                        // 触发警告
-                        triggerFenceWarning(vehicleId, fenceId, fenceName, latitude, longitude);
-                        // 记录已警告
-                        markWarned(vehicleId, fenceId);
-                    }
-
-                    return {
-                        inFence: true,
-                        fenceId: fenceId,
-                        fenceName: fenceName
-                    };
-                } else {
-                    // 车辆离开围栏，清除该围栏的警告状态
-                    clearWarned(vehicleId);
-                    return {
-                        inFence: false
-                    };
-                }
+                return {
+                    inFence: result.data.inFence || result.data.isInFence || false,
+                    fenceId: result.data.fenceId || result.data.id,
+                    fenceName: result.data.fenceName || result.data.name
+                };
             }
 
             return { inFence: false };
 
         } catch (error) {
-            console.error('[围栏管理器] 检查围栏失败:', error);
-            return { inFence: false };
+            // 静默处理网络错误
+            return null;
         }
     }
 
-    /**
-     * 批量检查多个车辆是否在围栏内
-     * @param {Array} vehicles - 车辆数组，每个元素包含 {vehicleId, latitude, longitude}
-     */
-    async function checkMultipleVehicles(vehicles) {
-        const promises = vehicles.map(vehicle =>
-            checkVehicleInFence(vehicle.latitude, vehicle.longitude, vehicle.vehicleId)
-        );
-
-        const results = await Promise.all(promises);
-        return results;
-    }
-
-    /**
-     * 检查车辆是否已经对某个围栏发出过警告
-     * @param {string} vehicleId - 车辆ID
-     * @param {string} fenceId - 围栏ID
-     * @returns {boolean}
-     */
-    function hasWarned(vehicleId, fenceId) {
-        if (!vehicleFenceStatus.has(vehicleId)) {
-            return false;
-        }
-        const fenceSet = vehicleFenceStatus.get(vehicleId);
-        return fenceSet.has(fenceId);
-    }
-
-    /**
-     * 标记车辆已对某个围栏发出警告
-     * @param {string} vehicleId - 车辆ID
-     * @param {string} fenceId - 围栏ID
-     */
-    function markWarned(vehicleId, fenceId) {
-        if (!vehicleFenceStatus.has(vehicleId)) {
-            vehicleFenceStatus.set(vehicleId, new Set());
-        }
-        vehicleFenceStatus.get(vehicleId).add(fenceId);
-    }
-
-    /**
-     * 清除车辆的警告状态
-     * @param {string} vehicleId - 车辆ID
-     */
-    function clearWarned(vehicleId) {
-        vehicleFenceStatus.delete(vehicleId);
-    }
-
-    /**
-     * 触发围栏警告
-     * @param {string} vehicleId - 车辆ID
-     * @param {string} fenceId - 围栏ID
-     * @param {string} fenceName - 围栏名称
-     * @param {number} latitude - 纬度
-     * @param {number} longitude - 经度
-     */
-    function triggerFenceWarning(vehicleId, fenceId, fenceName, latitude, longitude) {
-        console.warn(`[围栏警告] 车辆 ${vehicleId} 进入围栏 ${fenceName} (${fenceId})`);
-
-        // 1. 浏览器通知（如果支持）
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('围栏警告', {
-                body: `车辆 ${vehicleId} 已进入 ${fenceName}`,
-                icon: 'images/工地数字导航小程序切图/管理/2X/运输管理/临时车.png'
-            });
-        }
-
-        // 2. 页面提示
-        showFenceAlert(vehicleId, fenceName);
-
-        // 3. 在地图上标记（可选）
-        highlightFenceOnMap(fenceId);
-
-        // 4. 记录日志（可以发送到后端）
-        logFenceEvent(vehicleId, fenceId, fenceName, latitude, longitude);
-    }
-
-    /**
-     * 显示围栏警告提示
-     * @param {string} vehicleId - 车辆ID
-     * @param {string} fenceName - 围栏名称
-     */
-    function showFenceAlert(vehicleId, fenceName) {
-        // 使用alert或自定义提示组件
-        // 这里简单使用alert，实际项目中应该用更好的UI组件
-        alert(`⚠️ 围栏警告\n\n车辆 ${vehicleId} 已进入禁行区域：${fenceName}`);
-    }
-
-    /**
-     * 在地图上高亮围栏
-     * @param {string} fenceId - 围栏ID
-     */
-    function highlightFenceOnMap(fenceId) {
-        const targetPolygon = fencePolygons.find(polygon => {
-            const extData = polygon.getExtData();
-            return extData && extData.fenceId === fenceId;
-        });
-
-        if (targetPolygon) {
-            // 临时高亮（闪烁效果）
-            const originalColor = targetPolygon.getOptions().fillColor;
-
-            // 闪烁3次
-            let count = 0;
-            const interval = setInterval(() => {
-                if (count % 2 === 0) {
-                    targetPolygon.setOptions({ fillColor: '#FFFF00', fillOpacity: 0.5 }); // 黄色
-                } else {
-                    targetPolygon.setOptions({ fillColor: originalColor, fillOpacity: 0.2 });
-                }
-                count++;
-                if (count >= 6) {
-                    clearInterval(interval);
-                    targetPolygon.setOptions({ fillColor: originalColor, fillOpacity: 0.2 });
-                }
-            }, 300);
-        }
-    }
-
-    /**
-     * 记录围栏事件日志
-     * @param {string} vehicleId - 车辆ID
-     * @param {string} fenceId - 围栏ID
-     * @param {string} fenceName - 围栏名称
-     * @param {number} latitude - 纬度
-     * @param {number} longitude - 经度
-     */
-    function logFenceEvent(vehicleId, fenceId, fenceName, latitude, longitude) {
-        const logEntry = {
-            timestamp: new Date().toISOString(),
-            vehicleId: vehicleId,
-            fenceId: fenceId,
-            fenceName: fenceName,
-            latitude: latitude,
-            longitude: longitude,
-            eventType: 'FENCE_ENTRY'
-        };
-
-        console.log('[围栏事件]', logEntry);
-
-        // 可以将日志发送到后端API
-        // sendFenceEventToServer(logEntry);
-    }
+    // ==================== 其他函数 ====================
 
     /**
      * 刷新围栏数据
@@ -559,44 +719,55 @@ const AdminFenceManager = (function() {
      * 销毁围栏管理器
      */
     function destroy() {
+        stopCalibration();
         clearFencePolygons();
         fenceData = [];
         vehicleFenceStatus.clear();
+        vehiclesToCalibrate = [];
         currentProjectId = null;
         isInitialized = false;
         console.log('[围栏管理器] 已销毁');
     }
 
     /**
-     * 测试围栏显示（添加一个测试围栏）
+     * 测试围栏显示
      */
     function addTestFence() {
         console.log('[围栏管理器] 添加测试围栏...');
 
-        // 创建一个测试围栏（在地图中心周围）
         const center = map.getCenter();
-        const offset = 0.002; // 约200米
+        const offset = 0.002;
 
-        const testFence = {
+        // 添加一个工地范围（蓝色）
+        const testFence1 = {
             id: 'test-fence-001',
-            fenceId: 'test-fence-001',
-            name: '测试围栏区域',
-            fenceName: '测试围栏区域',
+            name: '测试工地范围',
             type: 'fence',
             coordinates: [
                 [center.lng - offset, center.lat - offset],
                 [center.lng + offset, center.lat - offset],
                 [center.lng + offset, center.lat + offset],
-                [center.lng - offset, center.lat + offset],
-                [center.lng - offset, center.lat - offset] // 闭合
+                [center.lng - offset, center.lat + offset]
             ]
         };
 
-        fenceData.push(testFence);
+        // 添加一个禁行区（红色）
+        const testFence2 = {
+            id: 'test-fence-002',
+            name: '测试禁行区',
+            type: 'prohibit',
+            coordinates: [
+                [center.lng + offset * 1.5, center.lat - offset * 0.5],
+                [center.lng + offset * 2.5, center.lat - offset * 0.5],
+                [center.lng + offset * 2.5, center.lat + offset * 0.5],
+                [center.lng + offset * 1.5, center.lat + offset * 0.5]
+            ]
+        };
+
+        fenceData.push(testFence1, testFence2);
         displayFencesOnMap();
 
-        console.log('[围栏管理器] 测试围栏已添加:', testFence);
-        console.log('[围栏管理器] 你应该能在地图上看到一个红色半透明的矩形区域');
+        console.log('[围栏管理器] 测试围栏已添加 - 蓝色为工地范围，红色为禁行区');
     }
 
     // 导出API
@@ -605,12 +776,17 @@ const AdminFenceManager = (function() {
         refresh: refresh,
         destroy: destroy,
         checkVehicleInFence: checkVehicleInFence,
+        checkVehicleFenceStatus: checkVehicleFenceStatus,
         checkMultipleVehicles: checkMultipleVehicles,
         getFenceData: () => fenceData,
+        getVehicleFenceStatus: () => vehicleFenceStatus,
         displayFencesOnMap: displayFencesOnMap,
         clearFencePolygons: clearFencePolygons,
-        addTestFence: addTestFence  // 添加测试函数
+        addTestFence: addTestFence,
+        // 校准相关
+        startCalibration: startCalibration,
+        stopCalibration: stopCalibration
     };
 })();
 
-console.log('[围栏管理器] 模块已加载');
+console.log('[围栏管理器] 模块已加载（支持进入/离开检测，区分围栏类型报警）');
