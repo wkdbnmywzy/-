@@ -128,6 +128,17 @@ function initEventListeners() {
     driverLoginForm.addEventListener('submit', handleDriverLogin);
     adminLoginForm.addEventListener('submit', handleAdminLogin);
 
+    // 密码显隐切换
+    const togglePassword = document.getElementById('togglePassword');
+    if (togglePassword && passwordInput) {
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            // 切换图标状态
+            this.classList.toggle('showing');
+        });
+    }
+
     // 输入框获得焦点时隐藏错误消息
     driverNameInput?.addEventListener('focus', () => {
         hideError(driverErrorMessage);
