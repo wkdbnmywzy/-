@@ -1158,3 +1158,158 @@ body {
     margin-top: 0;
 }
 
+
+/* ==========================================================================
+   2026-01-26 更新样式 (User Requested Changes)
+   ========================================================================== */
+
+/* (1) Checkbox Icon Modification - Circular with blue ring, white gap, blue center */
+.remember-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #237CF3; /* 外圈蓝色边框 */
+    border-radius: 50%; /* 圆形 */
+    outline: none;
+    cursor: pointer;
+    position: relative;
+    background-color: #fff; /* 白色背景 */
+    vertical-align: middle;
+    margin-right: 6px;
+    transition: all 0.2s;
+}
+
+/* 未选中状态：只有蓝色边框，内部白色 */
+.remember-checkbox:not(:checked) {
+    background-color: #fff;
+}
+
+/* 选中状态：蓝色边框 + 白色间隙 + 蓝色圆心 */
+.remember-checkbox:checked {
+    border-color: #237CF3;
+    background-color: #fff; /* 保持白色背景作为间隙 */
+}
+
+.remember-checkbox:checked::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px; /* 蓝色圆心更大，白间隙更小 */
+    height: 12px;
+    background-color: #237CF3;
+    border-radius: 50%;
+}
+
+/* (2) Reduce Spacing - Admin Password to Remember Me */
+#admin-login-form .account-form-group:nth-of-type(2) {
+    margin-bottom: 12px !important; /* Force tighter spacing */
+    padding-bottom: 0;
+}
+
+/* (3) Password Visibility Toggle & Admin Input Styling */
+/* Apply the "Box" style to Admin Username as well */
+#admin-login-form #username {
+    background: rgba(35, 124, 243, 0.05); /* Box Background */
+    border-radius: 8px;
+    border-bottom: none !important;
+    padding: 10px 12px;
+    height: 44px;
+    box-shadow: none;
+    color: #333;
+}
+#admin-login-form #username:focus {
+    /* Optional: Focus ring or color change if needed */
+}
+
+/* Adjust wrapper to match "Box" style (replacing underline style) */
+.password-input-wrapper {
+    position: relative;
+    flex: 0 0 220px;
+    max-width: 60%;
+    display: flex;
+    align-items: center;
+    
+    /* Box Style */
+    background: rgba(35, 124, 243, 0.05);
+    border-radius: 8px;
+    border-bottom: none !important; /* No underline */
+    
+    padding: 0 35px 0 12px; /* Pad right for icon, left for text */
+    height: 44px;
+}
+
+/* Focus state for wrapper */
+.password-input-wrapper:focus-within {
+    /* Optional: different focus style */
+}
+
+/* Input inside wrapper */
+.password-input-wrapper .account-input {
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+    border-bottom: none !important;
+    padding: 0; /* Remove padding, wrapper handles it */
+    margin-bottom: 0; /* No margin inside */
+    background: transparent !important; /* Ensure input is transparent so wrapper bg shows */
+    height: 100%;
+    box-shadow: none;
+}
+
+#togglePassword {
+    position: absolute;
+    right: 10px;
+    cursor: pointer;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#togglePassword svg {
+    color: #9DB8D4; /* 浅蓝灰色，类似图片中的样式 */
+    stroke: #9DB8D4;
+}
+
+/* 隐藏斜线（显示密码时） */
+#togglePassword.showing .eye-closed {
+    display: none !important;
+}
+#togglePassword.showing .eye-open {
+    display: block !important;
+}
+#togglePassword:not(.showing) .eye-closed {
+    display: block;
+}
+#togglePassword:not(.showing) .eye-open {
+    display: none;
+}
+
+/* (4) Driver Login Input Styling */
+/* Override specific inputs in driver form */
+#driver-login-form .account-input {
+    background: rgba(35, 124, 243, 0.05);
+    border-radius: 8px;
+    border-bottom: none !important;
+    padding: 10px 12px;
+    height: 44px;
+    box-shadow: none;
+}
+
+/* Placeholder color specific for driver inputs */
+#driver-login-form .account-input::placeholder {
+    color: rgba(13, 121, 210, 0.3); /* #0D79D2 30%*/
+}
+
+/* Because we removed border-bottom from account-input generally for driver, 
+   we might need to ensure layout is still good. 
+   The wrapper .account-form-group handles alignment.
+*/
+#driver-login-form .account-form-group {
+    /* Ensure items center vertically */
+    align-items: center;
+}
+
