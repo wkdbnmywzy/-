@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initEventListeners();
     initProjectSelection();
+    initKeyboardHandler(); // 初始化键盘处理
 
     // 加载记住的登录信息
     loadRememberedCredentials();
@@ -90,8 +91,35 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('[初始化] 检查红色星号状态');
     setTimeout(() => {
         updateRequiredMarks();
+        updateDriverHint(); // 初始化时显示提示信息
     }, 100);
 });
+
+// 初始化键盘弹出处理
+function initKeyboardHandler() {
+    const cardStack = document.querySelector('.card-stack');
+    const allInputs = document.querySelectorAll('.login-form input');
+    
+    allInputs.forEach(input => {
+        input.addEventListener('focus', () => {
+            if (cardStack) {
+                cardStack.classList.add('keyboard-active');
+            }
+        });
+        
+        input.addEventListener('blur', () => {
+            // 延迟移除，避免在切换输入框时闪烁
+            setTimeout(() => {
+                const activeElement = document.activeElement;
+                if (!activeElement || activeElement.tagName !== 'INPUT') {
+                    if (cardStack) {
+                        cardStack.classList.remove('keyboard-active');
+                    }
+                }
+            }, 100);
+        });
+    });
+}
 
 // 隐藏加载界面
 function hideLoadingScreen() {
@@ -255,6 +283,7 @@ function updateDriverHint() {
 
     if (missing.length > 0 && driverHintMessage) {
         driverHintMessage.textContent = `请填入${missing.join('、')}`;
+        driverHintMessage.classList.remove('hidden');
         driverHintMessage.classList.add('show');
     } else {
         hideHint();
@@ -264,6 +293,7 @@ function updateDriverHint() {
 // 隐藏提示消息
 function hideHint() {
     if (driverHintMessage) {
+        driverHintMessage.classList.add('hidden');
         driverHintMessage.classList.remove('show');
     }
 }
