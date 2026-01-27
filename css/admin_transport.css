@@ -619,6 +619,11 @@
     pointer-events: none;
 }
 
+/* 选择地点后隐藏下拉箭头 */
+.form-input-wrapper.select-wrapper.has-value::after {
+    display: none;
+}
+
 .form-input {
     width: 100%;
     border: none;

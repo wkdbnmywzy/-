@@ -100,6 +100,42 @@ function initEventListeners() {
 
     // 加载车辆进出数据
     loadVehicleData();
+
+    // 初始化select下拉框的has-value样式管理
+    initSelectValueStyles();
+}
+
+/**
+ * 初始化select下拉框的has-value样式管理
+ * 当select有选中值时，隐藏下拉箭头
+ */
+function initSelectValueStyles() {
+    // 监听所有起点/终点select的change事件
+    const selectIds = ['addStartPoint', 'addEndPoint', 'viewStartPoint', 'viewEndPoint'];
+
+    selectIds.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+            select.addEventListener('change', function() {
+                updateSelectWrapperStyle(this);
+            });
+        }
+    });
+}
+
+/**
+ * 更新select包裹容器的has-value样式
+ * @param {HTMLSelectElement} selectEl - select元素
+ */
+function updateSelectWrapperStyle(selectEl) {
+    const wrapper = selectEl.closest('.select-wrapper');
+    if (wrapper) {
+        if (selectEl.value && selectEl.value !== '') {
+            wrapper.classList.add('has-value');
+        } else {
+            wrapper.classList.remove('has-value');
+        }
+    }
 }
 
 // 切换标签页
@@ -703,7 +739,10 @@ async function loadTaskData() {
             console.log('[运输管理] 今日任务数:', todayTasks.length);
             console.log('[运输管理] 历史任务数:', historyTasks.length);
 
-            // 6. 分别更新统计数据和渲染列表
+            // 6. 检查并自动更新需要变为"进行中"状态的任务
+            await checkAndUpdateTaskStatus(allTasks);
+
+            // 7. 分别更新统计数据和渲染列表
             updateTodayTaskStats(todayTasks);
             updateHistoryTaskStats(historyTasks);
             renderTodayTaskList(todayTasks);
@@ -718,6 +757,98 @@ async function loadTaskData() {
         console.error('[运输管理] ========== 加载失败 ==========');
         console.error('[运输管理] 错误信息:', error.message);
         console.error('[运输管理] ===================================');
+    }
+}
+
+/**
+ * 检查并自动更新任务状态
+ * 当任务状态为1（已下发）且当前时间在入场开始时间到离场结束时间之间时，
+ * 自动将状态更新为2（进行中）
+ * @param {Array} tasks - 任务列表
+ */
+async function checkAndUpdateTaskStatus(tasks) {
+    const now = new Date();
+    console.log('[状态检查] 当前时间:', now.toLocaleString());
+
+    for (const task of tasks) {
+        // 只处理状态为1（已下发）的任务
+        if (task.status !== 1) {
+            continue;
+        }
+
+        const entryStartTime = task.entry_start_time;
+        const exitEndTime = task.exit_end_time;
+
+        if (!entryStartTime || !exitEndTime) {
+            continue;
+        }
+
+        try {
+            const entryStart = new Date(entryStartTime);
+            const exitEnd = new Date(exitEndTime);
+
+            // 检查当前时间是否在入场开始时间到离场结束时间之间
+            if (now >= entryStart && now <= exitEnd) {
+                console.log(`[状态检查] 任务${task.id}需要更新状态: 1(已下发) -> 2(进行中)`);
+                console.log(`[状态检查] 入场开始: ${entryStart.toLocaleString()}, 离场结束: ${exitEnd.toLocaleString()}`);
+
+                // 调用更新接口将状态改为2
+                const success = await updateTaskStatusOnly(task.id, 2);
+                if (success) {
+                    // 更新本地数据
+                    task.status = 2;
+                    console.log(`[状态检查] ✓ 任务${task.id}状态已更新为进行中`);
+                }
+            }
+        } catch (error) {
+            console.warn(`[状态检查] 任务${task.id}时间解析失败:`, error);
+        }
+    }
+}
+
+/**
+ * 仅更新任务状态
+ * @param {number|string} taskId - 任务ID
+ * @param {number} newStatus - 新状态 (0=草稿, 1=已下发, 2=进行中, 3=已完成, 4=已取消)
+ * @returns {boolean} 是否成功
+ */
+async function updateTaskStatusOnly(taskId, newStatus) {
+    try {
+        const token = sessionStorage.getItem('authToken') || '';
+        const url = `${API_BASE_URL}/tasks/${taskId}`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        };
+
+        const requestBody = {
+            status: newStatus
+        };
+
+        console.log('[更新状态] 请求URL:', url);
+        console.log('[更新状态] 请求body:', requestBody);
+
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            console.error('[更新状态] 请求失败:', response.status);
+            return false;
+        }
+
+        const result = await response.json();
+        if (result.code === 200) {
+            return true;
+        } else {
+            console.error('[更新状态] API返回错误:', result.message);
+            return false;
+        }
+    } catch (error) {
+        console.error('[更新状态] 更新失败:', error);
+        return false;
     }
 }
 
@@ -2169,6 +2300,14 @@ function fillViewTaskForm(taskData) {
     const exitEndTimeDiv = document.getElementById('viewExitEndTime');
     if (exitEndTimeDiv && taskData.exit_end_time) {
         exitEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_end_time)}`;
+    }
+
+    // 更新起点/终点select的has-value样式
+    if (startPointSelect) {
+        updateSelectWrapperStyle(startPointSelect);
+    }
+    if (endPointSelect) {
+        updateSelectWrapperStyle(endPointSelect);
     }
 
     console.log('[填充表单] 表单数据填充完成');
