@@ -565,6 +565,7 @@ body {
     padding: 8px 12px;
     font-size: 18px; 
     color: #143662;
+    opacity: 1;
     flex: 0 0 220px; /* 固定较窄宽度 */
     max-width: 60%;
     text-align: left; 
@@ -1330,6 +1331,7 @@ body {
     padding: 10px 12px;
     height: 44px;
     box-shadow: none;
+    color: #143662;
 }
 
 /* Placeholder color specific for driver inputs */
