@@ -6,6 +6,9 @@ const API_BASE_URL = 'http://115.159.67.12:8086/api/transport';
 // 当前查看的任务ID
 let currentViewTaskId = null;
 
+// 记录当前项目ID，用于检测项目切换
+let lastProjectId = null;
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 检查登录状态
@@ -14,8 +17,29 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化事件监听
     initEventListeners();
 
+    // 记录当前项目ID
+    lastProjectId = getProjectId();
+
     // 加载任务数据
     loadTaskData();
+});
+
+// 监听页面可见性变化，处理切换项目后返回的情况
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        const currentProjectId = getProjectId();
+        if (lastProjectId !== currentProjectId) {
+            console.log('[运输管理] 检测到项目切换，从', lastProjectId, '切换到', currentProjectId);
+            lastProjectId = currentProjectId;
+            // 清空当前查看的任务ID
+            currentViewTaskId = null;
+            // 关闭可能打开的子页面
+            hidePage('viewTaskPage');
+            hidePage('addTaskPage');
+            // 重新加载任务数据
+            loadTaskData();
+        }
+    }
 });
 
 // 检查登录状态
@@ -1252,49 +1276,14 @@ async function loadLocators(projectId) {
 }
 
 /**
- * 加载任务地点（从sessionStorage的kmlData获取已过滤的点位）
+ * 加载任务地点（从API获取点位数据）
  */
 async function loadTaskLocations() {
     try {
-        console.log('[新增任务] 从sessionStorage加载点位数据...');
+        console.log('[新增任务] 从API加载点位数据...');
 
-        // 从sessionStorage获取kmlData（首页或点位选择界面已经加载并过滤好的数据）
-        const kmlDataStr = sessionStorage.getItem('kmlData');
-
-        if (!kmlDataStr) {
-            console.warn('[新增任务] sessionStorage中没有kmlData，请先访问首页加载地图数据');
-            // 显示提示
-            const startPointSelect = document.getElementById('addStartPoint');
-            const endPointSelect = document.getElementById('addEndPoint');
-
-            if (startPointSelect && endPointSelect) {
-                startPointSelect.innerHTML = '<option value="">请先访问首页加载地图</option>';
-                endPointSelect.innerHTML = '<option value="">请先访问首页加载地图</option>';
-            }
-            return;
-        }
-
-        // 解析kmlData
-        const kmlDataArray = JSON.parse(kmlDataStr);
-        console.log('[新增任务] kmlData数组:', kmlDataArray);
-
-        // 提取所有点位（kmlData是数组，每个元素是一个KML文件的数据）
-        const allPoints = [];
-
-        kmlDataArray.forEach(kmlItem => {
-            if (kmlItem.points && Array.isArray(kmlItem.points)) {
-                kmlItem.points.forEach(point => {
-                    allPoints.push({
-                        id: point.id || point.name, // 使用ID或名称作为标识
-                        name: point.name,
-                        position: point.position
-                    });
-                });
-            }
-        });
-
-        console.log('[新增任务] 从kmlData提取到的点位数量:', allPoints.length);
-        console.log('[新增任务] 点位示例（前5个）:', allPoints.slice(0, 5));
+        // 从 API 获取点位数据
+        const allPoints = await fetchPointsFromAPI();
 
         // 填充起点和终点下拉框
         const startPointSelect = document.getElementById('addStartPoint');
@@ -1305,7 +1294,7 @@ async function loadTaskLocations() {
             startPointSelect.innerHTML = '<option value="">选择地点</option>';
             endPointSelect.innerHTML = '<option value="">选择地点</option>';
 
-            if (allPoints.length === 0) {
+            if (!allPoints || allPoints.length === 0) {
                 const startOption = document.createElement('option');
                 startOption.value = '';
                 startOption.textContent = '（暂无可用点位数据）';
@@ -1321,23 +1310,17 @@ async function loadTaskLocations() {
                 console.log('[新增任务] 暂无可用点位数据');
             } else {
                 // 添加点位选项
-                allPoints.forEach((point, index) => {
-                    // 起点
+                allPoints.forEach(point => {
+                    // 起点 - value使用点的ID
                     const startOption = document.createElement('option');
-                    startOption.value = index;
+                    startOption.value = String(point.id);
                     startOption.textContent = point.name;
-                    startOption.dataset.lng = point.position[0];
-                    startOption.dataset.lat = point.position[1];
-                    if (point.id) startOption.dataset.pointId = point.id;
                     startPointSelect.appendChild(startOption);
 
-                    // 终点
+                    // 终点 - value使用点的ID
                     const endOption = document.createElement('option');
-                    endOption.value = index;
+                    endOption.value = String(point.id);
                     endOption.textContent = point.name;
-                    endOption.dataset.lng = point.position[0];
-                    endOption.dataset.lat = point.position[1];
-                    if (point.id) endOption.dataset.pointId = point.id;
                     endPointSelect.appendChild(endOption);
                 });
 
@@ -1480,7 +1463,7 @@ async function createNewTask() {
         // 2. 获取token和用户信息
         const token = sessionStorage.getItem('authToken') || '';
         const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-        const publisherId = currentUser.userId || currentUser.id || '';
+        const publisherId = String(currentUser.userId || currentUser.id || '');
 
         if (!token) {
             alert('未登录，请先登录');
@@ -1499,13 +1482,13 @@ async function createNewTask() {
             phone: formData.phone,
             plate_number: formData.plateNumber,
             vehicle_type: formData.vehicleType || 0,
-            vehicle_id: formData.locatorId || 0, // 使用定位器ID
+            vehicle_id: parseInt(formData.locatorId) || 1, // 使用定位器ID，默认为1
             task_type: formData.taskType,
             task_name: formData.taskName || '',
             task_detail: formData.taskDetail || '',
             start_point: formData.startPoint || 0,
             end_point: formData.endPoint || 0,
-            task_location_id: 0, // 暂时设为0
+            task_location_id: formData.startPoint || 1, // 使用起点ID作为任务位置ID
             entry_start_time: formData.entryStartTime,
             entry_end_time: formData.entryEndTime,
             exit_start_time: formData.exitStartTime,
@@ -1513,7 +1496,7 @@ async function createNewTask() {
             project_id: projectId,
             publisher_id: publisherId,
             publish_date: new Date().toISOString(),
-            status: 0 // 0=未开始
+            status: 1 // 1=已下发 (0=草稿, 1=已下发, 2=进行中, 3=已完成, 4=已取消)
         };
 
         console.log('[新增任务] 请求body:', requestBody);
@@ -1593,6 +1576,11 @@ async function fetchTaskDetail(taskId) {
 
         const result = await response.json();
         console.log('[任务详情] API响应:', result);
+        console.log('[任务详情] 完整数据字段:', result.data ? Object.keys(result.data) : 'no data');
+        console.log('[任务详情] start_point:', result.data?.start_point);
+        console.log('[任务详情] end_point:', result.data?.end_point);
+        console.log('[任务详情] startPoint:', result.data?.startPoint);
+        console.log('[任务详情] endPoint:', result.data?.endPoint);
 
         if (result.code === 200 && result.data) {
             return result.data;
@@ -1728,7 +1716,7 @@ function collectViewTaskFormData() {
     // 获取项目ID和用户信息
     const projectId = getProjectId();
     const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
-    const publisherId = currentUser.userId || currentUser.id || '';
+    const publisherId = String(currentUser.userId || currentUser.id || '');
 
     // 获取表单输入值 (根据查看任务页面的表单结构调整选择器)
     const locatorSelect = document.getElementById('viewLocator');
@@ -1754,11 +1742,22 @@ function collectViewTaskFormData() {
         return null;
     }
 
-    // 获取时间选择器的值
-    const entryStartTime = viewTaskPage.querySelector('#viewEntryStartTime')?.value || '';
-    const entryEndTime = viewTaskPage.querySelector('#viewEntryEndTime')?.value || '';
-    const exitStartTime = viewTaskPage.querySelector('#viewExitStartTime')?.value || '';
-    const exitEndTime = viewTaskPage.querySelector('#viewExitEndTime')?.value || '';
+    // 使用保存的时间数据（从fillViewTaskForm保存的全局变量）
+    const selectedTimes = window.viewTaskSelectedTimes || {};
+    const entryStartTime = selectedTimes.entryStart || '';
+    const entryEndTime = selectedTimes.entryEnd || '';
+    const exitStartTime = selectedTimes.exitStart || '';
+    const exitEndTime = selectedTimes.exitEnd || '';
+
+    // 验证时间数据
+    if (!entryStartTime || !entryEndTime || !exitStartTime || !exitEndTime) {
+        alert('时间数据不完整，请重新打开任务详情');
+        return null;
+    }
+
+    // 获取起点和终点ID
+    const startPoint = startPointSelect ? parseInt(startPointSelect.value) || 0 : 0;
+    const endPoint = endPointSelect ? parseInt(endPointSelect.value) || 0 : 0;
 
     // 构建请求body
     const requestBody = {
@@ -1766,13 +1765,13 @@ function collectViewTaskFormData() {
         phone: phone,
         plate_number: plateNumber,
         vehicle_type: 0,
-        vehicle_id: locatorSelect ? parseInt(locatorSelect.value) || 0 : 0,
+        vehicle_id: parseInt(locatorSelect?.value) || 1, // 使用定位器ID，默认为1
         task_type: taskTypeSelect ? parseInt(taskTypeSelect.value) || 0 : 0,
         task_name: taskTypeSelect ? taskTypeSelect.options[taskTypeSelect.selectedIndex]?.text || '' : '',
         task_detail: taskDetail || '',
-        start_point: startPointSelect ? parseInt(startPointSelect.value) || 0 : 0,
-        end_point: endPointSelect ? parseInt(endPointSelect.value) || 0 : 0,
-        task_location_id: 0,
+        start_point: startPoint,
+        end_point: endPoint,
+        task_location_id: startPoint || 1, // 使用起点ID作为任务位置ID
         entry_start_time: entryStartTime,
         entry_end_time: entryEndTime,
         exit_start_time: exitStartTime,
@@ -1848,8 +1847,13 @@ function collectTaskFormData() {
     const locatorId = locatorSelect?.value || '';
 
     // 获取起点和终点
-    const startPoint = parseInt(startPointSelect.value) || 0;
-    const endPoint = parseInt(endPointSelect.value) || 0;
+    const startPointValue = startPointSelect.value;
+    const endPointValue = endPointSelect.value;
+    console.log('[收集表单] 起点原始value:', startPointValue, '终点原始value:', endPointValue);
+
+    const startPoint = parseInt(startPointValue) || 0;
+    const endPoint = parseInt(endPointValue) || 0;
+    console.log('[收集表单] 起点ID:', startPoint, '终点ID:', endPoint);
 
     return {
         locatorId,
@@ -1929,10 +1933,139 @@ async function openViewTaskPage(taskId) {
     // 显示页面
     showPage('viewTaskPage');
 
+    // 先加载点位数据到查看页面的下拉框（等待完成）
+    await loadViewTaskPoints();
+
     // 从API获取任务详情并填充表单
     const taskData = await fetchTaskDetail(taskId);
     if (taskData) {
         fillViewTaskForm(taskData);
+    }
+}
+
+/**
+ * 加载点位数据到查看任务页面的下拉框
+ */
+async function loadViewTaskPoints() {
+    try {
+        // 优先从 API 获取点位数据
+        const points = await fetchPointsFromAPI();
+
+        if (!points || points.length === 0) {
+            console.warn('[查看任务] 未获取到点位数据');
+            return;
+        }
+
+        const startPointSelect = document.getElementById('viewStartPoint');
+        const endPointSelect = document.getElementById('viewEndPoint');
+
+        if (startPointSelect && endPointSelect) {
+            startPointSelect.innerHTML = '<option value="">选择地点</option>';
+            endPointSelect.innerHTML = '<option value="">选择地点</option>';
+
+            points.forEach(point => {
+                // 起点 - value使用点的ID（转为字符串确保匹配）
+                const startOption = document.createElement('option');
+                startOption.value = String(point.id);
+                startOption.textContent = point.name;
+                startPointSelect.appendChild(startOption);
+
+                // 终点 - value使用点的ID（转为字符串确保匹配）
+                const endOption = document.createElement('option');
+                endOption.value = String(point.id);
+                endOption.textContent = point.name;
+                endPointSelect.appendChild(endOption);
+            });
+
+            console.log('[查看任务] 已加载', points.length, '个点位');
+        }
+    } catch (error) {
+        console.error('[查看任务] 加载点位失败:', error);
+    }
+}
+
+/**
+ * 从 API 获取点位列表（优先从sessionStorage读取点位选择界面的数据）
+ */
+async function fetchPointsFromAPI() {
+    try {
+        // 优先从sessionStorage读取点位选择界面保存的数据
+        const cachedPoints = sessionStorage.getItem('mapPointsList');
+        if (cachedPoints) {
+            const points = JSON.parse(cachedPoints);
+            console.log('[获取点位] 从sessionStorage读取到', points.length, '个点位');
+            return points.map(p => ({
+                id: p.id,
+                name: p.name || `点位${p.id}`
+            }));
+        }
+
+        console.log('[获取点位] sessionStorage无数据，从API获取...');
+
+        const projectId = getProjectId();
+        if (!projectId) {
+            console.warn('[获取点位] 无法获取项目ID');
+            return [];
+        }
+
+        const token = sessionStorage.getItem('authToken') || '';
+        const baseURL = 'https://dmap.cscec3bxjy.cn/api/map';
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // 获取当前启用的地图版本号
+        let versionId = null;
+        try {
+            const versionRes = await fetch(`${baseURL}/map-versions/project/${projectId}/active`, { headers });
+            if (versionRes.ok) {
+                const versionData = await versionRes.json();
+                if (versionData.code === 200 && versionData.data) {
+                    versionId = versionData.data.MapVersion_Id || versionData.data.id;
+                }
+            }
+        } catch (e) {
+            console.warn('[获取点位] 获取版本信息失败:', e);
+        }
+
+        if (!versionId) {
+            console.warn('[获取点位] 该项目没有启用的地图版本');
+            return [];
+        }
+
+        // 获取点位列表
+        const pointsUrl = `${baseURL}/points?page=1&page_size=1000&project_id=${projectId}&map_version_id=${versionId}`;
+        console.log('[获取点位] 请求URL:', pointsUrl);
+
+        const pointsRes = await fetch(pointsUrl, { headers });
+        if (!pointsRes.ok) {
+            console.warn('[获取点位] 请求失败:', pointsRes.status);
+            return [];
+        }
+
+        const pointsData = await pointsRes.json();
+        let points = pointsData.data?.list || pointsData.data || [];
+
+        // 过滤当前版本的点位
+        points = points.filter(p => String(p.map_version_id) === String(versionId));
+
+        // 只保留 point_type 为 2 的点（可选择的地点，排除道路节点等）
+        points = points.filter(p => p.point_type === 2 || p.point_type === '2');
+
+        // 转换为统一格式
+        const result = points.map(p => ({
+            id: p.id,
+            name: p.name || p.point_name || `点位${p.id}`
+        }));
+
+        console.log('[获取点位] 获取到', result.length, '个可选点位（排除道路节点）');
+        return result;
+    } catch (error) {
+        console.error('[获取点位] 获取失败:', error);
+        return [];
     }
 }
 
@@ -1947,6 +2080,15 @@ function fillViewTaskForm(taskData) {
         console.error('[填充表单] 未找到查看任务页面');
         return;
     }
+
+    // 保存原始时间数据到全局变量，供更新时使用
+    window.viewTaskSelectedTimes = {
+        entryStart: taskData.entry_start_time || '',
+        entryEnd: taskData.entry_end_time || '',
+        exitStart: taskData.exit_start_time || '',
+        exitEnd: taskData.exit_end_time || ''
+    };
+    console.log('[填充表单] 保存时间数据:', window.viewTaskSelectedTimes);
 
     // 填充定位器选择框
     const locatorSelect = document.getElementById('viewLocator');
@@ -1975,49 +2117,80 @@ function fillViewTaskForm(taskData) {
     // 填充任务类型
     const taskTypeSelect = document.getElementById('viewTaskType');
     if (taskTypeSelect && taskData.task_type !== undefined) {
-        taskTypeSelect.value = taskData.task_type;
+        taskTypeSelect.value = String(taskData.task_type);
+        console.log('[填充表单] 任务类型:', taskData.task_type, '-> 设置value:', String(taskData.task_type));
     }
 
     // 填充任务详情
     const taskDetailTextarea = viewTaskPage.querySelector('.form-section:nth-child(4) .form-item:nth-child(2) textarea');
-    if (taskDetailTextarea && taskData.task_detail) {
-        taskDetailTextarea.value = taskData.task_detail;
+    if (taskDetailTextarea) {
+        taskDetailTextarea.value = taskData.task_detail || '';
     }
 
     // 填充起点
     const startPointSelect = document.getElementById('viewStartPoint');
     if (startPointSelect && taskData.start_point) {
-        startPointSelect.value = taskData.start_point;
+        const startValue = String(taskData.start_point);
+        console.log('[填充表单] 起点: taskData.start_point=', taskData.start_point, '-> 设置value:', startValue);
+        console.log('[填充表单] 起点下拉框选项数量:', startPointSelect.options.length);
+        // 打印所有选项的value用于调试
+        const startOptions = Array.from(startPointSelect.options).map(o => o.value);
+        console.log('[填充表单] 起点下拉框所有选项value:', startOptions);
+        startPointSelect.value = startValue;
+        console.log('[填充表单] 设置后的选中值:', startPointSelect.value);
     }
 
     // 填充终点
     const endPointSelect = document.getElementById('viewEndPoint');
     if (endPointSelect && taskData.end_point) {
-        endPointSelect.value = taskData.end_point;
+        const endValue = String(taskData.end_point);
+        console.log('[填充表单] 终点: taskData.end_point=', taskData.end_point, '-> 设置value:', endValue);
+        console.log('[填充表单] 终点下拉框选项数量:', endPointSelect.options.length);
+        endPointSelect.value = endValue;
+        console.log('[填充表单] 设置后的选中值:', endPointSelect.value);
     }
 
-    // 填充时间选择器
-    const entryStartTimeInput = viewTaskPage.querySelector('#viewEntryStartTime');
-    if (entryStartTimeInput && taskData.entry_start_time) {
-        entryStartTimeInput.value = taskData.entry_start_time;
+    // 填充时间显示（这些是div元素，需要更新innerHTML）
+    const entryStartTimeDiv = document.getElementById('viewEntryStartTime');
+    if (entryStartTimeDiv && taskData.entry_start_time) {
+        entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_start_time)}`;
     }
 
-    const entryEndTimeInput = viewTaskPage.querySelector('#viewEntryEndTime');
-    if (entryEndTimeInput && taskData.entry_end_time) {
-        entryEndTimeInput.value = taskData.entry_end_time;
+    const entryEndTimeDiv = document.getElementById('viewEntryEndTime');
+    if (entryEndTimeDiv && taskData.entry_end_time) {
+        entryEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_end_time)}`;
     }
 
-    const exitStartTimeInput = viewTaskPage.querySelector('#viewExitStartTime');
-    if (exitStartTimeInput && taskData.exit_start_time) {
-        exitStartTimeInput.value = taskData.exit_start_time;
+    const exitStartTimeDiv = document.getElementById('viewExitStartTime');
+    if (exitStartTimeDiv && taskData.exit_start_time) {
+        exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_start_time)}`;
     }
 
-    const exitEndTimeInput = viewTaskPage.querySelector('#viewExitEndTime');
-    if (exitEndTimeInput && taskData.exit_end_time) {
-        exitEndTimeInput.value = taskData.exit_end_time;
+    const exitEndTimeDiv = document.getElementById('viewExitEndTime');
+    if (exitEndTimeDiv && taskData.exit_end_time) {
+        exitEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_end_time)}`;
     }
 
     console.log('[填充表单] 表单数据填充完成');
+}
+
+/**
+ * 格式化时间用于显示
+ * @param {string} isoTime - ISO格式时间字符串，如 "2026-01-27T19:49:00+08:00"
+ * @returns {string} 格式化后的时间，如 "1月27日 19:49"
+ */
+function formatTimeForDisplay(isoTime) {
+    try {
+        const date = new Date(isoTime);
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${month}月${day}日 ${hours}:${minutes}`;
+    } catch (e) {
+        console.error('[时间格式化] 失败:', e);
+        return isoTime;
+    }
 }
 
 /**

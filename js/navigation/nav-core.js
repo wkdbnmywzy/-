@@ -2798,6 +2798,324 @@ const NavCore = (function() {
         }
     }
 
+    // ==================== 前方路况实时检测 ====================
+    // 检测 KML 图层中的灰色路段（不可通行），不是导航系统绘制的"已走过"灰色路线
+    let lastRoadConditionCheckTime = 0;          // 上次路况检查时间
+    let lastRoadStatusRefreshTime = 0;           // 上次道路状态刷新时间
+    const ROAD_CONDITION_CHECK_INTERVAL = 2000;  // 路况检查间隔（毫秒）
+    const ROAD_STATUS_REFRESH_INTERVAL = 10000;  // 道路状态刷新间隔（毫秒）- 每10秒从后端拉取最新状态
+    const ROAD_CONDITION_CHECK_DISTANCE = 100;   // 检查前方多少米的路况（米）
+
+    /**
+     * 刷新道路状态（从后端拉取最新的摄像头检测结果，更新 KML 图层颜色）
+     * 导航过程中定时调用，确保能感知到路况变化
+     */
+    async function refreshRoadStatus() {
+        try {
+            const now = Date.now();
+            // 防抖：避免频繁刷新
+            if (now - lastRoadStatusRefreshTime < ROAD_STATUS_REFRESH_INTERVAL) {
+                return;
+            }
+            lastRoadStatusRefreshTime = now;
+
+            console.log('[路况刷新] 开始刷新道路状态...');
+
+            // 检查是否有道路状态刷新函数
+            if (typeof autoLoadDriverRoadStatus === 'function') {
+                await autoLoadDriverRoadStatus();
+                console.log('[路况刷新] ✓ 道路状态已刷新');
+            } else {
+                console.log('[路况刷新] autoLoadDriverRoadStatus 函数不存在，跳过刷新');
+            }
+        } catch (e) {
+            console.error('[路况刷新] 刷新失败:', e);
+        }
+    }
+
+    /**
+     * 检查前方路段是否有不可通行的灰色路段（KML图层中的原始灰色路段）
+     * 注意：这里检测的是 KML 图层中 strokeColor === '#808080' 的路段，
+     * 而不是导航系统绘制的"已走过"灰色路线（passedPolyline）
+     *
+     * @param {number} currentIndex - 当前吸附点索引
+     * @returns {Object|null} 如果检测到灰色路段，返回 {found: true, distance: 距离米数}，否则返回 null
+     */
+    function checkAheadRoadCondition(currentIndex) {
+        try {
+            const now = Date.now();
+            // 防抖：避免频繁检查
+            if (now - lastRoadConditionCheckTime < ROAD_CONDITION_CHECK_INTERVAL) {
+                return null;
+            }
+            lastRoadConditionCheckTime = now;
+
+            // 【新增】先刷新道路状态，确保 kmlLayers 中的颜色是最新的
+            refreshRoadStatus();
+
+            // 检查必要的全局变量
+            if (typeof window.kmlLayers === 'undefined' || !window.kmlLayers) {
+                console.log('[路况检测] kmlLayers 不存在，跳过检测');
+                return null;
+            }
+
+            const pointSet = window.currentSegmentPointSet;
+            if (!pointSet || pointSet.length === 0 || currentIndex < 0) {
+                console.log('[路况检测] 点集无效，跳过检测');
+                return null;
+            }
+
+            // 计算需要检查的点的范围（当前位置往前100米）
+            let checkDistance = 0;
+            let endCheckIndex = currentIndex;
+
+            for (let i = currentIndex; i < pointSet.length - 1; i++) {
+                const p1 = pointSet[i].position;
+                const p2 = pointSet[i + 1].position;
+                const segDist = haversineDistance(
+                    Array.isArray(p1) ? p1[1] : p1.lat,
+                    Array.isArray(p1) ? p1[0] : p1.lng,
+                    Array.isArray(p2) ? p2[1] : p2.lat,
+                    Array.isArray(p2) ? p2[0] : p2.lng
+                );
+                checkDistance += segDist;
+                endCheckIndex = i + 1;
+
+                if (checkDistance >= ROAD_CONDITION_CHECK_DISTANCE) {
+                    break;
+                }
+            }
+
+            // 获取需要检查的路径点
+            const checkPoints = [];
+            for (let i = currentIndex; i <= endCheckIndex && i < pointSet.length; i++) {
+                checkPoints.push(pointSet[i].position);
+            }
+
+            if (checkPoints.length < 2) {
+                return null;
+            }
+
+            console.log(`[路况检测] 检查前方路况: 当前索引=${currentIndex}, 检查到索引=${endCheckIndex}, 检查距离=${checkDistance.toFixed(0)}米, 检查点数=${checkPoints.length}`);
+
+            // 统计 KML 图层中的灰色路段数量（调试用）
+            let graySegmentCount = 0;
+            window.kmlLayers.forEach(layer => {
+                if (!layer.visible) return;
+                layer.markers.forEach(marker => {
+                    if (!marker || typeof marker.getExtData !== 'function') return;
+                    const extData = marker.getExtData();
+                    if (!extData || extData.type !== '线') return;
+                    const strokeColor = marker.getOptions ? marker.getOptions().strokeColor : null;
+                    if (strokeColor === '#808080') {
+                        graySegmentCount++;
+                    }
+                });
+            });
+            console.log(`[路况检测] KML图层中灰色路段数量: ${graySegmentCount}`);
+
+            // 【调试】输出检测路径的首尾坐标
+            const firstPoint = checkPoints[0];
+            const lastPoint = checkPoints[checkPoints.length - 1];
+            console.log(`[路况检测] 检测路径: 起点[${Array.isArray(firstPoint) ? firstPoint[0].toFixed(6) : firstPoint.lng.toFixed(6)}, ${Array.isArray(firstPoint) ? firstPoint[1].toFixed(6) : firstPoint.lat.toFixed(6)}] -> 终点[${Array.isArray(lastPoint) ? lastPoint[0].toFixed(6) : lastPoint.lng.toFixed(6)}, ${Array.isArray(lastPoint) ? lastPoint[1].toFixed(6) : lastPoint.lat.toFixed(6)}]`);
+
+            // 遍历路径上的点，检查每个点附近是否有 KML 图层中的灰色路段
+            for (let i = 0; i < checkPoints.length; i++) {
+                const pos = checkPoints[i];
+                const lng = Array.isArray(pos) ? pos[0] : pos.lng;
+                const lat = Array.isArray(pos) ? pos[1] : pos.lat;
+
+                // 检查这个点是否在 KML 图层的灰色路段上
+                const graySegment = findNearestGrayKMLSegment([lng, lat]);
+
+                // 【调试】每隔5个点输出一次与最近灰色路段的距离
+                if (i % 5 === 0 && graySegment) {
+                    console.log(`[路况检测] 点${i} [${lng.toFixed(6)}, ${lat.toFixed(6)}] 距离最近灰色路段: ${graySegment.distance.toFixed(1)}米`);
+                }
+
+                if (graySegment && graySegment.distance < 5) { // 5米内认为在灰色路段上
+                    // 计算从当前位置到灰色路段的距离
+                    let distanceToGray = 0;
+                    for (let j = currentIndex; j < currentIndex + i && j < pointSet.length - 1; j++) {
+                        const p1 = pointSet[j].position;
+                        const p2 = pointSet[j + 1].position;
+                        distanceToGray += haversineDistance(
+                            Array.isArray(p1) ? p1[1] : p1.lat,
+                            Array.isArray(p1) ? p1[0] : p1.lng,
+                            Array.isArray(p2) ? p2[1] : p2.lat,
+                            Array.isArray(p2) ? p2[0] : p2.lng
+                        );
+                    }
+
+                    console.log(`[路况检测] ⚠ 检测到前方${distanceToGray.toFixed(0)}米处有KML灰色路段（不可通行）: ${graySegment.name}, 距离路段=${graySegment.distance.toFixed(1)}米`);
+                    return {
+                        found: true,
+                        distance: distanceToGray,
+                        segmentName: graySegment.name || '未知路段'
+                    };
+                }
+            }
+
+            console.log('[路况检测] ✓ 前方路况正常，无灰色路段');
+            return null;
+        } catch (e) {
+            console.error('[路况检测] 执行失败:', e);
+            return null;
+        }
+    }
+
+    /**
+     * 查找距离某点最近的 KML 图层中的灰色（不可通行）路段
+     * 注意：只检查 KML 图层中 strokeColor === '#808080' 的原始路段
+     *
+     * @param {Array} coordinate - [lng, lat]
+     * @returns {Object|null} 最近的灰色线段信息，或 null
+     */
+    function findNearestGrayKMLSegment(coordinate) {
+        try {
+            if (typeof window.kmlLayers === 'undefined' || !window.kmlLayers) {
+                return null;
+            }
+
+            const coordLng = Array.isArray(coordinate) ? coordinate[0] : coordinate.lng;
+            const coordLat = Array.isArray(coordinate) ? coordinate[1] : coordinate.lat;
+
+            let minDistance = Infinity;
+            let nearestGray = null;
+
+            // 遍历所有 KML 图层
+            window.kmlLayers.forEach(layer => {
+                if (!layer.visible) return;
+
+                layer.markers.forEach(marker => {
+                    if (!marker || typeof marker.getExtData !== 'function') return;
+
+                    const extData = marker.getExtData();
+                    if (!extData || extData.type !== '线') return;
+
+                    // 【关键】只检查 KML 图层中的灰色路段（#808080）
+                    // 这是原始的不可通行路段，不是导航系统绘制的"已走过"路线
+                    const strokeColor = marker.getOptions ? marker.getOptions().strokeColor : null;
+                    if (strokeColor !== '#808080') return;
+
+                    // 获取路径
+                    if (typeof marker.getPath !== 'function') return;
+
+                    let path;
+                    try {
+                        path = marker.getPath();
+                    } catch (e) {
+                        return;
+                    }
+
+                    if (!path || path.length < 2) return;
+
+                    // 计算点到这条灰色线段的最近距离
+                    for (let i = 0; i < path.length - 1; i++) {
+                        const p1 = path[i];
+                        const p2 = path[i + 1];
+
+                        const p1Lng = p1.lng !== undefined ? p1.lng : p1[0];
+                        const p1Lat = p1.lat !== undefined ? p1.lat : p1[1];
+                        const p2Lng = p2.lng !== undefined ? p2.lng : p2[0];
+                        const p2Lat = p2.lat !== undefined ? p2.lat : p2[1];
+
+                        // 计算点到线段的距离
+                        const dist = pointToSegmentDistance(
+                            coordLng, coordLat,
+                            p1Lng, p1Lat,
+                            p2Lng, p2Lat
+                        );
+
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            nearestGray = {
+                                distance: dist,
+                                name: extData.name || '灰色路段',
+                                marker: marker
+                            };
+                        }
+                    }
+                });
+            });
+
+            return nearestGray;
+        } catch (e) {
+            console.error('[查找KML灰色路段] 执行失败:', e);
+            return null;
+        }
+    }
+
+    /**
+     * 计算点到线段的距离（米）
+     */
+    function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+
+        if (dx === 0 && dy === 0) {
+            // 线段退化为点
+            return haversineDistance(py, px, y1, x1);
+        }
+
+        // 计算投影参数 t
+        const t = Math.max(0, Math.min(1,
+            ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)
+        ));
+
+        // 投影点
+        const projX = x1 + t * dx;
+        const projY = y1 + t * dy;
+
+        return haversineDistance(py, px, projY, projX);
+    }
+
+    /**
+     * 处理前方路况变化：检测到 KML 图层中的灰色路段时重新规划
+     * @param {Array} position - 当前GPS位置 [lng, lat]
+     * @param {number} currentIndex - 当前吸附点索引
+     * @returns {boolean} 是否触发了重新规划
+     */
+    function handleRoadConditionChange(position, currentIndex) {
+        try {
+            // 检查前方路况
+            const grayAhead = checkAheadRoadCondition(currentIndex);
+
+            if (!grayAhead || !grayAhead.found) {
+                return false;
+            }
+
+            console.log(`[路况变化] 前方${grayAhead.distance.toFixed(0)}米处检测到不可通行路段: ${grayAhead.segmentName}`);
+
+            // 检查是否需要重新规划（带防抖）
+            const now = Date.now();
+            if (now - lastReplanTime < 5000) {
+                console.log('[路况变化] 跳过重新规划（距上次<5秒，防抖中）');
+                return false;
+            }
+
+            // 播报提示
+            NavTTS.speak(`前方道路不可通行，正在重新规划路线`, { force: true });
+
+            // 重新规划路线
+            const replanSuccess = replanRouteFromPosition(position);
+
+            if (replanSuccess) {
+                lastReplanTime = now;
+                console.log('[路况变化] ✓ 路线已重新规划，绕开不可通行路段');
+                NavTTS.speak('已重新规划路线', { force: true });
+                return true;
+            } else {
+                console.log('[路况变化] × 重新规划失败，可能没有可用的替代路线');
+                NavTTS.speak('无法绕行，请注意前方路况', { force: true });
+                return false;
+            }
+        } catch (e) {
+            console.error('[路况变化处理] 执行失败:', e);
+            return false;
+        }
+    }
+
     /**
      * 从当前位置重新规划路线到段终点
      * 【简化版】只做重新规划，回归判断已在调用方完成
@@ -3160,6 +3478,15 @@ const NavCore = (function() {
                     // 更新导航提示（只在段内更新，段间切换时不更新）
                     // 传入当前GPS位置，用于更准确的距离计算
                     updateNavigationGuidance(currentSnappedIndex, position);
+
+                    // 【新增】检查前方路况，如果检测到不可通行的灰色路段则重新规划
+                    const roadConditionChanged = handleRoadConditionChange(position, currentSnappedIndex);
+                    if (roadConditionChanged) {
+                        // 路线已重新规划，本次GPS更新结束
+                        isProcessingGPS = false;
+                        lastGPSProcessTime = Date.now();
+                        return;
+                    }
                 }
 
                 // 更新已走路线（灰色）

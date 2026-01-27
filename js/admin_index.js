@@ -855,11 +855,17 @@ async function fetchCameras(projectId) {
         const url = `http://115.159.67.12:8085/api/video/cameras?page=1&page_size=1000&project_id=${projectId}`;
         console.log('[摄像头] 请求URL:', url);
 
+        const token = sessionStorage.getItem('authToken') || '';
+        const headers = {
+            'accept': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(url, {
             method: 'GET',
-            headers: {
-                'accept': 'application/json'
-            }
+            headers: headers
         });
 
         if (!response.ok) {
@@ -1086,11 +1092,17 @@ async function getCameraDetails(cameraId) {
         const url = `http://115.159.67.12:8085/api/video/cameras/${cameraId}`;
         console.log('[摄像头] 获取详情URL:', url);
 
+        const token = sessionStorage.getItem('authToken') || '';
+        const headers = {
+            'accept': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(url, {
             method: 'GET',
-            headers: {
-                'accept': 'application/json'
-            }
+            headers: headers
         });
 
         if (!response.ok) {

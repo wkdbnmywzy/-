@@ -1286,6 +1286,19 @@ async function loadMapDataFromAPIForSelection() {
             fileName: `${projectName} (API数据)`
         };
 
+        // 9.1 保存点位列表到sessionStorage，供其他页面使用（如运输管理）
+        // 只保存 point_type 为 2 的点（可选择的地点，排除道路节点等）
+        const pointsList = points
+            .filter(p => p.point_type === 2 || p.point_type === '2')
+            .map(p => ({
+                id: p.id,
+                name: p.name || p.point_name || '未命名点',
+                longitude: p.longitude,
+                latitude: p.latitude
+            }));
+        sessionStorage.setItem('mapPointsList', JSON.stringify(pointsList));
+        console.log('[选点页-API加载] 已保存', pointsList.length, '个可选点位到sessionStorage（point_type=2）');
+
         // 10. 显示地图数据
         if (processedFeatures.length > 0) {
             window.isFirstKMLImport = true;

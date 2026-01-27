@@ -182,17 +182,9 @@
                     <div class="popover-item view" id="popoverViewBtn">查看/修改</div>
                 </div>
             </div>
-        
+
             <!-- 查看/修改任务页面 -->
             <div class="sub-page" id="viewTaskPage">
-                <div class="page-header">
-                    <div class="back-btn"><i class="fas fa-chevron-left"></i></div>
-                    <div class="page-title">查看任务</div>
-                    <div class="header-actions">
-                        <i class="fas fa-ellipsis-h header-icon-btn"></i>
-                        <i class="far fa-dot-circle header-icon-btn"></i>
-                    </div>
-                </div>
                 <div class="page-content">
                     <div class="section-title">车辆信息</div>
                     <div class="form-section vehicle-info-card">
@@ -230,8 +222,11 @@
                             <div class="form-label required">任务类型</div>
                             <div class="form-input-wrapper select-wrapper">
                                 <select class="form-input" id="viewTaskType">
-                                    <option value="sand">砂石运输</option>
-                                    <option value="cement">水泥运输</option>
+                                    <option value="">选择任务类型</option>
+                                    <option value="1">砂石运输</option>
+                                    <option value="2">水泥运输</option>
+                                    <option value="3">钢筋运输</option>
+                                    <option value="99">其他</option>
                                 </select>
                             </div>
                         </div>
@@ -260,17 +255,17 @@
                         <div class="form-item vertical">
                             <div class="form-label required">入场时间</div>
                             <div class="date-range-row">
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                                <div class="date-input" id="viewEntryStartTime"><i class="far fa-calendar-alt"></i> --</div>
                                 <span class="date-separator">至</span>
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                                <div class="date-input" id="viewEntryEndTime"><i class="far fa-calendar-alt"></i> --</div>
                             </div>
                         </div>
                         <div class="form-item vertical">
                             <div class="form-label required">离场时间</div>
                             <div class="date-range-row">
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                                <div class="date-input" id="viewExitStartTime"><i class="far fa-calendar-alt"></i> --</div>
                                 <span class="date-separator">至</span>
-                                <div class="date-input"><i class="far fa-calendar-alt"></i> 9月25日 16:30</div>
+                                <div class="date-input" id="viewExitEndTime"><i class="far fa-calendar-alt"></i> --</div>
                             </div>
                         </div>
                     </div>
