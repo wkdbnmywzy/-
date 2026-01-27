@@ -117,7 +117,7 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    background: white;  /* 改为纯白色背景 */
+    background: rgba(255, 255, 255, 0.8);  /* 透明度80% */
     border-radius: 12px;
     padding: 12px 15px;
     /* 蓝色阴影，和首页一致 */
@@ -145,7 +145,7 @@ body {
 }
 
 .search-box input::placeholder {
-    color: #999;
+    color: #143662;
 }
 
 /* 搜索框清除按钮 */
