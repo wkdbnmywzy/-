@@ -109,6 +109,22 @@ body {
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
     overflow: hidden; /* 限制滑入效果只在盒子内显示 */
+    transition: margin-top 0.3s ease, border-radius 0.3s ease;
+}
+
+/* 键盘弹出时卡片升到顶部 */
+.card-stack.keyboard-active {
+    margin-top: 0;
+    border-radius: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    z-index: 1000;
 }
 
 /* 通用卡片基类：用于切换动画 */
@@ -987,7 +1003,7 @@ body {
     text-align: center;
     margin-top: -10px;
     margin-bottom: 20px;
-    opacity: 0;
+    opacity: 1;
     transition: opacity 0.3s;
     display: flex;
     align-items: center;
@@ -1014,16 +1030,11 @@ body {
 
 .hint-message.show {
     opacity: 1;
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-bottom: 0;
-    padding: 8px 12px;
-    background: #FFF3E0;
-    border-radius: 0;
-    white-space: nowrap;
-    z-index: 10;
+}
+
+.hint-message.hidden {
+    opacity: 0;
+    visibility: hidden;
 }
 
 /* 记住选项（下次登录自动填写 / 记住密码） */
@@ -1292,8 +1303,8 @@ body {
 }
 
 #togglePassword svg {
-    color: #143662; /* 深蓝色，与设计稿一致 */
-    stroke: #143662;
+    color: #2A86FF; /* 蓝色 */
+    stroke: #2A86FF;
 }
 
 /* 隐藏斜线（显示密码时） */
