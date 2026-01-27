@@ -28,8 +28,7 @@
     right: 0;
     background: linear-gradient(to bottom, #FFFFFF 0%, #DBE9FC 100%);
     border-radius: 20px 20px 0 0;
-    padding: 20px 70px 20px 20px;
-    box-shadow: none;
+    padding: 20px 20px 20px 20px;
     z-index: 90;
     max-height: 90vh; /* 恢复到90% */
     overflow-x: hidden; /* 隐藏横向滚动条 */
@@ -41,7 +40,6 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 16px;
     position: relative;
 }
 
@@ -51,7 +49,6 @@
     border-radius: 12px;
     background: #fff;
     position: relative; /* 作为绝对定位参照 */
-    padding-right: 56px; /* 预留按钮空间 */
     overflow: hidden; /* 隐藏溢出内容 */
 }
 
@@ -65,7 +62,6 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px 12px 14px 16px;
     border: none;
     background: transparent;
 }
@@ -91,7 +87,6 @@
     font-size: 15px;
     color: #333;
     background: transparent;
-    padding-right: 8px;
 }
 
 .location-item input::placeholder {
@@ -149,16 +144,18 @@
 
 /* 添加途径点按钮 */
 .add-waypoint {
-    position: absolute;
-    right: -60px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
+    display: inline-flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 4px;
+    margin-left: 40px;
+    margin-top: 60px;
     flex-shrink: 0;
+    position: relative;
+    top: auto;
+    right: auto;
+    transform: none;
 }
 
 .add-waypoint .add-btn {
@@ -180,10 +177,6 @@
 
 .add-waypoint .add-btn:active {
     transform: scale(0.95);
-}
-
-.add-waypoint .add-btn i {
-    font-size: 16px;
 }
 
 .add-waypoint .add-btn img {
@@ -245,7 +238,6 @@
     justify-content: center;
     gap: 40px;
     margin-bottom: 20px;
-    padding: 16px 0;
 }
 
 .route-info-item {
@@ -255,20 +247,20 @@
 }
 
 .info-label {
-    font-size: 14px;
-    color: #999;
+    font-size: 18px;
+    color: #143662;
 }
 
 .info-value {
     font-size: 32px;
     font-weight: 700;
-    color: #333;
+    color: #143662;
     line-height: 1;
 }
 
 .info-unit {
-    font-size: 14px;
-    color: #666;
+    font-size: 18px;
+    color: #143662;
 }
 
 /* 开始导航按钮 */
@@ -276,14 +268,13 @@
     width: 100%;
     height: 56px;
     border: none;
-    border-radius: 28px;
     font-size: 18px;
     font-weight: 600;
     cursor: pointer;
-    background: #1E6FFF;
     color: white;
-    box-shadow: 0 4px 16px rgba(30, 111, 255, 0.3);
     transition: all 0.3s ease;
+    background: #2A86FF;
+    border-radius: 999px 999px 999px 999px;
 }
 
 .start-navigation-btn:hover {
@@ -714,10 +705,6 @@
 @media (max-width: 320px) {
     .navigation-card {
         padding: 12px 55px 12px 12px;
-    }
-
-    .location-inputs-wrapper {
-        padding-right: 48px;
     }
 
     .route-selector {
