@@ -376,7 +376,7 @@ body {
 }
 
 .project-selection .picker-item.selected {
-    color: #143662; /* 选中项深蓝色 */
+    color: #2A86FF; /* 选中项蓝色 */
     font-family: "OPPO Sans 4.0", "OPPO Sans", -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
     font-weight: 600; /* SemiBold */
     font-size: 16px;
@@ -983,7 +983,7 @@ body {
 /* 提示消息（显示未填写的字段） */
 .hint-message {
     font-size: 13px;
-    color: #FF9800;
+    color: #F47160;
     text-align: center;
     margin-top: -10px;
     margin-bottom: 20px;
@@ -996,12 +996,34 @@ body {
 }
 
 .hint-message::before {
-    content: '⚠';
-    font-size: 14px;
+    content: 'i';
+    font-size: 12px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid #F47160;
+    background: transparent;
+    color: #F47160;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: serif;
+    font-weight: bold;
+    line-height: 1;
 }
 
 .hint-message.show {
     opacity: 1;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 0;
+    padding: 8px 12px;
+    background: #FFF3E0;
+    border-radius: 0;
+    white-space: nowrap;
+    z-index: 10;
 }
 
 /* 记住选项（下次登录自动填写 / 记住密码） */
@@ -1270,8 +1292,8 @@ body {
 }
 
 #togglePassword svg {
-    color: #9DB8D4; /* 浅蓝灰色，类似图片中的样式 */
-    stroke: #9DB8D4;
+    color: #143662; /* 深蓝色，与设计稿一致 */
+    stroke: #143662;
 }
 
 /* 隐藏斜线（显示密码时） */
