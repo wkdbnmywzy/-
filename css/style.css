@@ -787,7 +787,7 @@ body {
     padding: 20px 20px 0 20px;
     overflow-y: auto;
     gap: 16px;
-    background: white;
+    background: linear-gradient(0deg, #FFFFFF 0%, #DBE9FC 100%);
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
@@ -829,6 +829,7 @@ body {
     border: 1px solid #e6e9ef;
     border-radius: 12px;
     background: #fff;
+    box-shadow: 0px 0px 4px 0px rgba(42,134,255,0.3);
     position: relative; /* 让切换按钮以整个盒子为参照居中定�?*/
     padding-right: 56px; /* 预留按钮空间 */
     margin-bottom: 8px; /* 移除最外层卡片后，增加与下方元素间�?*/
@@ -1146,6 +1147,10 @@ body {
     display: flex;
     gap: 0;
     padding: 16px 0 8px 0;
+    margin-left: -20px;
+    margin-right: -20px;
+    border-top: 1px solid rgba(20,54,98,0.12);
+    border-bottom: 1px solid rgba(20,54,98,0.12);
 }
 
 .picker-location-tab {
@@ -1157,20 +1162,33 @@ body {
     gap: 8px;
     padding: 12px 16px;
     background: #fff;
-    border: 1px solid #E0E0E0;
+    border: none;
     cursor: pointer;
     transition: all 0.3s ease;
     color: #666;
     font-size: 14px;
+    position: relative;
+    border-radius: 0;
 }
 
 .picker-location-tab:first-child {
-    border-radius: 8px 0 0 8px;
-    border-right: none;
+    border-radius: 0;
 }
 
 .picker-location-tab:last-child {
-    border-radius: 0 8px 8px 0;
+    border-radius: 0;
+}
+
+/* Middle Divider */
+.picker-location-tab:first-child::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0px;
+    height: 27px;
+    border-right: 1px solid rgba(20,54,98,0.12);
 }
 
 .picker-location-tab .tab-icon {
@@ -1201,6 +1219,21 @@ body {
 .picker-history-section {
     padding: 0;
     margin-top: 16px;
+    position: relative;
+    padding-top: 1px; /* Ensure space for the line if needed, though absolute handles it */
+}
+
+.picker-history-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    height: 0px;
+    border-top: 1px solid rgba(20,54,98,0.12);
+    z-index: 2;
 }
 
 /* 分类标签区域 - 添加内边距 */
@@ -1230,11 +1263,34 @@ body {
     cursor: pointer;
     gap: 12px;
     transition: background-color 0.2s ease;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: none;
+    position: relative;
+}
+
+/* Remove default border if any applied elsewhere */
+.picker-location-list .picker-location-item {
+    border-bottom: none;
+}
+
+.picker-location-item::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 16px;
+    right: 16px;
+    transform: none;
+    width: auto;
+    height: 0px;
+    border-bottom: 1px solid rgba(20,54,98,0.12);
+    z-index: 2;
 }
 
 .picker-location-item:last-child {
     border-bottom: none;
+}
+
+.picker-location-item:last-child::after {
+    display: none;
 }
 
 /* 路线规划页：目的地下方的内联完成按钮（蓝色） */
@@ -1307,10 +1363,10 @@ body {
 
 .picker-tag {
     display: inline-block;
-    padding: 8px 16px;
+    padding: 6px 12px;
     background: rgba(42, 134, 255, 0.10);
     border-radius: 4px 4px 4px 4px;
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(20, 54, 98, 0.50);
     cursor: pointer;
     transition: all 0.2s ease;
@@ -1328,15 +1384,10 @@ body {
     transform: scale(0.95);
 }
 
-/* 地点列表 */
-.picker-location-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    background: #f0f0f0;
-    border-radius: 8px;
-    overflow: hidden;
-    max-height: 400px;
+/* Removed duplicate picker-location-list */
+.picker-location-list-removed {
+    display: none;
+}
     overflow-y: auto;
     /* 隐藏滚动�?*/
     scrollbar-width: none; /* Firefox */
