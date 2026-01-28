@@ -141,9 +141,9 @@ class XunfeiTTS {
 
 // 使用示例（如果需要在页面中直接实例化）
 const tts = new XunfeiTTS(
-  'c52e001c', // APPID
-  '90537d9c45e75e75ce34bdbe8ec33a46', // APIKey 
-  'YzU0MjgyZjJiYzc5OGY5MjIwZjZlM2Nh'  // APISecret
+  'd85c406f', // APPID
+  '0d577787a56144bde3fda6749c0f8778', // APIKey 
+  'MzJiMzcwMzAzZjYxYzMxOWU5ZjE2ZWRh'  // APISecret
 );
 
 // 将实例暴露到全局，便于其他脚本复用（navigation.js 会尝试复用该实例）
