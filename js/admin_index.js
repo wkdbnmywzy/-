@@ -6,6 +6,9 @@ let mapPoints = [];  // 存储所有地图点位数据
 let cameraMarkers = [];  // 存储摄像头标记
 let isCameraLayerVisible = false;  // 摄像头图层是否可见
 
+// 工地监控页面模式状态：'vehicle'（车辆管理）或 'camera'（监控管理）
+let currentAdminDataMode = 'vehicle';
+
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 检查登录状态
@@ -552,6 +555,7 @@ function initEventListeners() {
     const locateBtn = document.getElementById('locate-btn');
     const cameraBtn = document.getElementById('camera-btn');
     const vehicleToggleBtn = document.getElementById('vehicle-toggle-btn');
+    const modeToggleBtn = document.getElementById('mode-toggle-btn');
     const switchProjectBtn = document.getElementById('switch-project-btn');
     const vehicleLegend = document.getElementById('vehicle-legend');
 
@@ -563,11 +567,22 @@ function initEventListeners() {
         });
     }
 
-    // 摄像头按钮
+    // 摄像头按钮（旧版）
     if (cameraBtn) {
         cameraBtn.addEventListener('click', function() {
             console.log('[摄像头] 切换摄像头图层显示');
             toggleCameraLayer();
+        });
+    }
+
+    // 模式切换按钮（工地监控页面专用）
+    if (modeToggleBtn) {
+        // 默认显示车辆管理模式，初始化时显示车辆图例
+        initAdminDataMode();
+
+        modeToggleBtn.addEventListener('click', function() {
+            console.log('[模式切换] 当前模式:', currentAdminDataMode);
+            toggleAdminDataMode();
         });
     }
 
@@ -603,13 +618,15 @@ function initEventListeners() {
     if (startLocation) {
         startLocation.addEventListener('click', function() {
             sessionStorage.setItem('selectingPointType', 'start');
+            sessionStorage.setItem('navigationReferrer', 'admin_index.html');
             window.location.href = 'point-selection.html';
         });
     }
-    
+
     if (endLocation) {
         endLocation.addEventListener('click', function() {
             sessionStorage.setItem('selectingPointType', 'end');
+            sessionStorage.setItem('navigationReferrer', 'admin_index.html');
             window.location.href = 'point-selection.html';
         });
     }
@@ -631,11 +648,21 @@ function handleNavigation(page) {
     // 根据不同页面跳转
     switch(page) {
         case 'admin-navigation':
-            // 当前就是导航页面
+            // 判断当前在哪个页面
+            if (window.location.pathname.includes('admin_index.html') ||
+                (window.location.pathname.endsWith('/') && !window.location.pathname.includes('admin_data'))) {
+                // 当前就是导航页面
+            } else {
+                window.location.href = 'admin_index.html';
+            }
             break;
         case 'admin-data':
-            // 跳转到外部工地数据系统
-            window.location.href = 'http://sztymap.0x3d.cn:11080/#/pages/login/login';
+            // 跳转到工地监控页面
+            if (window.location.pathname.includes('admin_data.html')) {
+                // 当前就是工地监控页面
+            } else {
+                window.location.href = 'admin_data.html';
+            }
             break;
         case 'admin-transport':
             window.location.href = 'admin_transport.html';
@@ -1588,4 +1615,73 @@ function calculateEdgeLength(coord1, coord2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c;
+}
+
+// ==================== 工地监控页面模式切换功能 ====================
+
+/**
+ * 初始化工地监控页面模式
+ * 默认为车辆管理模式，显示车辆图例
+ */
+function initAdminDataMode() {
+    console.log('[模式切换] 初始化工地监控页面模式...');
+    currentAdminDataMode = 'vehicle';
+
+    // 显示车辆图例
+    const vehicleLegend = document.getElementById('vehicle-legend');
+    if (vehicleLegend) {
+        vehicleLegend.style.display = 'flex';
+    }
+
+    // 确保摄像头图层隐藏
+    if (isCameraLayerVisible) {
+        hideCameraLayer();
+    }
+
+    console.log('[模式切换] 初始化完成，当前模式: 车辆管理');
+}
+
+/**
+ * 切换工地监控页面模式
+ * 在车辆管理和监控管理之间切换
+ */
+function toggleAdminDataMode() {
+    const vehicleLegend = document.getElementById('vehicle-legend');
+
+    if (currentAdminDataMode === 'vehicle') {
+        // 切换到监控管理模式
+        currentAdminDataMode = 'camera';
+        console.log('[模式切换] 切换到监控管理模式');
+
+        // 隐藏车辆图例
+        if (vehicleLegend) {
+            vehicleLegend.style.display = 'none';
+        }
+
+        // 隐藏车辆标记
+        if (typeof AdminVehicleManager !== 'undefined') {
+            AdminVehicleManager.hideAllVehicles();
+        }
+
+        // 显示摄像头图层
+        showCameraLayer();
+
+    } else {
+        // 切换到车辆管理模式
+        currentAdminDataMode = 'vehicle';
+        console.log('[模式切换] 切换到车辆管理模式');
+
+        // 隐藏摄像头图层
+        hideCameraLayer();
+
+        // 显示车辆图例
+        if (vehicleLegend) {
+            vehicleLegend.style.display = 'flex';
+        }
+
+        // 显示车辆标记
+        if (typeof AdminVehicleManager !== 'undefined') {
+            AdminVehicleManager.showAllVehicles();
+        }
+    }
 }

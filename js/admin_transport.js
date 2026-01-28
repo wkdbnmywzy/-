@@ -173,8 +173,8 @@ function handleNavigation(page) {
             window.location.href = 'admin_index.html';
             break;
         case 'admin-data':
-            // 跳转到外部工地数据系统
-            window.location.href = 'http://sztymap.0x3d.cn:11080/#/pages/login/login';
+            // 跳转到工地监控页面
+            window.location.href = 'admin_data.html';
             break;
         case 'admin-transport':
             // 当前就是运输管理页面

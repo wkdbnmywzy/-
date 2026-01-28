@@ -146,22 +146,27 @@ const AdminVehicleManager = (function() {
 
         console.log('[车辆管理器] 初始化UI事件');
 
-        // 车辆切换按钮
+        // 车辆切换按钮（旧版，用于admin_index.html）
         const vehicleToggleBtn = document.getElementById('vehicle-toggle-btn');
         const vehicleLegend = document.getElementById('vehicle-legend');
         const filterBar = document.querySelector('.admin-filter-bar');
 
-        // 【修改】默认隐藏车辆图例和筛选栏，按钮为非选中状态
-        if (vehicleLegend) {
-            vehicleLegend.style.display = 'none';
+        // 检查是否在工地监控页面（admin_data.html），该页面使用新的模式切换按钮
+        const isAdminDataPage = document.getElementById('mode-toggle-btn') !== null;
+
+        // 只在非工地监控页面时，默认隐藏车辆图例
+        if (!isAdminDataPage) {
+            if (vehicleLegend) {
+                vehicleLegend.style.display = 'none';
+            }
+            if (filterBar) {
+                filterBar.style.display = 'none';
+            }
+            if (vehicleToggleBtn) {
+                vehicleToggleBtn.classList.remove('active');
+            }
+            console.log('[车辆管理器] 默认隐藏车辆图例和筛选栏');
         }
-        if (filterBar) {
-            filterBar.style.display = 'none';
-        }
-        if (vehicleToggleBtn) {
-            vehicleToggleBtn.classList.remove('active');
-        }
-        console.log('[车辆管理器] 默认隐藏车辆图例和筛选栏');
 
         if (vehicleToggleBtn && vehicleLegend) {
             vehicleToggleBtn.addEventListener('click', function() {
@@ -1064,7 +1069,38 @@ const AdminVehicleManager = (function() {
         stopAutoRefresh: stopAutoRefresh,
         startAutoRefresh: startAutoRefresh,
         getVehicleData: () => vehicleData,
-        getFilterState: () => filterState
+        getFilterState: () => filterState,
+        hideAllVehicles: function() {
+            // 隐藏所有车辆标记
+            vehicleMarkers.temp.forEach(marker => {
+                if (marker) marker.hide();
+            });
+            vehicleMarkers.fixed.forEach(marker => {
+                if (marker) marker.hide();
+            });
+            console.log('[车辆管理器] 已隐藏所有车辆标记');
+        },
+        showAllVehicles: function() {
+            // 显示所有车辆标记（根据筛选状态）
+            if (filterState.temp) {
+                vehicleMarkers.temp.forEach(marker => {
+                    if (marker) marker.show();
+                });
+            }
+            if (filterState.fixed) {
+                vehicleMarkers.fixed.forEach(marker => {
+                    if (marker) marker.show();
+                });
+            }
+            console.log('[车辆管理器] 已显示所有车辆标记');
+        },
+        toggleVehicleLegend: function() {
+            const vehicleLegend = document.getElementById('vehicle-legend');
+            if (vehicleLegend) {
+                const isVisible = vehicleLegend.style.display !== 'none';
+                vehicleLegend.style.display = isVisible ? 'none' : 'flex';
+            }
+        }
     };
 })();
 

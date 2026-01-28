@@ -173,9 +173,9 @@ const NavUI = (function() {
                     navigationCard.classList.remove('navigating');
                 }
 
-                // 保存地图状态并返回首页
+                // 保存地图状态并返回来源页面
                 saveNavigationMapState();
-                window.location.href = 'index.html';
+                window.location.href = getReturnPage();
             });
         }
 
@@ -185,7 +185,7 @@ const NavUI = (function() {
             completeFinishBtn.addEventListener('click', function() {
                 hideNavigationCompleteModal();
                 saveNavigationMapState();
-                window.location.href = 'index.html';
+                window.location.href = getReturnPage();
             });
         }
 
@@ -219,6 +219,30 @@ const NavUI = (function() {
     }
 
     // ========== UI操作函数 ==========
+
+    /**
+     * 获取返回页面地址（根据用户角色判断）
+     * @returns {string} 返回页面URL
+     */
+    function getReturnPage() {
+        try {
+            // 优先使用 sessionStorage 中保存的来源页面
+            const referrer = sessionStorage.getItem('navigationReferrer');
+            if (referrer) {
+                console.log('[NavUI] 使用保存的来源页面:', referrer);
+                return referrer;
+            }
+            // 否则根据用户角色判断
+            const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+            if (currentUser.role === 'manager' || currentUser.isAdmin) {
+                console.log('[NavUI] 管理员用户，返回管理端首页');
+                return 'admin_index.html';
+            }
+            return 'index.html';
+        } catch (e) {
+            return 'index.html';
+        }
+    }
 
     /**
      * 跳转到点位选择页面

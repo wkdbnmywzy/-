@@ -38,15 +38,15 @@ function initEventListeners() {
 // 处理导航切换
 function handleNavigation(page) {
     console.log('导航到:', page);
-    
+
     // 根据不同页面跳转
     switch(page) {
         case 'admin-navigation':
             window.location.href = 'admin_index.html';
             break;
         case 'admin-data':
-            // 跳转到外部工地数据系统
-            window.location.href = 'http://sztymap.0x3d.cn:11080/#/pages/login/login';
+            // 跳转到工地监控页面
+            window.location.href = 'admin_data.html';
             break;
         case 'admin-transport':
             window.location.href = 'admin_transport.html';

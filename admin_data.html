@@ -3,54 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>管理员 - 工地数据</title>
+    <title>管理员 - 工地监控</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/admin.css">
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=0497193edd69fcf7a6938b2591348409"></script>
 </head>
 <body>
     <div class="container admin-container">
-        <!-- 页面内容 -->
-        <div class="admin-page-content">
-            <div class="page-header">
-                <h1>工地数据</h1>
+        <!-- 地图容器 -->
+        <div id="map-container"></div>
+
+        <!-- 搜索区域（复用司机端样式） -->
+        <div class="search-container">
+            <div class="search-box">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/搜索.png" class="search-icon-img" alt="搜索">
+                <input type="text" placeholder="输入文字搜索目的地" id="search-input" readonly>
             </div>
-            <div class="page-body">
-                <p style="text-align: center; margin-top: 100px; color: #999;">工地数据功能开发中...</p>
+            <div class="search-results" id="search-results">
+                <!-- 搜索结果将动态填充 -->
+            </div>
+        </div>
+
+        <!-- 顶部筛选栏（默认隐藏） -->
+        <div class="admin-filter-bar" style="display: none;">
+            <div class="filter-item">
+                <span>任务类型</span>
+                <i class="fas fa-chevron-down"></i>
+            </div>
+            <div class="filter-item">
+                <span>任务状态</span>
+                <i class="fas fa-chevron-down"></i>
+            </div>
+            <div class="filter-item">
+                <span>车辆</span>
+                <i class="fas fa-chevron-down"></i>
+            </div>
+        </div>
+
+        <!-- 右侧控制按钮（靠近底部导航栏） -->
+        <div class="admin-map-controls admin-data-controls">
+            <button class="admin-control-btn mode-toggle-btn-style" id="mode-toggle-btn" title="切换模式">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/切换起点终点.png" alt="切换" id="mode-toggle-icon" class="rotate-90">
+                <span class="btn-label">切换</span>
+            </button>
+            <button class="admin-control-btn" id="locate-btn" title="定位">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/定位.png" alt="定位">
+            </button>
+        </div>
+
+        <!-- 车辆图例（默认显示，车辆模式） -->
+        <div class="vehicle-legend" id="vehicle-legend">
+            <div class="legend-item">
+                <img src="images/工地数字导航小程序切图/管理/2X/运输管理/临时车.png" alt="临时车">
+                <span>临时车辆(1)</span>
+            </div>
+            <div class="legend-item">
+                <img src="images/工地数字导航小程序切图/管理/2X/运输管理/固定车.png" alt="固定车">
+                <span>固定车辆(2)</span>
             </div>
         </div>
 
         <!-- 底部导航 -->
         <div class="bottom-nav admin-nav">
             <div class="nav-item" data-page="admin-navigation">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-up.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-up.png" 
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-up.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-up.png"
                      alt="导航">
                 <div class="nav-text">导航</div>
             </div>
             <div class="nav-item active" data-page="admin-data">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/工地数据-down.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/工地数据-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/工地数据-up.png" 
-                     alt="工地数据">
-                <div class="nav-text">工地数据</div>
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/导航/监控-down.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/导航/监控-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/导航/监控-up.png"
+                     alt="工地监控">
+                <div class="nav-text">工地监控</div>
             </div>
             <div class="nav-item" data-page="admin-transport">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png" 
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png"
                      alt="运输管理">
                 <div class="nav-text">运输管理</div>
             </div>
             <div class="nav-item" data-page="admin-profile">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png" 
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png"
                      alt="我的">
                 <div class="nav-text">我的</div>
             </div>
@@ -58,6 +102,15 @@
     </div>
 
     <script src="js/config.js"></script>
-    <script src="js/admin_common.js"></script>
+    <script src="js/coordinate-convert.js"></script>
+    <script src="js/segment-splitter.js"></script>
+    <script src="js/kml-handler.js"></script>
+    <script src="js/api-data-converter.js"></script>
+    <script src="js/enhanced-highlight.js"></script>
+    <script src="js/ui-utils.js"></script>
+    <script src="js/admin-message-manager.js"></script>
+    <script src="js/admin-fence-manager.js"></script>
+    <script src="js/admin-vehicle-manager.js"></script>
+    <script src="js/admin_index.js"></script>
 </body>
 </html>

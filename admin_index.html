@@ -9,12 +9,14 @@
     <link rel="stylesheet" href="css/admin.css">
     <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=0497193edd69fcf7a6938b2591348409"></script>
 </head>
+<!-- 隐藏的文件输入 -->
+<input type="file" id="file-input" accept=".kml" style="display: none;">
 <body>
     <div class="container admin-container">
         <!-- 地图容器 -->
         <div id="map-container"></div>
-        
-        <!-- 搜索区域（复用司机端样式） -->
+
+        <!-- 搜索区域 -->
         <div class="search-container">
             <div class="search-box">
                 <img src="images/工地数字导航小程序切图/司机/2X/导航/搜索.png" class="search-icon-img" alt="搜索">
@@ -25,54 +27,19 @@
             </div>
         </div>
 
-        <!-- 顶部筛选栏（默认隐藏） -->
-        <div class="admin-filter-bar" style="display: none;">
-            <div class="filter-item">
-                <span>任务类型</span>
-                <i class="fas fa-chevron-down"></i>
-            </div>
-            <div class="filter-item">
-                <span>任务状态</span>
-                <i class="fas fa-chevron-down"></i>
-            </div>
-            <div class="filter-item">
-                <span>车辆</span>
-                <i class="fas fa-chevron-down"></i>
-            </div>
-        </div>
-
-        <!-- 右侧控制按钮 -->
-        <div class="admin-map-controls">
-            <button class="admin-control-btn" id="locate-btn" title="定位">
-                <img src="images/工地数字导航小程序切图/司机/2X/导航/定位.png" alt="定位">
+        <!-- 地图控制按钮 -->
+        <div class="map-controls">
+            <!-- 导入按钮 -->
+            <button class="control-btn" id="import-btn" title="导入数据">
+                <i class="fas fa-upload"></i>
             </button>
-            <button class="admin-control-btn" id="camera-btn" title="监控">
-                <i class="fas fa-video"></i>
+            <button class="control-btn" id="locate-btn" title="定位">
+                <img src="images/工地数字导航小程序切图/司机/2X/导航/定位.png" alt="定位" style="width: 24px; height: 24px;">
             </button>
-            <button class="admin-control-btn" id="vehicle-toggle-btn" title="切换车辆">
-                <i class="fas fa-truck"></i>
-            </button>
-        </div>
-
-        <!-- 车辆图例（默认隐藏） -->
-        <div class="vehicle-legend" id="vehicle-legend" style="display: none;">
-            <div class="legend-item">
-                <img src="images/工地数字导航小程序切图/管理/2X/运输管理/临时车.png" alt="临时车">
-                <span>临时车辆(1)</span>
-            </div>
-            <div class="legend-item">
-                <img src="images/工地数字导航小程序切图/管理/2X/运输管理/固定车.png" alt="固定车">
-                <span>固定车辆(2)</span>
-            </div>
         </div>
 
         <!-- 底部卡片 -->
-        <div class="bottom-card admin-bottom-card" id="bottom-card">
-            <!-- 卡片顶部拖动条 -->
-            <div class="card-handle" id="card-handle">
-                <div class="handle-bar"></div>
-            </div>
-            
+        <div class="bottom-card" id="bottom-card">
             <!-- 路线规划界面 -->
             <div class="route-planning-section" id="route-planning-section">
                 <div class="route-selector">
@@ -106,53 +73,114 @@
             </div>
         </div>
 
-        <!-- 底部导航 -->
+        <!-- 底部导航（管理端） -->
         <div class="bottom-nav admin-nav">
             <div class="nav-item active" data-page="admin-navigation">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-down.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-up.png" 
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-down.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/导航-up.png"
                      alt="导航">
                 <div class="nav-text">导航</div>
             </div>
             <div class="nav-item" data-page="admin-data">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/工地数据-up.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/工地数据-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/工地数据-up.png" 
-                     alt="工地数据">
-                <div class="nav-text">工地数据</div>
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/导航/监控-up.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/导航/监控-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/导航/监控-up.png"
+                     alt="工地监控">
+                <div class="nav-text">工地监控</div>
             </div>
             <div class="nav-item" data-page="admin-transport">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png" 
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/运输管理-up.png"
                      alt="运输管理">
                 <div class="nav-text">运输管理</div>
             </div>
             <div class="nav-item" data-page="admin-profile">
-                <img class="nav-icon-img" 
-                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png" 
-                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-down.png" 
-                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png" 
+                <img class="nav-icon-img"
+                     src="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png"
+                     data-active="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-down.png"
+                     data-inactive="images/工地数字导航小程序切图/管理/2X/菜单ICON/我的-up.png"
                      alt="我的">
                 <div class="nav-text">我的</div>
             </div>
         </div>
     </div>
 
+    <!-- 司机端核心脚本（提供地图和导航功能） -->
     <script src="js/config.js"></script>
     <script src="js/coordinate-convert.js"></script>
     <script src="js/segment-splitter.js"></script>
+    <script src="js/map-core.js"></script>
     <script src="js/kml-handler.js"></script>
-    <script src="js/api-data-converter.js"></script>
+    <script src="js/search-service.js"></script>
     <script src="js/enhanced-highlight.js"></script>
+    <script src="js/point-selection.js"></script>
+    <script src="js/driver-road-status.js"></script>
+    <script src="js/kml-route-planning.js"></script>
+    <script src="js/route-planning.js"></script>
     <script src="js/ui-utils.js"></script>
-    <script src="js/admin-message-manager.js"></script>
-    <script src="js/admin-fence-manager.js"></script>
-    <script src="js/admin-vehicle-manager.js"></script>
-    <script src="js/admin_index.js"></script>
+    <script src="js/api-data-converter.js"></script>
+    <script src="js/main.js"></script>
+
+    <!-- 管理端导航覆盖：替换司机端底部导航为管理端导航 -->
+    <script>
+    (function() {
+        // 设置导航返回来源为管理端
+        sessionStorage.setItem('navigationReferrer', 'admin_index.html');
+
+        // 等待DOM和main.js初始化完成后，覆盖底部导航栏事件
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                var navItems = document.querySelectorAll('.admin-nav .nav-item');
+                // 用cloneNode替换来移除main.js绑定的事件
+                navItems.forEach(function(item) {
+                    var clone = item.cloneNode(true);
+                    item.parentNode.replaceChild(clone, item);
+                });
+                // 重新绑定管理端导航事件
+                var newNavItems = document.querySelectorAll('.admin-nav .nav-item');
+                newNavItems.forEach(function(item) {
+                    item.addEventListener('click', function() {
+                        var page = this.getAttribute('data-page');
+                        // 更新图标状态
+                        newNavItems.forEach(function(nav) {
+                            var img = nav.querySelector('.nav-icon-img');
+                            var text = nav.querySelector('.nav-text');
+                            if (nav === item) {
+                                nav.classList.add('active');
+                                if (img) img.src = img.getAttribute('data-active');
+                                if (text) text.style.color = '#5BA8E3';
+                            } else {
+                                nav.classList.remove('active');
+                                if (img) img.src = img.getAttribute('data-inactive');
+                                if (text) text.style.color = '#666666';
+                            }
+                        });
+                        // 管理端页面跳转
+                        switch(page) {
+                            case 'admin-navigation':
+                                // 当前就是导航页面
+                                break;
+                            case 'admin-data':
+                                window.location.href = 'admin_data.html';
+                                break;
+                            case 'admin-transport':
+                                window.location.href = 'admin_transport.html';
+                                break;
+                            case 'admin-profile':
+                                window.location.href = 'admin_profile.html';
+                                break;
+                        }
+                    });
+                });
+                console.log('[管理端导航] 底部导航栏已覆盖为管理端逻辑');
+            }, 100);
+        });
+    })();
+    </script>
 </body>
 </html>

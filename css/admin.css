@@ -70,6 +70,32 @@
     gap: 12px;
 }
 
+/* 工地监控页面的按钮位置（靠近底部导航栏） */
+.admin-map-controls.admin-data-controls {
+    bottom: 80px;
+}
+
+/* 切换按钮特殊样式（图标+文字） */
+.admin-control-btn.mode-toggle-btn-style {
+    width: auto;
+    height: auto;
+    padding: 8px 12px;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.admin-control-btn.mode-toggle-btn-style img.rotate-90 {
+    transform: rotate(90deg);
+    width: 20px;
+    height: 20px;
+}
+
+.admin-control-btn .btn-label {
+    font-size: 10px;
+    color: #666;
+    white-space: nowrap;
+}
+
 .admin-control-btn {
     width: 48px;
     height: 48px;
@@ -114,8 +140,9 @@
 /* 车辆图例 */
 .vehicle-legend {
     position: absolute;
-    bottom: 120px;
+    bottom: 80px;
     left: 16px;
+    right: auto;
     z-index: 200;
     background: rgba(255, 255, 255, 0.8);
     border-radius: 6px;
