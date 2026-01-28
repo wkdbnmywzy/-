@@ -2281,25 +2281,61 @@ function fillViewTaskForm(taskData) {
         console.log('[填充表单] 设置后的选中值:', endPointSelect.value);
     }
 
-    // 填充时间显示（这些是div元素，需要更新innerHTML）
+    // 填充时间显示并绑定点击事件
     const entryStartTimeDiv = document.getElementById('viewEntryStartTime');
-    if (entryStartTimeDiv && taskData.entry_start_time) {
-        entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_start_time)}`;
+    if (entryStartTimeDiv) {
+        if (taskData.entry_start_time) {
+            entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_start_time)}`;
+        }
+        // 绑定点击事件，允许修改时间
+        entryStartTimeDiv.onclick = function() {
+            showDateTimePicker('入场开始时间', (dateTime) => {
+                window.viewTaskSelectedTimes.entryStart = dateTime;
+                entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        };
     }
 
     const entryEndTimeDiv = document.getElementById('viewEntryEndTime');
-    if (entryEndTimeDiv && taskData.entry_end_time) {
-        entryEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_end_time)}`;
+    if (entryEndTimeDiv) {
+        if (taskData.entry_end_time) {
+            entryEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_end_time)}`;
+        }
+        // 绑定点击事件，允许修改时间
+        entryEndTimeDiv.onclick = function() {
+            showDateTimePicker('入场结束时间', (dateTime) => {
+                window.viewTaskSelectedTimes.entryEnd = dateTime;
+                entryEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        };
     }
 
     const exitStartTimeDiv = document.getElementById('viewExitStartTime');
-    if (exitStartTimeDiv && taskData.exit_start_time) {
-        exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_start_time)}`;
+    if (exitStartTimeDiv) {
+        if (taskData.exit_start_time) {
+            exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_start_time)}`;
+        }
+        // 绑定点击事件，允许修改时间
+        exitStartTimeDiv.onclick = function() {
+            showDateTimePicker('离场开始时间', (dateTime) => {
+                window.viewTaskSelectedTimes.exitStart = dateTime;
+                exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        };
     }
 
     const exitEndTimeDiv = document.getElementById('viewExitEndTime');
-    if (exitEndTimeDiv && taskData.exit_end_time) {
-        exitEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_end_time)}`;
+    if (exitEndTimeDiv) {
+        if (taskData.exit_end_time) {
+            exitEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_end_time)}`;
+        }
+        // 绑定点击事件，允许修改时间
+        exitEndTimeDiv.onclick = function() {
+            showDateTimePicker('离场结束时间', (dateTime) => {
+                window.viewTaskSelectedTimes.exitEnd = dateTime;
+                exitEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+            });
+        };
     }
 
     // 更新起点/终点select的has-value样式

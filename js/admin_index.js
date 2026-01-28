@@ -559,11 +559,11 @@ function initEventListeners() {
     const switchProjectBtn = document.getElementById('switch-project-btn');
     const vehicleLegend = document.getElementById('vehicle-legend');
 
-    // 定位按钮
+    // 定位按钮 - 定位到当前位置
     if (locateBtn) {
         locateBtn.addEventListener('click', function() {
-            console.log('定位功能待实现');
-            // TODO: 实现定位功能
+            console.log('[定位] 开始获取当前位置...');
+            locateToCurrentPosition();
         });
     }
 
@@ -1684,4 +1684,192 @@ function toggleAdminDataMode() {
             AdminVehicleManager.showAllVehicles();
         }
     }
+}
+
+// ==================== 定位功能 ====================
+
+/**
+ * 定位到当前位置
+ * 使用浏览器地理位置API获取当前位置，并在地图上显示
+ */
+function locateToCurrentPosition() {
+    if (!map) {
+        console.error('[定位] 地图实例不存在');
+        alert('地图未加载完成，请稍后再试');
+        return;
+    }
+
+    // 检查浏览器是否支持地理位置
+    if (!navigator.geolocation) {
+        console.error('[定位] 浏览器不支持地理位置');
+        alert('您的浏览器不支持定位功能');
+        return;
+    }
+
+    // 显示定位中提示
+    const locateBtn = document.getElementById('locate-btn');
+    if (locateBtn) {
+        locateBtn.classList.add('locating');
+    }
+
+    console.log('[定位] 正在获取当前位置...');
+
+    // 获取当前位置
+    navigator.geolocation.getCurrentPosition(
+        // 成功回调
+        function(position) {
+            const lng = position.coords.longitude;
+            const lat = position.coords.latitude;
+            console.log('[定位] 获取到WGS84坐标:', lng, lat);
+
+            // WGS84 转 GCJ02（高德地图使用GCJ02坐标系）
+            let gcjCoord = [lng, lat];
+            if (typeof CoordinateConvert !== 'undefined' && CoordinateConvert.wgs84togcj02) {
+                gcjCoord = CoordinateConvert.wgs84togcj02(lng, lat);
+                console.log('[定位] 转换为GCJ02坐标:', gcjCoord);
+            } else {
+                // 如果没有坐标转换工具，使用高德API转换
+                AMap.convertFrom([lng, lat], 'gps', function(status, result) {
+                    if (status === 'complete' && result.locations && result.locations.length > 0) {
+                        const gcjLng = result.locations[0].lng;
+                        const gcjLat = result.locations[0].lat;
+                        console.log('[定位] 高德API转换后坐标:', gcjLng, gcjLat);
+                        showCurrentLocation([gcjLng, gcjLat]);
+                    } else {
+                        // 转换失败，直接使用原坐标（可能有偏差）
+                        console.warn('[定位] 坐标转换失败，使用原坐标');
+                        showCurrentLocation([lng, lat]);
+                    }
+                });
+                return;
+            }
+
+            showCurrentLocation(gcjCoord);
+        },
+        // 失败回调
+        function(error) {
+            console.error('[定位] 获取位置失败:', error);
+            if (locateBtn) {
+                locateBtn.classList.remove('locating');
+            }
+
+            let errorMsg = '定位失败';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = '您拒绝了定位权限，请在浏览器设置中允许定位';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = '无法获取位置信息';
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = '定位超时，请重试';
+                    break;
+            }
+            alert(errorMsg);
+        },
+        // 选项
+        {
+            enableHighAccuracy: true, // 高精度
+            timeout: 10000, // 超时时间10秒
+            maximumAge: 0 // 不使用缓存
+        }
+    );
+}
+
+/**
+ * 在地图上显示当前位置
+ * @param {Array} coord - GCJ02坐标 [lng, lat]
+ */
+function showCurrentLocation(coord) {
+    const locateBtn = document.getElementById('locate-btn');
+    if (locateBtn) {
+        locateBtn.classList.remove('locating');
+    }
+
+    console.log('[定位] 显示当前位置:', coord);
+
+    // 移除之前的定位标记
+    if (window.currentLocationMarker) {
+        window.currentLocationMarker.setMap(null);
+    }
+
+    // 创建定位标记
+    const markerContent = document.createElement('div');
+    markerContent.className = 'current-location-marker';
+    markerContent.innerHTML = `
+        <div class="location-dot"></div>
+        <div class="location-pulse"></div>
+    `;
+
+    // 添加样式（如果还没有添加）
+    if (!document.getElementById('current-location-styles')) {
+        const style = document.createElement('style');
+        style.id = 'current-location-styles';
+        style.textContent = `
+            .current-location-marker {
+                position: relative;
+                width: 24px;
+                height: 24px;
+            }
+            .location-dot {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 12px;
+                height: 12px;
+                background: #4A90E2;
+                border: 3px solid white;
+                border-radius: 50%;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+                z-index: 2;
+            }
+            .location-pulse {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 40px;
+                height: 40px;
+                background: rgba(74, 144, 226, 0.3);
+                border-radius: 50%;
+                animation: pulse 2s ease-out infinite;
+                z-index: 1;
+            }
+            @keyframes pulse {
+                0% {
+                    transform: translate(-50%, -50%) scale(0.5);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translate(-50%, -50%) scale(1.5);
+                    opacity: 0;
+                }
+            }
+            .admin-control-btn.locating {
+                animation: locating-spin 1s linear infinite;
+            }
+            @keyframes locating-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 创建标记
+    window.currentLocationMarker = new AMap.Marker({
+        position: coord,
+        content: markerContent,
+        anchor: 'center',
+        zIndex: 200
+    });
+
+    window.currentLocationMarker.setMap(map);
+
+    // 将地图中心移动到当前位置
+    map.setCenter(coord);
+    map.setZoom(18);
+
+    console.log('[定位] ✓ 定位完成');
 }
