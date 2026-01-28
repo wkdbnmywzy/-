@@ -1,7 +1,7 @@
 // config.js - 高德地图配置（包含插件配置）
 const MapConfig = {
     // API密钥（请确保已在高德开放平台申请并启用对应服务）
-    key: '02e4976e38eb8bc8bcf71a9c485cc2ae',
+    key: '0497193edd69fcf7a6938b2591348409',
 
     // 方向角配置
     orientationConfig: {
