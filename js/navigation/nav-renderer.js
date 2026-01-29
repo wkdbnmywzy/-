@@ -105,6 +105,7 @@ const NavRenderer = (function() {
      * @returns {AMap.Polyline|null}
      */
     function drawRoute(path, options = {}) {
+        console.log('[NavRenderer] drawRoute 被调用，路径点数:', path ? path.length : 0);
         try {
             if (!map) {
                 console.error('[NavRenderer] 地图未初始化');
@@ -114,6 +115,25 @@ const NavRenderer = (function() {
             if (!path || path.length < 2) {
                 console.error('[NavRenderer] 路径数据无效');
                 return null;
+            }
+
+            // 过滤无效坐标点（NaN、null、undefined）
+            const validPath = path.filter(point => {
+                if (!point) return false;
+                const lng = Array.isArray(point) ? point[0] : point.lng;
+                const lat = Array.isArray(point) ? point[1] : point.lat;
+                return lng != null && lat != null && !isNaN(lng) && !isNaN(lat);
+            });
+
+            console.log('[NavRenderer] drawRoute 有效路径点:', validPath.length);
+
+            if (validPath.length < 2) {
+                console.error('[NavRenderer] 过滤后有效路径点不足2个，原始:', path.length, '有效:', validPath.length);
+                return null;
+            }
+
+            if (validPath.length !== path.length) {
+                console.warn('[NavRenderer] 过滤了无效坐标点，原始:', path.length, '有效:', validPath.length);
             }
 
             // 清除旧路线（包括边框）
@@ -126,23 +146,54 @@ const NavRenderer = (function() {
                 routeBorderPolyline = null;
             }
 
+            // 【关键修复】检查地图容器是否已准备好
+            try {
+                const container = map.getContainer();
+                if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
+                    console.warn('[NavRenderer] 地图容器尺寸无效，延迟300ms后重试 drawRoute');
+                    setTimeout(() => drawRoute(path, options), 300);
+                    return null;
+                }
+            } catch (e) {
+                console.warn('[NavRenderer] 检查地图容器失败:', e);
+            }
+
+            // 【关键修复】检查地图中心点是否有效
+            try {
+                const center = map.getCenter();
+                if (!center || typeof center.getLng !== 'function') {
+                    console.warn('[NavRenderer] 地图中心点无效，延迟300ms后重试 drawRoute');
+                    setTimeout(() => drawRoute(path, options), 300);
+                    return null;
+                }
+                const centerLng = center.getLng();
+                const centerLat = center.getLat();
+                if (isNaN(centerLng) || isNaN(centerLat)) {
+                    console.warn('[NavRenderer] 地图中心点坐标无效，延迟300ms后重试 drawRoute');
+                    setTimeout(() => drawRoute(path, options), 300);
+                    return null;
+                }
+            } catch (e) {
+                console.warn('[NavRenderer] 检查地图中心点失败:', e);
+            }
+
             const style = Object.assign({}, ROUTE_STYLES.planned, options);
 
             // 1. 先绘制边框（浅绿色，更宽）
             routeBorderPolyline = new AMap.Polyline({
-                path: path,
+                path: validPath,
                 strokeColor: style.borderColor || '#7FD89F',
                 strokeWeight: style.strokeWeight + (style.borderWeight || 1) * 2,  // 8 + 2 = 10px
                 strokeOpacity: style.strokeOpacity,
                 lineJoin: 'round',
                 lineCap: 'round',
-                zIndex: style.zIndex - 1,  // 边框在主线下方
-                map: map
+                zIndex: style.zIndex - 1  // 边框在主线下方
             });
+            map.add(routeBorderPolyline);
 
             // 2. 再绘制主路线（绿色）
             routePolyline = new AMap.Polyline({
-                path: path,
+                path: validPath,
                 strokeColor: style.strokeColor,
                 strokeWeight: style.strokeWeight,
                 strokeOpacity: style.strokeOpacity,
@@ -150,11 +201,13 @@ const NavRenderer = (function() {
                 lineCap: 'round',
                 showDir: true,
                 dirColor: '#FFFFFF',
-                zIndex: style.zIndex,
-                map: map
+                zIndex: style.zIndex
             });
+            map.add(routePolyline);
 
-            adjustViewToPath(path);
+            console.log('[NavRenderer] ✓ 路线已绘制到地图');
+
+            adjustViewToPath(validPath);
             return routePolyline;
         } catch (e) {
             console.error('[NavRenderer] 绘制路线失败:', e);
@@ -171,6 +224,14 @@ const NavRenderer = (function() {
         try {
             if (!map) return;
 
+            // 验证坐标辅助函数
+            const isValidPos = (pos) => {
+                if (!pos) return false;
+                const lng = Array.isArray(pos) ? pos[0] : pos.lng;
+                const lat = Array.isArray(pos) ? pos[1] : pos.lat;
+                return lng != null && lat != null && !isNaN(lng) && !isNaN(lat) && isFinite(lng) && isFinite(lat);
+            };
+
             // 使用当前段的点集（避免跨段绘制灰色路线）
             const pointSet = window.currentSegmentPointSet;
             if (!pointSet || pointSet.length === 0) return;
@@ -178,46 +239,53 @@ const NavRenderer = (function() {
             if (currentIndex >= 1) {
                 const passedPath = [];
                 for (let i = 0; i <= currentIndex; i++) {
-                    const pos = pointSet[i].position;
-                    passedPath.push(pos);
+                    const pos = pointSet[i]?.position;
+                    if (isValidPos(pos)) {
+                        passedPath.push(pos);
+                    }
                 }
 
-                // 使用 setPath 更新路径，避免删除重建导致的闪烁
-                if (passedPolyline) {
-                    passedPolyline.setPath(passedPath);
-                } else {
-                    passedPolyline = new AMap.Polyline({
-                        path: passedPath,
-                        strokeColor: ROUTE_STYLES.passed.strokeColor,
-                        strokeWeight: ROUTE_STYLES.passed.strokeWeight,
-                        strokeOpacity: ROUTE_STYLES.passed.strokeOpacity,
-                        lineJoin: 'round',
-                        lineCap: 'round',
-                        zIndex: ROUTE_STYLES.passed.zIndex,
-                        map: map
-                    });
+                // 确保路径有效后再更新
+                if (passedPath.length >= 2) {
+                    // 使用 setPath 更新路径，避免删除重建导致的闪烁
+                    if (passedPolyline) {
+                        passedPolyline.setPath(passedPath);
+                    } else {
+                        passedPolyline = new AMap.Polyline({
+                            path: passedPath,
+                            strokeColor: ROUTE_STYLES.passed.strokeColor,
+                            strokeWeight: ROUTE_STYLES.passed.strokeWeight,
+                            strokeOpacity: ROUTE_STYLES.passed.strokeOpacity,
+                            lineJoin: 'round',
+                            lineCap: 'round',
+                            zIndex: ROUTE_STYLES.passed.zIndex,
+                            map: map
+                        });
+                    }
                 }
             }
 
             // 绘制从最后点集点到当前GPS位置的连接线
-            if (currentIndex >= 0 && currentPosition) {
-                const lastPoint = pointSet[currentIndex].position;
-                const connectPath = [lastPoint, currentPosition];
+            if (currentIndex >= 0 && currentPosition && isValidPos(currentPosition)) {
+                const lastPoint = pointSet[currentIndex]?.position;
+                if (isValidPos(lastPoint)) {
+                    const connectPath = [lastPoint, currentPosition];
 
-                // 使用 setPath 更新连接线，避免删除重建导致的闪烁
-                if (passedConnectLine) {
-                    passedConnectLine.setPath(connectPath);
-                } else {
-                    passedConnectLine = new AMap.Polyline({
-                        path: connectPath,
-                        strokeColor: ROUTE_STYLES.passed.strokeColor,
-                        strokeWeight: ROUTE_STYLES.passed.strokeWeight,
-                        strokeOpacity: ROUTE_STYLES.passed.strokeOpacity,
-                        lineJoin: 'round',
-                        lineCap: 'round',
-                        zIndex: ROUTE_STYLES.passed.zIndex,
-                        map: map
-                    });
+                    // 使用 setPath 更新连接线，避免删除重建导致的闪烁
+                    if (passedConnectLine) {
+                        passedConnectLine.setPath(connectPath);
+                    } else {
+                        passedConnectLine = new AMap.Polyline({
+                            path: connectPath,
+                            strokeColor: ROUTE_STYLES.passed.strokeColor,
+                            strokeWeight: ROUTE_STYLES.passed.strokeWeight,
+                            strokeOpacity: ROUTE_STYLES.passed.strokeOpacity,
+                            lineJoin: 'round',
+                            lineCap: 'round',
+                            zIndex: ROUTE_STYLES.passed.zIndex,
+                            map: map
+                        });
+                    }
                 }
             }
         } catch (e) {
@@ -310,10 +378,18 @@ const NavRenderer = (function() {
 
             clearRouteMarkers();
 
+            // 验证坐标是否有效
+            const isValidPosition = (pos) => {
+                if (!pos) return false;
+                const lng = Array.isArray(pos) ? pos[0] : pos.lng;
+                const lat = Array.isArray(pos) ? pos[1] : pos.lat;
+                return lng != null && lat != null && !isNaN(lng) && !isNaN(lat) && isFinite(lng) && isFinite(lat);
+            };
+
             const isMyLocationStart = routeData?.start?.name === '我的位置' ||
                                      routeData?.start?.isMyLocation === true;
 
-            if (!isMyLocationStart && startPos) {
+            if (!isMyLocationStart && startPos && isValidPosition(startPos)) {
                 const startIcon = new AMap.Icon({
                     size: new AMap.Size(30, 38),
                     image: 'images/工地数字导航小程序切图/司机/2X/地图icon/起点.png',
@@ -330,7 +406,7 @@ const NavRenderer = (function() {
                 });
             }
 
-            if (endPos) {
+            if (endPos && isValidPosition(endPos)) {
                 const endIcon = new AMap.Icon({
                     size: new AMap.Size(30, 38),
                     image: 'images/工地数字导航小程序切图/司机/2X/地图icon/终点.png',
@@ -361,11 +437,19 @@ const NavRenderer = (function() {
 
             clearWaypointMarkers();
 
+            // 验证坐标是否有效
+            const isValidPosition = (pos) => {
+                if (!pos) return false;
+                const lng = Array.isArray(pos) ? pos[0] : pos.lng;
+                const lat = Array.isArray(pos) ? pos[1] : pos.lat;
+                return lng != null && lat != null && !isNaN(lng) && !isNaN(lat) && isFinite(lng) && isFinite(lat);
+            };
+
             const waypointCount = waypoints.length;
 
             waypoints.forEach((wp, index) => {
                 const pos = resolvePosition(wp);
-                if (!pos) return;
+                if (!pos || !isValidPosition(pos)) return;
 
                 let marker;
 
@@ -459,6 +543,15 @@ const NavRenderer = (function() {
     function updateUserMarker(position, heading = 0, smooth = true, hasStarted = false) {
         try {
             if (!map) return;
+
+            // 验证坐标是否有效
+            if (!position) return;
+            const lng = Array.isArray(position) ? position[0] : position.lng;
+            const lat = Array.isArray(position) ? position[1] : position.lat;
+            if (lng == null || lat == null || isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+                console.warn('[NavRenderer] updateUserMarker: 无效的坐标', position);
+                return;
+            }
 
             // 根据导航状态选择图标和尺寸
             const iconImage = hasStarted
@@ -634,6 +727,15 @@ const NavRenderer = (function() {
         try {
             if (!map) return;
 
+            // 验证坐标是否有效
+            if (!position) return;
+            const lng = Array.isArray(position) ? position[0] : position.lng;
+            const lat = Array.isArray(position) ? position[1] : position.lat;
+            if (lng == null || lat == null || isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+                console.warn('[NavRenderer] updateDirectionIndicator: 无效的坐标', position);
+                return;
+            }
+
             const compassSize = 80; // 整体尺寸
 
             if (!directionIndicator) {
@@ -684,6 +786,19 @@ const NavRenderer = (function() {
     function drawGuideLineToStart(currentPos, startPos) {
         try {
             if (!map) return;
+
+            // 验证坐标是否有效
+            const isValidPos = (pos) => {
+                if (!pos) return false;
+                const lng = Array.isArray(pos) ? pos[0] : pos.lng;
+                const lat = Array.isArray(pos) ? pos[1] : pos.lat;
+                return lng != null && lat != null && !isNaN(lng) && !isNaN(lat) && isFinite(lng) && isFinite(lat);
+            };
+
+            if (!isValidPos(currentPos) || !isValidPos(startPos)) {
+                console.warn('[NavRenderer] drawGuideLineToStart: 坐标无效', currentPos, startPos);
+                return;
+            }
 
             // 清除旧的引导线
             if (guideLineToStart) {
@@ -744,6 +859,15 @@ const NavRenderer = (function() {
         try {
             if (!map) return;
 
+            // 验证坐标是否有效
+            if (!position) return;
+            const lng = Array.isArray(position) ? position[0] : position.lng;
+            const lat = Array.isArray(position) ? position[1] : position.lat;
+            if (lng == null || lat == null || isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+                console.warn('[NavRenderer] updateAccuracyCircle: 无效的坐标', position);
+                return;
+            }
+
             if (!accuracyCircle) {
                 accuracyCircle = new AMap.Circle({
                     center: position,
@@ -793,24 +917,33 @@ const NavRenderer = (function() {
                 return;
             }
 
+            // 验证坐标是否有效
+            if (!position) return;
+            const lng = Array.isArray(position) ? position[0] : position.lng;
+            const lat = Array.isArray(position) ? position[1] : position.lat;
+            if (lng == null || lat == null || isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+                console.warn('[NavRenderer] setHeadingUpMode: 无效的坐标', position);
+                return;
+            }
+
             // bearing 是道路方向（0=北，90=东，180=南，270=西）
             // 高德地图 setRotation(X) 是让地图顺时针旋转X度
             // 要让道路方向朝上，需要逆时针旋转bearing度
             let targetRotation = -bearing;
-            
+
             // 归一化目标角度到 -180 ~ 180 范围
             while (targetRotation > 180) targetRotation -= 360;
             while (targetRotation < -180) targetRotation += 360;
-            
+
             // 获取当前地图旋转角度
             const currentRotation = map.getRotation() || 0;
-            
+
             // 计算最短旋转路径
             let angleDiff = targetRotation - currentRotation;
             // 确保走最短路径（不超过180度）
             while (angleDiff > 180) angleDiff -= 360;
             while (angleDiff < -180) angleDiff += 360;
-            
+
             // 最终旋转角度 = 当前角度 + 最短差值
             const mapRotation = currentRotation + angleDiff;
 
@@ -847,6 +980,15 @@ const NavRenderer = (function() {
     function setCenterOnly(position, smooth = true) {
         try {
             if (!map) return;
+
+            // 验证坐标是否有效
+            if (!position) return;
+            const lng = Array.isArray(position) ? position[0] : position.lng;
+            const lat = Array.isArray(position) ? position[1] : position.lat;
+            if (lng == null || lat == null || isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+                console.warn('[NavRenderer] setCenterOnly: 无效的坐标', position);
+                return;
+            }
 
             if (smooth) {
                 map.setCenter(position, false, 300);
@@ -887,6 +1029,19 @@ const NavRenderer = (function() {
 
             console.log('[NavRenderer] 加载KML数据...');
 
+            // 验证坐标有效性的辅助函数
+            const isValidCoord = (val) => val != null && !isNaN(val) && isFinite(val);
+            const isValidPoint = (point) => {
+                if (!point) return false;
+                const lng = Array.isArray(point) ? point[0] : point.lng;
+                const lat = Array.isArray(point) ? point[1] : point.lat;
+                return isValidCoord(lng) && isValidCoord(lat);
+            };
+            const filterValidPath = (coords) => {
+                if (!coords || !Array.isArray(coords)) return [];
+                return coords.filter(isValidPoint);
+            };
+
             const features = kmlData.features;
             const layerId = 'kml-' + Date.now();
             const displayMarkers = [];
@@ -903,9 +1058,14 @@ const NavRenderer = (function() {
             polygonsWithArea.sort((a, b) => b.area - a.area);
 
             polygonsWithArea.forEach((feature, index) => {
+                const validPath = filterValidPath(feature.geometry.coordinates);
+                if (validPath.length < 3) {
+                    console.warn('[NavRenderer] 跳过无效多边形，有效点数:', validPath.length);
+                    return;
+                }
                 const style = feature.geometry.style || {};
                 const polygon = new AMap.Polygon({
-                    path: feature.geometry.coordinates,
+                    path: validPath,
                     strokeColor: 'transparent',
                     strokeWeight: 0,
                     fillColor: style.fillColor || '#CCCCCC',
@@ -918,8 +1078,13 @@ const NavRenderer = (function() {
 
             // 绘制线（统一样式：1px，#9AE59D）
             lines.forEach(feature => {
+                const validPath = filterValidPath(feature.geometry.coordinates);
+                if (validPath.length < 2) {
+                    console.warn('[NavRenderer] 跳过无效线段，有效点数:', validPath.length);
+                    return;
+                }
                 const polyline = new AMap.Polyline({
-                    path: feature.geometry.coordinates,
+                    path: validPath,
                     strokeColor: '#9AE59D',
                     strokeWeight: 3,
                     strokeOpacity: 1,
@@ -932,7 +1097,7 @@ const NavRenderer = (function() {
                     name: feature.name || '未命名线',
                     type: '线',
                     description: feature.description || '',
-                    coordinates: feature.geometry.coordinates
+                    coordinates: validPath
                 });
 
                 displayMarkers.push(polyline);
@@ -1024,10 +1189,28 @@ const NavRenderer = (function() {
         try {
             if (!map || !path || path.length === 0) return;
 
-            let minLng = path[0][0], maxLng = path[0][0];
-            let minLat = path[0][1], maxLat = path[0][1];
+            // 验证坐标有效性的辅助函数
+            const isValidCoord = (val) => val != null && !isNaN(val) && isFinite(val);
 
-            path.forEach(point => {
+            // 过滤出有效的坐标点
+            const validPoints = path.filter(point => {
+                if (!point) return false;
+                const lng = Array.isArray(point) ? point[0] : point.lng;
+                const lat = Array.isArray(point) ? point[1] : point.lat;
+                return isValidCoord(lng) && isValidCoord(lat);
+            });
+
+            if (validPoints.length === 0) {
+                console.warn('[NavRenderer] adjustViewToPath: 没有有效坐标点');
+                return;
+            }
+
+            let minLng = Array.isArray(validPoints[0]) ? validPoints[0][0] : validPoints[0].lng;
+            let maxLng = minLng;
+            let minLat = Array.isArray(validPoints[0]) ? validPoints[0][1] : validPoints[0].lat;
+            let maxLat = minLat;
+
+            validPoints.forEach(point => {
                 const lng = Array.isArray(point) ? point[0] : point.lng;
                 const lat = Array.isArray(point) ? point[1] : point.lat;
                 minLng = Math.min(minLng, lng);
@@ -1035,6 +1218,13 @@ const NavRenderer = (function() {
                 minLat = Math.min(minLat, lat);
                 maxLat = Math.max(maxLat, lat);
             });
+
+            // 最终验证边界值
+            if (!isValidCoord(minLng) || !isValidCoord(maxLng) ||
+                !isValidCoord(minLat) || !isValidCoord(maxLat)) {
+                console.warn('[NavRenderer] adjustViewToPath: 计算出的边界无效');
+                return;
+            }
 
             const bounds = new AMap.Bounds([minLng, minLat], [maxLng, maxLat]);
             map.setBounds(bounds, false, [100, 100, 100, 100]);
@@ -1379,6 +1569,16 @@ const NavRenderer = (function() {
 
             // 为每个位置创建标签
             sortedGroups.forEach((group, index) => {
+                // 验证坐标是否有效
+                const pos = group.position;
+                if (!pos) return;
+                const lng = Array.isArray(pos) ? pos[0] : pos.lng;
+                const lat = Array.isArray(pos) ? pos[1] : pos.lat;
+                if (lng == null || lat == null || isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+                    console.warn('[NavRenderer] showTurnLabels: 跳过无效坐标', pos);
+                    return;
+                }
+
                 // 去重并按顺序排列转向类型
                 const turnOrder = ['left', 'right', 'uturn'];
                 const uniqueTurns = [...new Set(group.turns)];

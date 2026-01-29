@@ -1211,6 +1211,18 @@ function displayKMLRoute(routeResult) {
         return;
     }
 
+    // 检查地图容器是否已准备好
+    try {
+        const container = mapInstance.getContainer();
+        if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
+            console.warn('[路径显示] 地图容器尺寸无效，延迟300ms后重试');
+            setTimeout(() => displayKMLRoute(routeResult), 300);
+            return;
+        }
+    } catch (e) {
+        console.warn('[路径显示] 检查地图容器失败:', e);
+    }
+
     console.log('[路径显示] ✓ 地图对象已获取');
 
     // 清除之前的路径
@@ -1267,6 +1279,31 @@ function displayKMLRoute(routeResult) {
         return;
     }
 
+    console.log('[路径显示] 坐标验证通过，有效路径点:', validPath.length);
+
+    // 【关键修复】检查地图是否已完成初始化
+    // 通过检查getCenter()返回值是否有效来判断地图状态
+    try {
+        const center = mapInstance.getCenter();
+        if (!center || typeof center.getLng !== 'function') {
+            console.warn('[路径显示] 地图中心点无效，延迟300ms后重试');
+            setTimeout(() => displayKMLRoute(routeResult), 300);
+            return;
+        }
+        const centerLng = center.getLng();
+        const centerLat = center.getLat();
+        if (isNaN(centerLng) || isNaN(centerLat) || !isFinite(centerLng) || !isFinite(centerLat)) {
+            console.warn('[路径显示] 地图中心点坐标无效，延迟300ms后重试');
+            setTimeout(() => displayKMLRoute(routeResult), 300);
+            return;
+        }
+        console.log('[路径显示] ✓ 地图状态正常，中心点:', centerLng, centerLat);
+    } catch (e) {
+        console.warn('[路径显示] 检查地图中心点失败，延迟300ms后重试:', e);
+        setTimeout(() => displayKMLRoute(routeResult), 300);
+        return;
+    }
+
     // 转换为 AMap.LngLat 对象数组
     const amapPath = validPath.map(coord => {
         return new AMap.LngLat(coord[0], coord[1]);
@@ -1286,9 +1323,9 @@ function displayKMLRoute(routeResult) {
             zIndex: 150               // 更高的 z-index，确保在KML线上方
         });
 
-        // 直接添加到地图，不使用延迟
-        // 延迟可能导致在某些情况下添加失败
+        // 添加到地图
         mapInstance.add(polyline);
+        console.log('[路径显示] ✓ Polyline已添加到地图');
 
         // 强制刷新地图渲染
         try {
@@ -1299,61 +1336,22 @@ function displayKMLRoute(routeResult) {
     } catch (error) {
         console.error('创建或添加Polyline时出错:', error);
         console.error('错误详情:', error.stack);
-        alert('显示路径时出错: ' + error.message);
+        // 不要弹窗提示，让用户刷新页面重试
+        console.warn('[路径显示] 路线显示失败，可能需要刷新页面');
         return;
     }
 
-    // 添加起点与终点标记，满足"起点/终点/路径/实时位置"同时展示的需求
-    let startMarker = null;
-    let endMarker = null;
-    try {
-        // 检查MapConfig是否已加载
-        if (typeof MapConfig === 'undefined' || !MapConfig.markerStyles) {
-            console.warn('[路径显示] MapConfig未加载，跳过起终点标记');
-        } else {
-            const startIconUrl = (MapConfig.markerStyles.start?.icon || MapConfig.markerStyles.currentLocation?.icon) || '';
-            const endIconUrl = (MapConfig.markerStyles.destination?.icon || MapConfig.markerStyles.currentLocation?.icon) || '';
-
-            // 起点
-            if (validPath.length >= 1 && startIconUrl) {
-                const sIcon = new AMap.Icon({ size: new AMap.Size(30, 38), image: startIconUrl, imageSize: new AMap.Size(30, 38) });
-                startMarker = new AMap.Marker({
-                    position: validPath[0],
-                    icon: sIcon,
-                    offset: new AMap.Pixel(-15, -38),
-                    zIndex: 150,
-                    map: mapInstance,
-                    title: '起点'
-                });
-            }
-            // 终点
-            if (validPath.length >= 2 && endIconUrl) {
-                const eIcon = new AMap.Icon({ size: new AMap.Size(30, 38), image: endIconUrl, imageSize: new AMap.Size(30, 38) });
-                endMarker = new AMap.Marker({
-                    position: validPath[validPath.length - 1],
-                    icon: eIcon,
-                    offset: new AMap.Pixel(-15, -38),
-                    zIndex: 150,
-                    map: mapInstance,
-                    title: '终点'
-                });
-            }
-        }
-    } catch (e) {
-        console.warn('创建起终点标记失败:', e);
-    }
-
-    // 保存路径对象供后续使用
+    // 保存路径对象供后续使用（先不包含marker，后面会更新）
     window.currentKMLRoute = {
         polyline: polyline,
-        startMarker: startMarker,
-        endMarker: endMarker,
-        path: validPath,  // 使用验证后的路径
+        startMarker: null,
+        endMarker: null,
+        path: validPath,
         distance: routeResult.distance
     };
 
-    // 调整地图视野以显示完整路径
-    // 使用 setBounds 来确保整个路径都在视野内
+    // 【关键修复】先调整地图视野到路线所在区域
+    // 必须先执行这一步，否则添加marker时会因为地图中心点与marker坐标差距过大导致Pixel(NaN,NaN)错误
     if (validPath.length >= 2) {
         try {
             // 创建包含所有路径点的边界
@@ -1363,20 +1361,81 @@ function displayKMLRoute(routeResult) {
             });
 
             // 设置地图边界，添加内边距以确保路径不紧贴边缘
-            mapInstance.setBounds(bounds, false, [50, 50, 50, 50]); // 上右下左的内边距
+            mapInstance.setBounds(bounds, false, [50, 50, 50, 50]);
+            console.log('[路径显示] ✓ 地图边界已设置到路线区域');
         } catch (e) {
-            console.error('设置地图边界时出错:', e);
+            console.error('[路径显示] 设置地图边界时出错:', e);
             // 备选方案：设置到路径中心点
             try {
                 const midLng = (validPath[0][0] + validPath[validPath.length - 1][0]) / 2;
                 const midLat = (validPath[0][1] + validPath[validPath.length - 1][1]) / 2;
                 mapInstance.setCenter([midLng, midLat]);
                 mapInstance.setZoom(17);
+                console.log('[路径显示] ✓ 地图中心已设置（备选方案）');
             } catch (e2) {
-                console.error('设置地图中心时出错:', e2);
+                console.error('[路径显示] 设置地图中心时出错:', e2);
             }
         }
     }
+
+    // 【关键修复】在地图视野调整完成后，延迟添加起点和终点标记
+    // 必须等待地图完成视野变换后再添加marker，否则会出现Pixel(NaN,NaN)错误
+    setTimeout(function() {
+        try {
+            // 检查MapConfig是否已加载
+            if (typeof MapConfig === 'undefined' || !MapConfig.markerStyles) {
+                console.warn('[路径显示] MapConfig未加载，跳过起终点标记');
+                return;
+            }
+
+            const startIconUrl = (MapConfig.markerStyles.start?.icon || MapConfig.markerStyles.currentLocation?.icon) || '';
+            const endIconUrl = (MapConfig.markerStyles.destination?.icon || MapConfig.markerStyles.currentLocation?.icon) || '';
+            let startMarker = null;
+            let endMarker = null;
+
+            // 起点
+            if (validPath.length >= 1 && startIconUrl) {
+                const startPos = validPath[0];
+                if (Array.isArray(startPos) && startPos.length >= 2 &&
+                    !isNaN(startPos[0]) && !isNaN(startPos[1])) {
+                    startMarker = new AMap.Marker({
+                        position: new AMap.LngLat(startPos[0], startPos[1]),
+                        content: '<img src="' + startIconUrl + '" style="width:30px;height:38px;transform:translate(-50%,-100%);">',
+                        anchor: 'bottom-center',
+                        zIndex: 150,
+                        title: '起点'
+                    });
+                    mapInstance.add(startMarker);
+                    console.log('[路径显示] ✓ 起点marker已添加，位置:', startPos);
+                }
+            }
+
+            // 终点
+            if (validPath.length >= 2 && endIconUrl) {
+                const endPos = validPath[validPath.length - 1];
+                if (Array.isArray(endPos) && endPos.length >= 2 &&
+                    !isNaN(endPos[0]) && !isNaN(endPos[1])) {
+                    endMarker = new AMap.Marker({
+                        position: new AMap.LngLat(endPos[0], endPos[1]),
+                        content: '<img src="' + endIconUrl + '" style="width:30px;height:38px;transform:translate(-50%,-100%);">',
+                        anchor: 'bottom-center',
+                        zIndex: 150,
+                        title: '终点'
+                    });
+                    mapInstance.add(endMarker);
+                    console.log('[路径显示] ✓ 终点marker已添加，位置:', endPos);
+                }
+            }
+
+            // 更新保存的路径对象
+            if (window.currentKMLRoute) {
+                window.currentKMLRoute.startMarker = startMarker;
+                window.currentKMLRoute.endMarker = endMarker;
+            }
+        } catch (e) {
+            console.warn('[路径显示] 创建起终点标记失败:', e);
+        }
+    }, 500); // 等待500ms让地图完成视野变换
 
     // 检查是否从任务页发起的导航，如果是则自动跳转到导航页面
     const urlParams = new URLSearchParams(window.location.search);
@@ -1399,14 +1458,24 @@ function displayKMLRoute(routeResult) {
 function clearPreviousRoute() {
     if (window.currentKMLRoute) {
         try {
-            if (window.currentKMLRoute.polyline) {
-                map.remove(window.currentKMLRoute.polyline);
+            // 获取正确的地图实例（兼容导航页面和主页面）
+            let mapInstance = null;
+            if (window.NavRenderer && typeof window.NavRenderer.getMap === 'function') {
+                mapInstance = window.NavRenderer.getMap();
+            } else if (window.map) {
+                mapInstance = window.map;
             }
-            if (window.currentKMLRoute.startMarker) {
-                map.remove(window.currentKMLRoute.startMarker);
-            }
-            if (window.currentKMLRoute.endMarker) {
-                map.remove(window.currentKMLRoute.endMarker);
+
+            if (mapInstance) {
+                if (window.currentKMLRoute.polyline) {
+                    mapInstance.remove(window.currentKMLRoute.polyline);
+                }
+                if (window.currentKMLRoute.startMarker) {
+                    mapInstance.remove(window.currentKMLRoute.startMarker);
+                }
+                if (window.currentKMLRoute.endMarker) {
+                    mapInstance.remove(window.currentKMLRoute.endMarker);
+                }
             }
         } catch (e) {
             console.warn('清除之前的路径时出错:', e);

@@ -326,24 +326,52 @@ const NavCore = (function() {
      * 地图加载完成回调
      */
     function onMapComplete() {
+        // 【关键修复】等待地图容器尺寸确定，避免 Pixel(NaN, NaN) 错误
+        const mapContainer = document.getElementById('navigation-map-container');
+        if (!mapContainer || mapContainer.offsetWidth === 0 || mapContainer.offsetHeight === 0) {
+            console.warn('[NavCore] 地图容器尺寸未确定，等待300ms后重试...');
+            setTimeout(onMapComplete, 300);
+            return;
+        }
+
+        console.log('[NavCore] ✓ 地图容器尺寸:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
+
+        // 加载KML数据
         loadKMLData();
 
-        // 等待道路状态加载完成后再加载路线
+        // 等待道路状态加载完成后再处理路线
         window.onRoadStatusLoaded = function() {
-            console.log('[NavCore] 道路状态加载完成，开始加载路线...');
-            loadRouteData();
-            // 清除回调，避免重复调用
+            console.log('[NavCore] 道路状态加载完成，开始处理路线...');
+            handleRouteAfterMapReady();
             window.onRoadStatusLoaded = null;
         };
 
-        // 设置超时，如果5秒内道路状态没有加载完成，也继续加载路线
+        // 设置超时，如果5秒内道路状态没有加载完成，也继续处理路线
         setTimeout(function() {
             if (window.onRoadStatusLoaded) {
-                console.warn('[NavCore] 道路状态加载超时，直接加载路线');
-                loadRouteData();
+                console.warn('[NavCore] 道路状态加载超时，直接处理路线');
+                handleRouteAfterMapReady();
                 window.onRoadStatusLoaded = null;
             }
         }, 5000);
+    }
+
+    /**
+     * 地图准备好后处理路线（统一入口）
+     */
+    function handleRouteAfterMapReady() {
+        // 延迟执行，确保地图完全渲染
+        setTimeout(function() {
+            // 【重构】统一使用普通导航流程
+            // 任务导航现在也使用标准的 navigationRoute 格式存储数据
+            // 不再需要检测 taskNavigationData
+            console.log('[NavCore] 加载导航路线...');
+            loadRouteData();
+            // 同时恢复UI显示
+            if (typeof NavUI !== 'undefined' && NavUI.restoreRoutePlanningData) {
+                NavUI.restoreRoutePlanningData();
+            }
+        }, 500);  // 增加延迟，确保地图完全准备好
     }
 
     /**
@@ -387,11 +415,11 @@ const NavCore = (function() {
     /**
      * 加载路线数据
      */
-    function loadRouteData() {
+    async function loadRouteData() {
         try {
             routeData = NavDataStore.getRoute();
             if (routeData) {
-                planRoute();
+                await planRoute();
             }
         } catch (e) {
             console.error('[NavCore] 加载路线数据失败:', e);
@@ -413,29 +441,49 @@ const NavCore = (function() {
             const endPos = routeData.end.position;
             const waypoints = routeData.waypoints || [];
 
+            // 验证终点坐标
+            if (!endPos || !Array.isArray(endPos) || endPos.length < 2 ||
+                isNaN(endPos[0]) || isNaN(endPos[1])) {
+                console.error('[NavCore] 终点坐标无效:', endPos);
+                return;
+            }
+
             // 【新增】如果起点是"我的位置"，先获取最新的GPS位置
-            const isMyLocationStart = routeData.start.name === '我的位置' || 
+            const isMyLocationStart = routeData.start.name === '我的位置' ||
                                       routeData.start.isMyLocation === true;
-            
+
             if (isMyLocationStart) {
                 console.log('[NavCore] 起点是"我的位置"，获取最新GPS位置...');
                 try {
                     const currentGPS = await getCurrentGPSPosition();
-                    if (currentGPS) {
+                    if (currentGPS && !isNaN(currentGPS[0]) && !isNaN(currentGPS[1])) {
                         startPos = currentGPS;
                         routeData.start.position = currentGPS;
                         console.log('[NavCore] 已更新起点为最新GPS位置:', currentGPS);
-                        
+
                         // 移动地图视野到当前位置
                         const mapInstance = NavRenderer.getMap();
                         if (mapInstance) {
                             mapInstance.setCenter(currentGPS);
                             console.log('[NavCore] 地图已移动到当前位置');
                         }
+                    } else {
+                        console.warn('[NavCore] GPS返回无效坐标');
                     }
                 } catch (e) {
-                    console.warn('[NavCore] 获取GPS位置失败，使用原有位置:', e);
+                    console.warn('[NavCore] 获取GPS位置失败:', e);
                 }
+            }
+
+            // 验证起点坐标
+            if (!startPos || !Array.isArray(startPos) || startPos.length < 2 ||
+                isNaN(startPos[0]) || isNaN(startPos[1])) {
+                console.error('[NavCore] 起点坐标无效，无法规划路线:', startPos);
+                // 对于"我的位置"，提示用户需要允许定位权限
+                if (isMyLocationStart) {
+                    console.warn('[NavCore] 请允许获取位置权限后重试');
+                }
+                return;
             }
 
             const syncSuccess = syncKMLLayersToGlobal();

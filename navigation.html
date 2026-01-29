@@ -173,6 +173,26 @@
         window.addEventListener('load', function() {
             console.log('导航页面加载完成，开始初始化...');
 
+            // 【关键修复】等待 DOM 完全渲染后再初始化地图
+            // 使用 requestAnimationFrame 确保浏览器完成布局计算
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    initNavigation();
+                });
+            });
+        });
+
+        function initNavigation() {
+            // 检查地图容器是否已准备好
+            const mapContainer = document.getElementById('navigation-map-container');
+            if (!mapContainer || mapContainer.offsetWidth === 0 || mapContainer.offsetHeight === 0) {
+                console.warn('[导航页面] 地图容器尺寸未确定，等待100ms后重试...');
+                setTimeout(initNavigation, 100);
+                return;
+            }
+
+            console.log('[导航页面] ✓ 地图容器尺寸:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
+
             // 1. 初始化导航核心
             const initSuccess = NavCore.init('navigation-map-container');
             if (!initSuccess) {
@@ -184,29 +204,11 @@
             // 2. 初始化UI
             NavUI.init();
 
-            // 3. 等待地图完全加载后再恢复路线规划数据
-            // 【关键修复】避免在地图未完成初始化时就尝试显示路线导致 Pixel(NaN, NaN) 错误
-            const map = window.NavRenderer ? window.NavRenderer.getMap() : null;
-            if (map) {
-                // 监听地图完成事件
-                map.on('complete', function() {
-                    console.log('[导航页面] 地图加载完成事件触发');
-                    // 延迟执行，确保地图渲染完成
-                    setTimeout(function() {
-                        console.log('[导航页面] 开始恢复路线规划数据...');
-                        NavUI.restoreRoutePlanningData();
-                    }, 300);
-                });
-            } else {
-                // 如果无法获取地图对象，使用延迟作为备选方案
-                console.warn('[导航页面] 无法获取地图对象，使用延迟备选方案');
-                setTimeout(function() {
-                    NavUI.restoreRoutePlanningData();
-                }, 1500);
-            }
+            // 【简化】NavCore.init 内部的 onMapComplete 会处理所有初始化
+            // 不再在这里额外监听 complete 事件，避免重复处理
 
             console.log('导航系统初始化完成');
-        });
+        }
 
         // 页面卸载时清理资源
         window.addEventListener('beforeunload', function() {

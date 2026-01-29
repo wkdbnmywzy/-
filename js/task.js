@@ -268,7 +268,7 @@ class TaskManager {
                 console.log('[任务页面] 无token，使用匿名请求');
             }
 
-            const url = `http://115.159.67.12:8086/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
+            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
             console.log('[任务页面] 请求URL（内网测试）:', url);
             console.log('[任务页面] 请求headers:', headers);
 
@@ -729,24 +729,30 @@ class TaskManager {
 
         console.log('[任务导航] 直接跳转到导航页面，起点:', startName, '终点:', endName);
 
-        // 将起点终点信息保存到sessionStorage，供导航页面使用
+        // 【重构】使用与普通选点导航相同的标准数据格式
+        // 这样可以复用普通导航的完整流程，避免重复代码和兼容性问题
         try {
-            const taskNavigationData = {
-                taskId: taskId,
-                startPoint: {
+            // 标准导航数据格式（与 nav-data-store.js 中的 navigationRoute 格式一致）
+            const navigationRoute = {
+                start: {
                     name: startName,
-                    lng: startLng,
-                    lat: startLat
+                    position: [startLng, startLat],  // [lng, lat] 数组格式
+                    isMyLocation: false
                 },
-                endPoint: {
+                end: {
                     name: endName,
-                    lng: endLng,
-                    lat: endLat
+                    position: [endLng, endLat]
                 },
-                timestamp: Date.now()
+                waypoints: []  // 任务导航无途径点
             };
-            sessionStorage.setItem('taskNavigationData', JSON.stringify(taskNavigationData));
-            console.log('[任务导航] 导航数据已保存到sessionStorage');
+            sessionStorage.setItem('navigationRoute', JSON.stringify(navigationRoute));
+            console.log('[任务导航] 导航数据已保存到sessionStorage (标准格式)');
+
+            // 同时保存任务ID供后续使用（可选）
+            sessionStorage.setItem('currentTaskId', taskId);
+
+            // 【修复】设置导航结束后的返回页面为司机端首页
+            sessionStorage.setItem('navigationReferrer', 'index.html');
         } catch (e) {
             console.warn('[任务导航] 保存导航数据失败:', e);
         }

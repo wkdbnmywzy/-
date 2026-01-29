@@ -338,9 +338,17 @@ async function handleDriverLogin(e) {
     showLoadingScreen();
 
     try {
-        // 司机登录不使用token，清除之前可能存在的token（避免API请求401错误）
-        sessionStorage.removeItem('authToken');
-        console.log('[司机登录] 已清除authToken，司机登录不需要token');
+        // 司机登录：先用固定账号获取token，用于后续接口认证
+        console.log('[司机登录] 使用Drive账号获取token...');
+        const driverToken = await fetchDriverToken();
+        if (!driverToken) {
+            hideLoadingScreen();
+            showError(driverErrorMessage, '系统认证失败，请稍后重试');
+            console.error('[司机登录] Drive账号认证失败');
+            return;
+        }
+        sessionStorage.setItem('authToken', driverToken);
+        console.log('[司机登录] Drive账号认证成功，token已保存');
 
         // 获取GPS位置
         console.log('[司机登录] 获取GPS位置...');
@@ -454,6 +462,53 @@ function getCurrentPosition() {
 }
 
 /**
+ * 司机端专用：用固定账号Drive获取token（仅获取token，不做其他操作）
+ * @returns {Promise<string|null>} token字符串，失败返回null
+ */
+async function fetchDriverToken() {
+    try {
+        // 1. 获取RSA公钥
+        const publicKey = await fetchPublicKey();
+        if (!publicKey) {
+            console.error('[司机Token] 获取公钥失败');
+            return null;
+        }
+
+        // 2. 加密登录信息
+        const encryptedData = encryptLoginData(publicKey, 'Driver', 'Driver@2026');
+        if (!encryptedData) {
+            console.error('[司机Token] 加密失败');
+            return null;
+        }
+
+        // 3. 登录获取token
+        const response = await fetch('https://dmap.cscec3bxjy.cn/api/user/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ encrypted_data: encryptedData })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.code === 200) {
+            const token = data.data?.access_token || data.data?.token || data.data;
+            if (token) {
+                console.log('[司机Token] 获取成功');
+                return token;
+            }
+            console.error('[司机Token] 返回数据中未找到token:', data.data);
+            return null;
+        } else {
+            console.error('[司机Token] 登录失败:', data.message);
+            return null;
+        }
+    } catch (error) {
+        console.error('[司机Token] 请求异常:', error);
+        return null;
+    }
+}
+
+/**
  * 根据GPS位置搜索附近5KM内的项目
  * 流程：GPS定位 → 获取附近项目列表（含projectid）→ 用projectid获取项目详情 → 获取省份信息
  * 与账号密码登录的 fetchUserProjects 处理方式一致
@@ -464,11 +519,15 @@ function getCurrentPosition() {
 async function searchNearbyProjects(latitude, longitude) {
     try {
         // 第一步：根据GPS获取附近项目列表
+        const token = sessionStorage.getItem('authToken') || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch('https://dmap.cscec3bxjy.cn/api/project/projects/search/nearby', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({
                 latitude: latitude,
                 longitude: longitude
@@ -489,19 +548,17 @@ async function searchNearbyProjects(latitude, longitude) {
             console.log('[附近项目] 附近没有项目');
             return [];
         }
-        
+
         // 第二步：提取项目ID列表（与账号密码登录一样的处理方式）
         const projectIds = projects.map(p => p.projectid).filter(id => id);
         console.log('[附近项目] 项目ID列表:', projectIds);
-        
+
         if (projectIds.length === 0) {
             console.warn('[附近项目] 没有有效的项目ID');
             return [];
         }
-        
+
         // 第三步：根据每个项目ID获取项目详情（与 fetchUserProjects 一致）
-        const token = sessionStorage.getItem('authToken') || '';
-        
         const projectDetailsPromises = projectIds.map(async (projectId) => {
             try {
                 const headers = { 'Content-Type': 'application/json' };
@@ -567,15 +624,19 @@ async function searchNearbyProjects(latitude, longitude) {
 }
 
 /**
- * 获取所有省份列表（无需token版本，用于一键登录）
+ * 获取所有省份列表（用于一键登录，优先使用token）
  */
 async function fetchAllProvincesWithoutToken() {
     try {
+        const token = sessionStorage.getItem('authToken') || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch('https://dmap.cscec3bxjy.cn/api/project/provinces', {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: headers
         });
 
         if (!response.ok) {

@@ -89,7 +89,21 @@ const NavDataStore = (function() {
                 if (currentPos && isValidPosition(currentPos)) {
                     parsed.start.position = currentPos;
                     parsed.start.isMyLocation = true;
+                } else {
+                    // 如果没有有效的当前位置，检查保存的起点坐标
+                    if (!isValidPosition(parsed.start.position)) {
+                        console.warn('[NavDataStore] "我的位置"没有有效坐标，等待GPS定位');
+                        parsed.start.position = null; // 明确设为null，让调用方知道需要等待
+                        parsed.start.isMyLocation = true;
+                        parsed.start.needsGPS = true; // 标记需要GPS定位
+                    }
                 }
+            }
+
+            // 验证终点坐标
+            if (parsed.end && !isValidPosition(parsed.end.position)) {
+                console.error('[NavDataStore] 终点坐标无效');
+                return null;
             }
 
             return parsed;

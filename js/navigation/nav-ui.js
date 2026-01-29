@@ -842,18 +842,13 @@ const NavUI = (function() {
 
     /**
      * 恢复路线规划数据（从sessionStorage）
+     * 【重构】现在任务导航也使用标准的 navigationRoute 格式
+     * 统一由 NavDataStore.getRoute() 读取，不再需要单独处理 taskNavigationData
      */
     function restoreRoutePlanningData() {
         try {
-            // 【新增】优先检查是否有任务导航数据（从任务页跳转过来）
-            const taskNavDataStr = sessionStorage.getItem('taskNavigationData');
-            if (taskNavDataStr) {
-                console.log('[NavUI] 检测到任务导航数据，开始自动导航流程...');
-                handleTaskNavigation(taskNavDataStr);
-                return;
-            }
-
-            // 【修复】直接读取 point-selection.js 保存的完整路线数据
+            // 【修复】直接读取 NavDataStore 中的路线数据
+            // 无论是任务导航还是普通选点导航，都使用相同的数据格式
             const routeData = NavDataStore.getRoute();
             if (!routeData) {
                 console.warn('[NavUI] 没有找到路线数据');
@@ -1024,8 +1019,22 @@ const NavUI = (function() {
             // 调用KML路线规划
             let routeResult = null;
             if (typeof planKMLRoute === 'function') {
-                const startCoord = [taskNavData.startPoint.lng, taskNavData.startPoint.lat];
-                const endCoord = [taskNavData.endPoint.lng, taskNavData.endPoint.lat];
+                // 验证坐标有效性
+                const startLng = parseFloat(taskNavData.startPoint.lng);
+                const startLat = parseFloat(taskNavData.startPoint.lat);
+                const endLng = parseFloat(taskNavData.endPoint.lng);
+                const endLat = parseFloat(taskNavData.endPoint.lat);
+
+                if (isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat) ||
+                    !isFinite(startLng) || !isFinite(startLat) || !isFinite(endLng) || !isFinite(endLat)) {
+                    console.error('[任务导航] 坐标无效:', { startLng, startLat, endLng, endLat });
+                    alert('任务坐标无效，无法规划路线');
+                    sessionStorage.removeItem('taskNavigationData');
+                    return;
+                }
+
+                const startCoord = [startLng, startLat];
+                const endCoord = [endLng, endLat];
                 console.log('[任务导航] 规划路线:', { start: startCoord, end: endCoord });
                 routeResult = planKMLRoute(startCoord, endCoord);
 

@@ -1372,6 +1372,9 @@ function completeRouteSelection() {
         sessionStorage.setItem('navigationRoute', JSON.stringify(routeData));
         console.log('路线数据已保存到sessionStorage');
 
+        // 设置导航结束后的返回页面为司机端首页
+        sessionStorage.setItem('navigationReferrer', 'index.html');
+
         // 注意：KML原始数据已在导入时保存到sessionStorage，无需重复保存
 
         // 跳转到导航页面
