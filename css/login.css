@@ -254,7 +254,7 @@ body {
 .project-header {
     display: flex;
     align-items: center;
-    margin-bottom: 4vh; /* 使用vh单位，自适应屏幕高度 */
+    margin-bottom: 12px; /* 固定间距，与轮盘紧凑 */
     position: relative;
 }
 
@@ -297,16 +297,21 @@ body {
     flex: 1;
 }
 
+/* 项目选择确定按钮 */
+.project-selection .login-btn {
+    margin-top: 0; /* 由 picker-container 的 margin-bottom 控制间距 */
+}
+
 .picker-container {
     display: flex;
     gap: 0; /* 移除列间距，让两列紧挨 */
-    flex: 1;
-    margin-bottom: 3vh; /* 使用vh单位，自适应屏幕高度 */
+    margin-bottom: 60px; /* 增大间距，与上方视觉距离对称 */
     justify-content: center;
     align-items: center;
     position: relative;
     padding: 0; /* 移除左右留白，充分利用空间 */
     width: 100%; /* 占满整个宽度 */
+    height: 200px; /* 固定高度，与 wheel-picker 一致 */
 }
 
 /* 新增：统一的遮罩层 */
@@ -329,7 +334,7 @@ body {
     z-index: 2;
 }
 
-/* 新增：统一的高亮区域，使用渐变线条和渐变背景 */
+/* 高亮区域：横跨整个 picker-container，与 wheel-picker 中间对齐 */
 .picker-container::after {
     content: '';
     position: absolute;
@@ -338,13 +343,15 @@ body {
     right: 0;
     height: 40px;
     transform: translateY(-50%);
-    background: 
+    background:
         linear-gradient(to right, rgba(42, 134, 255, 0) 0%, rgba(42, 134, 255, 0.3) 15%, #2A86FF 50%, rgba(42, 134, 255, 0.3) 85%, rgba(42, 134, 255, 0) 100%) top / 100% 1px no-repeat,
         linear-gradient(to right, rgba(42, 134, 255, 0) 0%, rgba(42, 134, 255, 0.3) 15%, #2A86FF 50%, rgba(42, 134, 255, 0.3) 85%, rgba(42, 134, 255, 0) 100%) bottom / 100% 1px no-repeat,
         linear-gradient(to right, rgba(42, 134, 255, 0) 0%, rgba(42, 134, 255, 0.02) 20%, rgba(42, 134, 255, 0.05) 50%, rgba(42, 134, 255, 0.02) 80%, rgba(42, 134, 255, 0) 100%);
     pointer-events: none;
     z-index: 1;
 }
+
+/* wheel-picker 不需要自己的高亮 */
 
 
 
@@ -371,9 +378,7 @@ body {
 /* 轮盘选择器 */
 .wheel-picker {
     position: relative;
-    height: 25vh; /* 使用vh单位，自适应屏幕高度 */
-    min-height: 160px; /* 确保最小高度 */
-    max-height: 250px; /* 限制最大高度 */
+    height: 200px; /* 固定高度，便于计算 */
     background: transparent;
     border-radius: 8px;
     overflow: hidden;
@@ -428,8 +433,7 @@ body {
 /* 选择器列 */
 .picker-column {
     position: relative;
-    padding: calc((25vh - 40px) / 2) 0; /* 动态计算padding，确保选中项居中 */
-    min-padding: 80px 0; /* 最小padding */
+    padding: 80px 0; /* (200px - 40px) / 2 = 80px，确保选中项在中间 */
     transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     touch-action: none;
     user-select: none;
@@ -671,7 +675,7 @@ body {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
-    margin-top: 4vh; /* 使用vh单位，自适应屏幕高度 */
+    margin-top: 24px; /* 固定距离，确保在所有手机上可见 */
 }
 .primary-btn {
     display: block;
@@ -803,14 +807,11 @@ body {
     }
 
     .wheel-picker {
-        height: 20vh; /* 小屏幕减少选择器高度 */
-        min-height: 140px;
-        max-height: 180px;
+        height: 160px; /* 小屏幕固定高度 */
     }
 
     .picker-column {
-        padding: calc((20vh - 40px) / 2) 0; /* 动态计算 */
-        min-padding: 60px 0;
+        padding: 60px 0; /* (160px - 40px) / 2 = 60px */
     }
 
     /* 登录卡片优化 */
@@ -824,12 +825,12 @@ body {
     }
 
     #driver-login-form .login-btn {
-        margin-top: 2vh;
+        margin-top: 16px;
         height: 48px;
     }
 
     #account-login-form .login-btn {
-        margin-top: 2.5vh;
+        margin-top: 16px;
         height: 48px;
     }
 
@@ -846,14 +847,11 @@ body {
     }
 
     .wheel-picker {
-        height: 18vh; /* 更小屏幕 */
-        min-height: 120px;
-        max-height: 160px;
+        height: 140px; /* 更小屏幕固定高度 */
     }
 
     .picker-column {
-        padding: calc((18vh - 40px) / 2) 0; /* 动态计算 */
-        min-padding: 50px 0;
+        padding: 50px 0; /* (140px - 40px) / 2 = 50px */
     }
 
     /* 登录卡片进一步压缩 */
@@ -867,13 +865,13 @@ body {
     }
 
     #driver-login-form .login-btn {
-        margin-top: 1.5vh;
+        margin-top: 12px;
         height: 44px;
         font-size: 15px;
     }
 
     #account-login-form .login-btn {
-        margin-top: 2vh;
+        margin-top: 12px;
         height: 44px;
         font-size: 15px;
     }
@@ -902,14 +900,11 @@ body {
     }
 
     .wheel-picker {
-        height: 16vh; /* 极小屏幕 */
-        min-height: 100px;
-        max-height: 140px;
+        height: 120px; /* 极小屏幕固定高度 */
     }
 
     .picker-column {
-        padding: calc((16vh - 40px) / 2) 0; /* 动态计算 */
-        min-padding: 40px 0;
+        padding: 40px 0; /* (120px - 40px) / 2 = 40px */
     }
 
     .login-card {
@@ -922,13 +917,13 @@ body {
     }
 
     #driver-login-form .login-btn {
-        margin-top: 1vh;
+        margin-top: 10px;
         height: 40px;
         font-size: 14px;
     }
 
     #account-login-form .login-btn {
-        margin-top: 1.5vh;
+        margin-top: 10px;
         height: 40px;
         font-size: 14px;
     }
@@ -1101,7 +1096,7 @@ body {
 }
 
 #driver-login-form .login-btn {
-    margin-top: 20px;
+    margin-top: 8px; /* 配合hint-message的margin-bottom，总间距与输入框一致 */
 }
 
 #driver-login-form .remember-option {
@@ -1155,7 +1150,7 @@ body {
     }
 
     #driver-login-form .login-btn {
-        margin-top: 2vh; /* 从20px改为2vh */
+        margin-top: 16px; /* 固定距离 */
         height: 46px;
         font-size: 15px;
     }
