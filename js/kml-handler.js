@@ -2,7 +2,8 @@
 // KML文件导入、解析和显示功能（支持KML原生样式）
 
 // 全局变量跟踪当前激活的marker（使用名称标识，避免对象引用问题）
-let activeMarkerName = null;
+// 使用 window 前缀确保全局可访问
+window.activeMarkerName = null;
 
 function initKMLImport() {
     const importBtn = document.getElementById('import-btn');
@@ -875,7 +876,7 @@ function displayKMLFeatures(features, fileName) {
             map: map,
             title: feature.name,
             content: createNamedPointMarkerContent(feature.name, feature.geometry.style, feature.properties),
-            offset: new AMap.Pixel(-12, -31),  // 调整offset让点位在图标和文字之间（适配24px默认图标）
+            offset: new AMap.Pixel(-9, -25),  // 调整offset让点位在图标和文字之间（适配18px图标）
             zIndex: 100
         });
 
@@ -1010,9 +1011,9 @@ function displayKMLFeatures(features, fileName) {
             }
 
             // 如果有激活的marker，根据名称恢复为默认状态
-            if (activeMarkerName) {
-                resetMarkerStateByName(activeMarkerName);
-                activeMarkerName = null;
+            if (window.activeMarkerName) {
+                resetMarkerStateByName(window.activeMarkerName);
+                window.activeMarkerName = null;
             }
         });
         map._kmlClickListenerAdded = true; // 标记已添加，避免重复添加
@@ -1200,10 +1201,10 @@ function toggleIconState(marker) {
             const upIconPath = iconDiv.dataset.upIcon;
 
             console.log('当前状态:', currentState, '图标类型:', iconType, '名称:', name);
-            console.log('activeMarkerName === name:', activeMarkerName === name);
+            console.log('activeMarkerName === name:', window.activeMarkerName === name);
 
             // 如果当前marker已经是激活状态（up），则恢复为默认状态（down）
-            if (activeMarkerName === name && currentState === 'up') {
+            if (window.activeMarkerName === name && currentState === 'up') {
                 console.log('恢复为默认状态');
                 // 恢复为down状态（默认状态）
                 const newIconPath = (downIconPath && downIconPath.startsWith('images/')) 
@@ -1213,19 +1214,19 @@ function toggleIconState(marker) {
                 if (img) {
                     img.src = newIconPath;
                     iconDiv.dataset.state = 'down';
-                    // 恢复为默认大小：24px
-                    iconDiv.style.width = '24px';
-                    iconDiv.style.height = '24px';
+                    // 恢复为默认大小：18px
+                    iconDiv.style.width = '18px';
+                    iconDiv.style.height = '18px';
                     console.log('图标已恢复为down:', newIconPath);
                 }
-                activeMarkerName = null;
+                window.activeMarkerName = null;
                 return;
             }
 
             // 如果有其他marker处于激活状态，先恢复它
-            if (activeMarkerName && activeMarkerName !== name) {
-                console.log('恢复之前的marker:', activeMarkerName);
-                resetMarkerStateByName(activeMarkerName);
+            if (window.activeMarkerName && window.activeMarkerName !== name) {
+                console.log('恢复之前的marker:', window.activeMarkerName);
+                resetMarkerStateByName(window.activeMarkerName);
             }
 
             // 切换当前marker状态：down -> up
@@ -1243,7 +1244,7 @@ function toggleIconState(marker) {
                     iconDiv.style.height = '40px';
                     console.log('图标已更新为:', newIconPath);
                 }
-                activeMarkerName = name;
+                window.activeMarkerName = name;
             }
         }
     }
@@ -1271,9 +1272,9 @@ function resetMarkerState(marker) {
                 if (img) {
                     img.src = newIconPath;
                     iconDiv.dataset.state = 'down';
-                    // 恢复为默认大小：24px
-                    iconDiv.style.width = '24px';
-                    iconDiv.style.height = '24px';
+                    // 恢复为默认大小：18px
+                    iconDiv.style.width = '18px';
+                    iconDiv.style.height = '18px';
                     console.log('重置marker为down状态:', iconDiv.dataset.name);
                 }
             }
@@ -1434,8 +1435,8 @@ function createNamedPointMarkerContent(name, style, properties) {
                  data-down-icon="${properties?.downIcon || ''}"
                  data-up-icon="${properties?.upIcon || ''}"
                  style="
-                    width: 24px;
-                    height: 24px;
+                    width: 18px;
+                    height: 18px;
                     cursor: ${selectable ? 'pointer' : 'default'};
                     transition: all 0.2s ease;
                     margin-bottom: -4px;
