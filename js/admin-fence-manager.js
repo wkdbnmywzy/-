@@ -75,8 +75,8 @@ const AdminFenceManager = (function() {
         // 加载围栏数据
         loadFenceData(projectId);
 
-        // 启动后端校准定时器
-        startCalibration();
+        // 后端校准接口已废弃，禁用定时器
+        // startCalibration();
 
         isInitialized = true;
     }
@@ -521,8 +521,8 @@ const AdminFenceManager = (function() {
             );
         }
 
-        // 2. 地图高亮闪烁
-        highlightFenceOnMap(fenceId, fenceType);
+        // 2. 围栏区域不闪烁，只让车辆闪烁（车辆闪烁在 admin-vehicle-manager.js 中处理）
+        // highlightFenceOnMap(fenceId, fenceType);
 
         // 3. 记录日志
         logFenceEvent(vehicleId, fenceId, fenceName, fenceType, eventType, latitude, longitude);

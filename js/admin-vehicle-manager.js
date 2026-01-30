@@ -335,7 +335,7 @@ const AdminVehicleManager = (function() {
     }
 
     /**
-     * 开始车辆标记闪烁（红色警告）
+     * 开始车辆标记闪烁（红色波纹扩散效果）
      * @param {AMap.Marker} marker - 车辆标记
      */
     function startVehicleBlink(marker) {
@@ -352,29 +352,56 @@ const AdminVehicleManager = (function() {
         console.log('[车辆管理器] 车辆违规，开始闪烁:', extData.vehicleId);
 
         extData.isViolating = true;
-        extData.originalIcon = marker.getIcon(); // 保存原始图标
         marker.setExtData(extData);
 
-        // 创建闪烁效果（通过改变透明度和层级实现）
-        let isHighlight = false;
+        // 创建红色波纹扩散效果
+        const position = marker.getPosition();
 
+        // 创建波纹圆圈（3层波纹）
+        const ripples = [];
+        for (let i = 0; i < 3; i++) {
+            const ripple = new AMap.CircleMarker({
+                center: position,
+                radius: 10 + i * 15, // 初始半径
+                strokeColor: '#FF0000',
+                strokeWeight: 2,
+                strokeOpacity: 0.8 - i * 0.2,
+                fillColor: '#FF0000',
+                fillOpacity: 0.3 - i * 0.1,
+                zIndex: 90,
+                map: map
+            });
+            ripples.push(ripple);
+        }
+
+        // 保存波纹引用
+        extData.ripples = ripples;
+
+        // 动画：波纹扩散
+        let frame = 0;
         extData.blinkTimer = setInterval(() => {
             try {
-                if (isHighlight) {
-                    // 恢复正常
-                    marker.setzIndex(100);
-                    if (extData.originalIcon) {
-                        marker.setIcon(extData.originalIcon);
-                    }
-                } else {
-                    // 高亮状态 - 提升层级
-                    marker.setzIndex(300);
-                }
-                isHighlight = !isHighlight;
+                frame++;
+                ripples.forEach((ripple, index) => {
+                    // 计算当前半径（循环扩散）
+                    const baseRadius = 15 + index * 20;
+                    const maxExpand = 30;
+                    const phase = (frame + index * 10) % 30;
+                    const currentRadius = baseRadius + (phase / 30) * maxExpand;
+
+                    // 透明度随扩散降低
+                    const opacity = 0.6 - (phase / 30) * 0.5;
+
+                    ripple.setRadius(currentRadius);
+                    ripple.setOptions({
+                        strokeOpacity: opacity,
+                        fillOpacity: opacity * 0.3
+                    });
+                });
             } catch (e) {
-                console.warn('[车辆管理器] 闪烁效果异常:', e.message);
+                console.warn('[车辆管理器] 波纹效果异常:', e.message);
             }
-        }, 500);
+        }, 100);
 
         marker.setExtData(extData);
     }
@@ -399,12 +426,17 @@ const AdminVehicleManager = (function() {
             extData.blinkTimer = null;
         }
 
-        extData.isViolating = false;
-
-        // 恢复原始图标和层级
-        if (extData.originalIcon) {
-            marker.setIcon(extData.originalIcon);
+        // 移除波纹
+        if (extData.ripples) {
+            extData.ripples.forEach(ripple => {
+                if (ripple && map) {
+                    map.remove(ripple);
+                }
+            });
+            extData.ripples = null;
         }
+
+        extData.isViolating = false;
         marker.setzIndex(100);
 
         marker.setExtData(extData);
@@ -659,6 +691,16 @@ const AdminVehicleManager = (function() {
         // 直接设置位置和角度
         marker.setPosition(newPosition);
         marker.setAngle(angle);
+
+        // 同步更新波纹位置（如果车辆正在闪烁）
+        const extData = marker.getExtData();
+        if (extData && extData.isViolating && extData.ripples) {
+            extData.ripples.forEach(ripple => {
+                if (ripple) {
+                    ripple.setCenter(newPosition);
+                }
+            });
+        }
     }
 
     /**
