@@ -236,7 +236,7 @@ function setupEventListeners() {
 
                             // 定位到当前位置
                             try {
-                                map.setZoom(17);
+                                map.setZoom(MapConfig.mapConfig.zoom);
                                 map.setCenter([lng, lat]);
                                 showSuccessMessage('已定位到当前位置');
                             } catch (e) {
@@ -249,7 +249,7 @@ function setupEventListeners() {
 
                             // 如果有当前位置，则定位到当前位置
                             if (typeof currentPosition !== 'undefined' && currentPosition) {
-                                try { map.setZoom(17); map.setCenter(currentPosition); } catch (e) {}
+                                try { map.setZoom(MapConfig.mapConfig.zoom); map.setCenter(currentPosition); } catch (e) {}
                             }
                         },
                         {

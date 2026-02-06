@@ -1082,18 +1082,50 @@ const NavUI = (function() {
             const waypointsContainer = document.getElementById('nav-waypoints-container');
             if (!waypointsContainer) return;
 
-            const waypointId = 'nav-waypoint-' + Date.now();
-            const waypointRow = document.createElement('div');
-            waypointRow.className = 'waypoint-row';
-            waypointRow.id = waypointId;
-            waypointRow.innerHTML = `<span class="waypoint-text">${waypointName}</span>`;
+            // 获取当前所有途径点名称
+            let waypointNames = [];
+            const existingWaypoints = waypointsContainer.querySelectorAll('.waypoint-name-item');
+            existingWaypoints.forEach(item => {
+                waypointNames.push(item.textContent);
+            });
 
-            waypointsContainer.appendChild(waypointRow);
+            // 添加新的途径点
+            waypointNames.push(waypointName);
 
-            console.log('[NavUI] 途经点已添加:', waypointName);
+            // 更新显示
+            updateWaypointsDisplay(waypointNames);
+
+            console.log('[NavUI] 途经点已添加:', waypointName, '当前共', waypointNames.length, '个');
         } catch (e) {
             console.error('[NavUI] 添加途经点失败:', e);
         }
+    }
+
+    /**
+     * 更新途径点显示（合并为一行）
+     * @param {Array} waypointNames - 途径点名称数组
+     */
+    function updateWaypointsDisplay(waypointNames) {
+        const waypointsContainer = document.getElementById('nav-waypoints-container');
+        if (!waypointsContainer) return;
+
+        if (!waypointNames || waypointNames.length === 0) {
+            waypointsContainer.innerHTML = '';
+            return;
+        }
+
+        const count = waypointNames.length;
+        // 生成途径点名称HTML，每个名称用span包裹以便后续提取
+        const namesHtml = waypointNames.map(name => `<span class="waypoint-name-item">${name}</span>`).join('；');
+
+        waypointsContainer.innerHTML = `
+            <div class="waypoint-row combined">
+                <i class="fas fa-circle waypoint-icon"></i>
+                <div class="waypoint-text">
+                    <span class="waypoint-count">途经${count}地：</span>${namesHtml}
+                </div>
+            </div>
+        `;
     }
 
     // 公开API

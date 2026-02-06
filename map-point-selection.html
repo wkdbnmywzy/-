@@ -14,20 +14,6 @@
         <!-- 全屏地图容器 -->
         <div id="map-container"></div>
 
-        <!-- 搜索区域（使用首页样式）-->
-        <div class="search-container">
-            <div class="search-box">
-                <img src="images/工地数字导航小程序切图/司机/2X/导航/搜索.png" class="search-icon-img" alt="搜索">
-                <input type="text" placeholder="搜索地点或区域" id="map-selection-search-input">
-                <button class="search-clear-btn" id="map-selection-clear-btn" style="display: none;">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
-            <div class="search-results" id="map-selection-search-results">
-                <!-- 搜索结果将动态填充 -->
-            </div>
-        </div>
-
         <!-- 底部信息面板（默认隐藏） -->
         <div class="map-selection-panel" id="map-selection-panel">
             <!-- 点信息面板 -->
@@ -45,13 +31,11 @@
                     </button>
                 </div>
                 <div class="panel-actions" id="point-panel-actions">
-                    <button class="panel-btn panel-btn-outline" id="point-route-btn">
-                        <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
-                        <span>路线</span>
+                    <button class="panel-btn panel-btn-outline" id="point-cancel-btn">
+                        <span>取消</span>
                     </button>
-                    <button class="panel-btn panel-btn-primary" id="point-nav-btn">
-                        <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
-                        <span>导航</span>
+                    <button class="panel-btn panel-btn-primary" id="point-confirm-btn">
+                        <span>添加</span>
                     </button>
                 </div>
             </div>

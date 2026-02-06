@@ -22,7 +22,7 @@ const MapConfig = {
 
     // 地图初始配置
     mapConfig: {
-        zoom: 13,
+        zoom: 20,
         center: [116.397428, 39.90923], // 北京天安门（默认中心）
         viewMode: '3D',
         resizeEnable: true, // 允许地图尺寸自适应窗口变化

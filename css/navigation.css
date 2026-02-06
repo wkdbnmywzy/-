@@ -300,6 +300,41 @@
     display: inline;
 }
 
+/* 合并显示的途径点样式 */
+.waypoint-row.combined {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.waypoint-row.combined .waypoint-icon {
+    color: #FF9800;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+.waypoint-row.combined .waypoint-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.waypoint-row.combined .waypoint-count {
+    color: #FF9800;
+    font-weight: 500;
+}
+
+.waypoint-row.combined .waypoint-name-item {
+    color: #333;
+}
+
+/* 当有合并的途径点行时，隐藏容器的::before橙色圆点 */
+.waypoints-container:has(.waypoint-row.combined)::before {
+    display: none;
+}
+
 /* 分号分隔符 */
 .waypoint-row + .waypoint-row::before {
     content: '; ';

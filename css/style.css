@@ -1438,6 +1438,15 @@ body {
     display: inline-block;
 }
 
+/* 定位图标 */
+.picker-location-item .icon-location {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
 .picker-location-text {
     flex: 1;
     font-size: 14px;
@@ -2101,7 +2110,7 @@ body {
 .map-selection-panel .panel-close-btn {
     width: 32px;
     height: 32px;
-    background: rgba(0, 0, 0, 0.05);  /* 浅灰色背景 */
+    background: transparent;  /* 透明背景，去掉阴影效果 */
     border: none;
     border-radius: 50%;
     display: flex;
@@ -2114,7 +2123,7 @@ body {
 }
 
 .map-selection-panel .panel-close-btn:hover {
-    background: rgba(0, 0, 0, 0.1);  /* hover时更深 */
+    background: rgba(0, 0, 0, 0.05);  /* hover时显示浅色背景 */
 }
 
 .map-selection-panel .panel-subtitle {
@@ -2423,4 +2432,22 @@ body {
 
 .area-block-point-btn:hover {
     background: #1a76ef;
+}
+
+/* 点位选择页面 - 整体页面滚动支持 */
+body.page-point-selection {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+body.page-point-selection .container {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+}
+
+body.page-point-selection .picker-content {
+    flex: none;
+    min-height: 100vh;
+    padding-bottom: 30px;
 }

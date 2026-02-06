@@ -191,7 +191,7 @@ function getCurrentLocation() {
 
             // 更新地图中心和缩放级别（除非禁用了自动聚焦）
             if (!disableAutoCenter) {
-                map.setZoomAndCenter(15, [lng, lat]);
+                map.setZoomAndCenter(MapConfig.mapConfig.zoom, [lng, lat]);
             }
 
             // 强制刷新地图
@@ -414,7 +414,7 @@ function startRealtimeLocationTracking() {
             // 首次进入或用户点击定位后，自动居中（除非禁用了自动聚焦）
             if (!disableAutoCenter) {
                 if (!isRealtimeLocating) {
-                    map.setZoomAndCenter(17, curr);
+                    map.setZoomAndCenter(MapConfig.mapConfig.zoom, curr);
                 } else {
                     // 跟随中心
                     map.setCenter(curr);

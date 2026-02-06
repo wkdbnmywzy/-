@@ -356,7 +356,7 @@ async function loadMapDataFromAPI() {
             if (projectCenter && map) {
                 console.log('[API加载] 设置地图中心为项目位置:', projectCenter);
                 map.setCenter(projectCenter);
-                map.setZoom(15);
+                map.setZoom(MapConfig.mapConfig.zoom);
             }
             
             // 启动定位
@@ -547,16 +547,16 @@ async function loadMapDataFromAPI() {
             if (projectCenter && map) {
                 console.log('[API加载] 设置地图中心为项目位置:', projectCenter);
                 map.setCenter(projectCenter);
-                map.setZoom(15); // 设置合适的缩放级别
+                map.setZoom(MapConfig.mapConfig.zoom);
             }
         } else {
             console.warn('[API加载] 无地图数据，跳过显示');
-            
+
             // 即使没有数据，如果有项目中心也设置地图中心
             if (projectCenter && map) {
                 console.log('[API加载] 设置地图中心为项目位置:', projectCenter);
                 map.setCenter(projectCenter);
-                map.setZoom(15);
+                map.setZoom(MapConfig.mapConfig.zoom);
             }
         }
 

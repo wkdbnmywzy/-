@@ -161,6 +161,15 @@ function handlePointClick(point, marker) {
 function handlePolygonClick(polygon, polygonOverlay) {
     console.log('点击面:', polygon.name);
 
+    // 获取面内的点
+    const pointsInPolygon = getPointsInPolygon(polygon);
+
+    // 如果该区块没有点位，忽略点击
+    if (!pointsInPolygon || pointsInPolygon.length === 0) {
+        console.log('[点击面] 该区块没有点位，忽略点击:', polygon.name);
+        return;
+    }
+
     // 恢复之前高亮的marker（如果有）
     if (highlightedMarker) {
         console.log('[点击面] 恢复之前高亮的点');
@@ -175,9 +184,6 @@ function handlePolygonClick(polygon, polygonOverlay) {
 
     // 高亮面
     highlightPolygon(polygonOverlay);
-
-    // 获取面内的点
-    const pointsInPolygon = getPointsInPolygon(polygon);
 
     // 显示面信息面板
     showPolygonPanel(polygon, pointsInPolygon);
@@ -256,9 +262,9 @@ function restoreMarkerState(marker) {
                 if (img) {
                     img.src = newIconPath;
                     iconDiv.dataset.state = 'down';
-                    // 恢复为默认大小：24px
-                    iconDiv.style.width = '24px';
-                    iconDiv.style.height = '24px';
+                    // 恢复为默认大小：18px（与初始创建时一致）
+                    iconDiv.style.width = '18px';
+                    iconDiv.style.height = '18px';
                     console.log('[恢复marker] 已恢复为down状态:', newIconPath);
                 }
             }
@@ -367,55 +373,27 @@ function showPointPanel(point, distance) {
 
     const panelActions = document.getElementById('point-panel-actions');
 
-    if (inputType === 'waypoint') {
-        // 途径点模式：显示"取消"和"确认"文字按钮
-        panelActions.innerHTML = `
-            <button class="panel-btn panel-btn-outline" id="point-cancel-btn">
-                <span>取消</span>
-            </button>
-            <button class="panel-btn panel-btn-primary" id="point-confirm-btn">
-                <span>确认</span>
-            </button>
-        `;
+    // 所有模式统一显示"取消"和"添加"按钮
+    panelActions.innerHTML = `
+        <button class="panel-btn panel-btn-outline" id="point-cancel-btn">
+            <span>取消</span>
+        </button>
+        <button class="panel-btn panel-btn-primary" id="point-confirm-btn">
+            <span>添加</span>
+        </button>
+    `;
 
-        // "取消"按钮：关闭面板，恢复图标状态
-        document.getElementById('point-cancel-btn').addEventListener('click', function() {
-            closePanels();
-        });
+    // "取消"按钮：关闭面板，恢复图标状态
+    document.getElementById('point-cancel-btn').addEventListener('click', function() {
+        closePanels();
+    });
 
-        // "确认"按钮：添加到途径点并跳转
-        document.getElementById('point-confirm-btn').addEventListener('click', function() {
-            if (selectedPoint) {
-                selectPointForRoute(selectedPoint);
-            }
-        });
-    } else {
-        // 终点/起点模式：显示"路线"和"导航"按钮
-        panelActions.innerHTML = `
-            <button class="panel-btn panel-btn-outline" id="point-route-btn">
-                <img src="images/工地数字导航小程序切图/司机/2X/导航/路线.png" alt="路线">
-                <span>路线</span>
-            </button>
-            <button class="panel-btn panel-btn-primary" id="point-nav-btn">
-                <img src="images/工地数字导航小程序切图/司机/2X/导航/导航.png" alt="导航">
-                <span>导航</span>
-            </button>
-        `;
-
-        // 绑定路线按钮
-        document.getElementById('point-route-btn').addEventListener('click', function() {
-            if (selectedPoint) {
-                selectPointForRoute(selectedPoint);
-            }
-        });
-
-        // 绑定导航按钮
-        document.getElementById('point-nav-btn').addEventListener('click', function() {
-            if (selectedPoint) {
-                navigateToPoint(selectedPoint);
-            }
-        });
-    }
+    // "添加"按钮：选择该点并返回
+    document.getElementById('point-confirm-btn').addEventListener('click', function() {
+        if (selectedPoint) {
+            selectPointForRoute(selectedPoint);
+        }
+    });
 
     // 显示点面板
     document.getElementById('panel-point-info').style.display = 'block';
@@ -1203,7 +1181,7 @@ async function loadMapDataFromAPIForSelection() {
             if (projectCenter && map) {
                 console.log('[选点页-API加载] 设置地图中心为项目位置:', projectCenter);
                 map.setCenter(projectCenter);
-                map.setZoom(15);
+                map.setZoom(MapConfig.mapConfig.zoom);
             }
             return;
         }
@@ -1312,7 +1290,7 @@ async function loadMapDataFromAPIForSelection() {
             if (projectCenter && map) {
                 console.log('[选点页-API加载] 设置地图中心为项目位置:', projectCenter);
                 map.setCenter(projectCenter);
-                map.setZoom(15);
+                map.setZoom(MapConfig.mapConfig.zoom);
             }
         } else {
             console.warn('[选点页-API加载] 无地图数据');
@@ -1320,7 +1298,7 @@ async function loadMapDataFromAPIForSelection() {
             if (projectCenter && map) {
                 console.log('[选点页-API加载] 设置地图中心为项目位置:', projectCenter);
                 map.setCenter(projectCenter);
-                map.setZoom(15);
+                map.setZoom(MapConfig.mapConfig.zoom);
             }
         }
 

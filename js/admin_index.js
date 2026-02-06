@@ -45,7 +45,7 @@ function initMap() {
 
     // 创建地图实例
     map = new AMap.Map('map-container', {
-        zoom: 19,
+        zoom: MapConfig.mapConfig.zoom,
         center: projectCenter || [114.305215, 30.593099], // 优先使用项目中心，否则默认武汉
         mapStyle: 'amap://styles/normal',
         viewMode: '2D',
@@ -214,7 +214,7 @@ async function loadProjectMapData() {
             // 即使没有地图数据，如果有项目中心也设置地图中心
             if (projectCenter && map) {
                 map.setCenter(projectCenter);
-                map.setZoom(15);
+                map.setZoom(MapConfig.mapConfig.zoom);
             }
             return;
         }
@@ -404,7 +404,7 @@ async function loadProjectMapData() {
         if (projectCenter && map) {
             console.log('[管理端] 设置地图中心为项目位置:', projectCenter);
             map.setCenter(projectCenter);
-            map.setZoom(18); // 更大的缩放级别，能看清工地细节
+            map.setZoom(MapConfig.mapConfig.zoom);
         }
 
     } catch (error) {
@@ -1869,7 +1869,7 @@ function showCurrentLocation(coord) {
 
     // 将地图中心移动到当前位置
     map.setCenter(coord);
-    map.setZoom(18);
+    map.setZoom(MapConfig.mapConfig.zoom);
 
     console.log('[定位] ✓ 定位完成');
 }

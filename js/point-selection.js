@@ -5,10 +5,39 @@
 let searchHistory = [];
 let currentActiveInput = null;
 let currentInputType = ''; // 'start', 'end', 'waypoint'
-let pickerPreferBelow = false; // 本页会话内，是否优先在下方显示“添加途径点”
-let hideBelowAddSection = false; // 是否隐藏下方“添加途径点”区域（点击完成后）
+let pickerPreferBelow = false; // 本页会话内，是否优先在下方显示"添加途径点"
+let hideBelowAddSection = false; // 是否隐藏下方"添加途径点"区域（点击完成后）
+const MAX_WAYPOINTS = 5; // 最大途经点数量
 
-// 判断是否处于“目的地输入”上下文
+// 更新途经点提示文字
+function updateWaypointHint() {
+    const waypointsContainer = document.getElementById('picker-waypoints-container');
+    const hintEl = document.getElementById('picker-waypoint-hint');
+    if (!hintEl) return;
+
+    const currentCount = waypointsContainer ? waypointsContainer.querySelectorAll('.picker-waypoint-row').length : 0;
+    const remaining = MAX_WAYPOINTS - currentCount;
+
+    if (remaining > 0) {
+        hintEl.textContent = `还可添加${remaining}个途径点`;
+    } else {
+        hintEl.textContent = '已达到最大途径点数量';
+    }
+}
+
+// 获取当前项目名称
+function getProjectName() {
+    try {
+        const projectSelection = sessionStorage.getItem('projectSelection');
+        if (projectSelection) {
+            const selection = JSON.parse(projectSelection);
+            return selection.project || '';
+        }
+    } catch (e) { /* ignore */ }
+    return '';
+}
+
+// 判断是否处于"目的地输入"上下文
 function isDestinationContext() {
     if (currentInputType === 'end') return true;
     try {
@@ -23,21 +52,11 @@ function isDestinationContext() {
     return false;
 }
 
-        // 添加区域最右侧“完成”按钮 - 等效于上方完成
-        const addCompleteBtn = document.getElementById('picker-add-complete-btn');
-        if (addCompleteBtn) {
-            addCompleteBtn.addEventListener('click', function() {
-                console.log('点击下方区域的完成按钮：隐藏下方添加控件及文字');
-                hideBelowAddSection = true;
-                const below = document.getElementById('picker-add-waypoint-section');
-                if (below) below.style.display = 'none';
-            });
-        }
-
 // 初始化点选择面板
 function initPointSelectionPanel() {
     setupPickerEventListeners();
     loadSearchHistory();
+    updateWaypointHint(); // 初始化时更新提示
 }
 
 // 设置面板事件监听器
@@ -279,10 +298,10 @@ function addPickerWaypoint(waypointValue) {
     const waypointsContainer = document.getElementById('picker-waypoints-container');
     if (!waypointsContainer) return;
 
-    // 限制最多 5 个途经点
+    // 限制最多途经点数量
     const currentCount = waypointsContainer.querySelectorAll('.picker-waypoint-row').length;
-    if (currentCount >= 5) {
-        alert('最多只能添加 5 个途经点');
+    if (currentCount >= MAX_WAYPOINTS) {
+        alert(`最多只能添加 ${MAX_WAYPOINTS} 个途经点`);
         return;
     }
 
@@ -306,10 +325,15 @@ function addPickerWaypoint(waypointValue) {
 
     waypointsContainer.appendChild(waypointRow);
 
+    // 更新提示文字
+    updateWaypointHint();
+
     // 绑定删除事件
     const removeBtn = waypointRow.querySelector('.picker-remove-waypoint-btn');
     removeBtn.addEventListener('click', function() {
         waypointRow.remove();
+        // 更新提示文字
+        updateWaypointHint();
         // 删除后若数量未达上限且没有内联编辑器，则恢复右侧添加控件
         const count = waypointsContainer.querySelectorAll('.picker-waypoint-row').length;
         if (count < 2 && !document.getElementById('picker-inline-waypoint-editor')) {
@@ -429,8 +453,8 @@ function showPickerAddControl() {
 function handlePickerAddWaypointClick(source) {
     const waypointsContainer = document.getElementById('picker-waypoints-container');
         const currentCount = waypointsContainer ? waypointsContainer.querySelectorAll('.picker-waypoint-row').length : 0;
-    if (currentCount >= 5) {
-        alert('最多只能添加 5 个途经点');
+    if (currentCount >= MAX_WAYPOINTS) {
+        alert(`最多只能添加 ${MAX_WAYPOINTS} 个途经点`);
         return;
     }
 
@@ -898,7 +922,7 @@ function selectLocationFromPicker(locationText, locationItem) {
                     if (kmlPoint) {
                         addToSearchHistory({
                             name: kmlPoint.name,
-                            address: kmlPoint.description || 'KML导入点位',
+                            address: kmlPoint.description || getProjectName(),
                             position: kmlPoint.position,
                             type: 'kml-point'
                         });
@@ -1080,7 +1104,7 @@ function searchAndDisplayResults(keyword) {
         kmlResults.forEach(kmlPoint => {
             results.push({
                 name: kmlPoint.name,
-                address: kmlPoint.description || 'KML导入点位',
+                address: kmlPoint.description || getProjectName(),
                 type: 'kml-point',
                 data: kmlPoint
             });
@@ -1146,11 +1170,11 @@ function displaySearchResults(results, keyword) {
         // 选择图标
         let iconHTML;
         if (result.type === 'kml-point') {
-            iconHTML = '<i class="fas fa-map-pin" style="color: #888;"></i>';
+            iconHTML = '<img class="icon-location" src="images/工地数字导航小程序切图/司机/2X/导航/定位-1.png" alt="定位" />';
         } else if (result.type === 'history') {
             iconHTML = '<img class="icon-history-location" src="images/工地数字导航小程序切图/司机/2X/导航/历史位置.png" alt="历史位置" />';
         } else {
-            iconHTML = '<i class="fas fa-map-pin" style="color: #888;"></i>';
+            iconHTML = '<img class="icon-location" src="images/工地数字导航小程序切图/司机/2X/导航/定位-1.png" alt="定位" />';
         }
 
         // 高亮匹配的文本
@@ -1253,7 +1277,7 @@ function autoSelectLocation(keyword, inputType) {
             // 添加到搜索历史
             addToSearchHistory({
                 name: exactMatch.name,
-                address: exactMatch.description || 'KML导入点位',
+                address: exactMatch.description || getProjectName(),
                 position: exactMatch.position,
                 type: 'kml-point'
             });

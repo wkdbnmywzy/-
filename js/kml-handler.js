@@ -859,21 +859,21 @@ function displayKMLFeatures(features, fileName) {
 
     // 按需：首页不再绘制路网箭头（仅在开始导航后为导航路线显示白色方向箭头）
 
+    // 存储区块点位的marker，用于缩放时显示/隐藏
+    const blockPointMarkers = [];
+
     // 3. 最后显示点（zIndex: 100，最上层）
     points.forEach((feature, index) => {
         const featureCoordinates = [feature.geometry.coordinates];
         allCoordinates.push(...featureCoordinates);
 
-        // 首页过滤：不显示名称中包含'-'的区块点位（但数据已加载）
-        if (feature.name && feature.name.includes('-')) {
-            console.log('首页过滤区块点位:', feature.name);
-            return; // 跳过显示，但数据仍在 points 数组中
-        }
+        // 判断是否为区块点位（名称中包含'-'）
+        const isBlockPoint = feature.name && feature.name.includes('-');
 
-        // 使用图标标记
+        // 使用图标标记（区块点位创建时不加入地图，等缩放到一定级别再显示）
         const marker = new AMap.Marker({
             position: feature.geometry.coordinates,
-            map: map,
+            map: isBlockPoint ? null : map,
             title: feature.name,
             content: createNamedPointMarkerContent(feature.name, feature.geometry.style, feature.properties),
             offset: new AMap.Pixel(-9, -25),  // 调整offset让点位在图标和文字之间（适配18px图标）
@@ -884,8 +884,14 @@ function displayKMLFeatures(features, fileName) {
             name: feature.name,
             type: feature.type,
             description: feature.description,
-            properties: feature.properties || {}
+            properties: feature.properties || {},
+            isBlockPoint: isBlockPoint  // 标记是否为区块点位
         });
+
+        // 区块点位存入数组，由缩放事件控制显示
+        if (isBlockPoint) {
+            blockPointMarkers.push(marker);
+        }
 
         layerMarkers.push(marker);
 
@@ -928,9 +934,33 @@ function displayKMLFeatures(features, fileName) {
         id: layerId,
         name: fileName,
         markers: layerMarkers,
+        blockPointMarkers: blockPointMarkers,  // 保存区块点位marker
         visible: true,
         features: features  // 保存要素信息（含样式）用于恢复
     });
+
+    // 监听地图缩放事件，控制区块点位的显示/隐藏
+    if (blockPointMarkers.length > 0) {
+        const BLOCK_POINT_SHOW_ZOOM = 18;  // 缩放级别>=18时显示区块点位
+
+        // 监听缩放变化
+        map.on('zoomchange', function() {
+            const zoom = map.getZoom();
+            if (zoom >= BLOCK_POINT_SHOW_ZOOM) {
+                // 放大时添加到地图
+                blockPointMarkers.forEach(m => {
+                    if (!m.getMap()) m.setMap(map);
+                });
+            } else {
+                // 缩小时从地图移除
+                blockPointMarkers.forEach(m => {
+                    if (m.getMap()) m.setMap(null);
+                });
+            }
+        });
+
+        console.log('[KML-Handler] 已设置区块点位缩放控制，共', blockPointMarkers.length, '个区块点位，显示阈值:', BLOCK_POINT_SHOW_ZOOM);
+    }
 
     // 保存 polylines 到全局变量（供车辆管理器使用）
     window.polylines = window.polylines || [];
@@ -1148,7 +1178,7 @@ function fitMapToCoordinates(coordinates) {
     // - 如果只有单点或区域很小（<50m），将其居中并设置适当的默认缩放
     // - 否则使用 setBounds 并使用对称内边距以确保完全居中显示
 
-    const DEFAULT_POINT_ZOOM = (typeof MapConfig !== 'undefined' && MapConfig.kmlDefaultZoom) ? MapConfig.kmlDefaultZoom : 17;
+    const DEFAULT_POINT_ZOOM = (typeof MapConfig !== 'undefined' && MapConfig.mapConfig.zoom) ? MapConfig.mapConfig.zoom : 20;
     const SMALL_AREA_THRESHOLD = 50; // 米
     const padding = (typeof MapConfig !== 'undefined' && MapConfig.kmlFitPadding) ? MapConfig.kmlFitPadding : [40, 40, 40, 40];
 

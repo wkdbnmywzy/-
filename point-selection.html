@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="page-point-selection">
     <div class="container">
         
         <div class="picker-content">
@@ -50,10 +50,9 @@
                     </div>
                     <div class="picker-labels">
                         <div class="picker-add-label">添加途径点</div>
-                        <div class="picker-add-hint">还可添加多个途径点</div>
+                        <div class="picker-add-hint" id="picker-waypoint-hint">还可添加5个途径点</div>
                     </div>
                 </div>
-                <button class="picker-add-complete-btn" id="picker-add-complete-btn">完成</button>
             </div>
 
             <!-- 完成按钮 -->
@@ -263,11 +262,12 @@
         points.forEach(point => {
             const item = document.createElement('div');
             item.className = 'picker-location-item';
+            const descText = point.description || (typeof getProjectName === 'function' ? getProjectName() : '');
             item.innerHTML = `
-                <i class="fas fa-map-marker-alt"></i>
+                <img class="icon-history-location" src="images/工地数字导航小程序切图/司机/2X/导航/历史位置.png" alt="历史位置" />
                 <div class="picker-location-info">
                     <div class="picker-location-name">${point.name}</div>
-                    ${point.description ? `<div class="picker-location-desc">${point.description}</div>` : ''}
+                    ${descText ? `<div class="picker-location-desc">${descText}</div>` : ''}
                 </div>
                 <button class="picker-add-icon" aria-label="添加地点"></button>
             `;

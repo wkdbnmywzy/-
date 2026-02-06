@@ -1,6 +1,7 @@
 /**
  * 管理端 WebSocket 消息推送模块
  * 连接后端 WebSocket 接收实时报警消息
+ * 使用 localStorage 锁防止多页面重复连接
  */
 
 const AdminWebSocket = (function() {
@@ -11,7 +12,9 @@ const AdminWebSocket = (function() {
         wsUrl: 'ws://124.222.203.97:12344/api/ws/notifications',
         reconnectInterval: 5000,  // 重连间隔 5秒
         maxReconnectAttempts: 10,  // 最大重连次数
-        enabled: false  // 暂时禁用，等后端准备好后改为 true
+        enabled: false,  // 暂时禁用，等后端确认
+        lockKey: 'ws_connection_lock',
+        lockTimeout: 10000  // 锁超时 10秒
     };
 
     // 状态
@@ -19,19 +22,69 @@ const AdminWebSocket = (function() {
     let isConnected = false;
     let reconnectAttempts = 0;
     let reconnectTimer = null;
+    let heartbeatTimer = null;
+    let lockRefreshTimer = null;
     let currentProjectId = null;
+    let tabId = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
+    /**
+     * 尝试获取连接锁（防止多页面重复连接）
+     */
+    function acquireLock() {
+        const lockData = localStorage.getItem(CONFIG.lockKey);
+        if (lockData) {
+            try {
+                const lock = JSON.parse(lockData);
+                // 如果锁未过期且不是自己的，放弃连接
+                if (lock.tabId !== tabId && (Date.now() - lock.timestamp) < CONFIG.lockTimeout) {
+                    return false;
+                }
+            } catch (e) {}
+        }
+        // 获取锁
+        localStorage.setItem(CONFIG.lockKey, JSON.stringify({
+            tabId: tabId,
+            timestamp: Date.now()
+        }));
+        return true;
+    }
+
+    /**
+     * 刷新锁
+     */
+    function refreshLock() {
+        localStorage.setItem(CONFIG.lockKey, JSON.stringify({
+            tabId: tabId,
+            timestamp: Date.now()
+        }));
+    }
+
+    /**
+     * 释放锁
+     */
+    function releaseLock() {
+        const lockData = localStorage.getItem(CONFIG.lockKey);
+        if (lockData) {
+            try {
+                const lock = JSON.parse(lockData);
+                if (lock.tabId === tabId) {
+                    localStorage.removeItem(CONFIG.lockKey);
+                }
+            } catch (e) {
+                localStorage.removeItem(CONFIG.lockKey);
+            }
+        }
+    }
 
     /**
      * 初始化 WebSocket 连接
      */
     function init() {
-        // 检查是否启用
         if (!CONFIG.enabled) {
             console.log('[WebSocket] 已禁用，跳过连接');
             return;
         }
 
-        // 获取项目ID
         currentProjectId = getProjectId();
         if (!currentProjectId) {
             console.log('[WebSocket] 未找到项目ID，延迟初始化');
@@ -39,8 +92,19 @@ const AdminWebSocket = (function() {
             return;
         }
 
-        console.log('[WebSocket] 初始化，项目ID:', currentProjectId);
+        // 尝试获取锁
+        if (!acquireLock()) {
+            console.log('[WebSocket] 其他页面已持有连接，本页面跳过连接');
+            // 定期检查锁是否过期，过期则接管
+            setTimeout(init, CONFIG.lockTimeout + 1000);
+            return;
+        }
+
+        console.log('[WebSocket] 初始化，项目ID:', currentProjectId, '页面ID:', tabId);
         connect();
+
+        // 定时刷新锁
+        lockRefreshTimer = setInterval(refreshLock, CONFIG.lockTimeout / 2);
     }
 
     /**
@@ -78,8 +142,22 @@ const AdminWebSocket = (function() {
         }
 
         try {
-            console.log('[WebSocket] 正在连接:', CONFIG.wsUrl);
-            ws = new WebSocket(CONFIG.wsUrl);
+            const token = sessionStorage.getItem('authToken') || '';
+
+            let wsUrl = CONFIG.wsUrl;
+            const params = [];
+            if (token) {
+                params.push(`token=${encodeURIComponent(token)}`);
+            }
+            if (currentProjectId) {
+                params.push(`project_id=${encodeURIComponent(currentProjectId)}`);
+            }
+            if (params.length > 0) {
+                wsUrl += '?' + params.join('&');
+            }
+
+            console.log('[WebSocket] 正在连接:', wsUrl);
+            ws = new WebSocket(wsUrl);
 
             ws.onopen = onOpen;
             ws.onmessage = onMessage;
@@ -100,7 +178,7 @@ const AdminWebSocket = (function() {
         isConnected = true;
         reconnectAttempts = 0;
 
-        // 发送订阅信息（项目ID）
+        // 发送订阅
         subscribe(currentProjectId);
     }
 
@@ -113,14 +191,13 @@ const AdminWebSocket = (function() {
             return;
         }
 
-        // 发送订阅消息
+        // SubscribeCommand 格式
         const subscribeMsg = {
-            type: 'subscribe',
-            projectId: projectId
+            action: 'subscribe',
+            project_ids: [projectId]
         };
-
         ws.send(JSON.stringify(subscribeMsg));
-        console.log('[WebSocket] 已发送订阅:', projectId);
+        console.log('[WebSocket] 已发送订阅:', subscribeMsg);
     }
 
     /**
@@ -141,35 +218,36 @@ const AdminWebSocket = (function() {
      * 处理消息
      */
     function handleMessage(message) {
-        // 根据消息类型处理
         const msgType = message.type || message.msgType || message.event;
 
         switch (msgType) {
             case 'fence_alert':
             case 'fence_enter':
             case 'fence_leave':
+            case 'fence_alarm':
             case 'warning':
             case 'alarm':
-                // 围栏报警消息
                 handleFenceAlert(message);
                 break;
 
+            case 'gps':
             case 'vehicle_update':
             case 'location':
-                // 车辆位置更新（可选处理）
                 console.log('[WebSocket] 车辆位置更新:', message);
+                break;
+
+            case 'device_status':
+                console.log('[WebSocket] 设备状态:', message);
                 break;
 
             case 'subscribed':
             case 'connected':
             case 'pong':
-                // 系统消息
                 console.log('[WebSocket] 系统消息:', msgType);
                 break;
 
             default:
-                // 尝试作为报警消息处理
-                if (message.vehicleId || message.fenceId || message.plateNumber) {
+                if (message.vehicleId || message.fenceId || message.plateNumber || message.source_id) {
                     handleFenceAlert(message);
                 } else {
                     console.log('[WebSocket] 未知消息类型:', message);
@@ -183,14 +261,15 @@ const AdminWebSocket = (function() {
     function handleFenceAlert(message) {
         console.warn('[WebSocket] 围栏报警:', message);
 
-        // 提取字段（兼容不同格式）
-        const vehicleId = message.vehicleId || message.plateNumber || message.vehicle_id || '未知车辆';
-        const fenceId = message.fenceId || message.fence_id || '';
-        const fenceName = message.fenceName || message.fence_name || message.areaName || '围栏区域';
-        const fenceType = message.fenceType || message.fence_type || message.areaType || 'prohibit';
-        const eventType = message.eventType || message.event_type || message.event || 'enter';
-        const latitude = message.latitude || message.lat || 0;
-        const longitude = message.longitude || message.lng || message.lon || 0;
+        // 提取字段（兼容 PushMessage 和其他格式）
+        const data = message.data ? (typeof message.data === 'string' ? JSON.parse(message.data) : message.data) : message;
+        const vehicleId = data.vehicleId || data.plateNumber || data.vehicle_id || message.source_id || '未知车辆';
+        const fenceId = data.fenceId || data.fence_id || '';
+        const fenceName = data.fenceName || data.fence_name || data.areaName || '围栏区域';
+        const fenceType = data.fenceType || data.fence_type || data.areaType || 'prohibit';
+        const eventType = data.eventType || data.event_type || data.event || 'enter';
+        const latitude = data.latitude || data.lat || 0;
+        const longitude = data.longitude || data.lng || data.lon || 0;
 
         // 添加到消息中心
         if (typeof AdminMessageManager !== 'undefined') {
@@ -206,7 +285,7 @@ const AdminWebSocket = (function() {
             console.log('[WebSocket] 报警消息已添加到消息中心');
         }
 
-        // 触发自定义事件（供其他模块监听）
+        // 触发自定义事件
         window.dispatchEvent(new CustomEvent('fenceAlert', {
             detail: message
         }));
@@ -227,7 +306,6 @@ const AdminWebSocket = (function() {
         isConnected = false;
         ws = null;
 
-        // 尝试重连
         scheduleReconnect();
     }
 
@@ -241,6 +319,7 @@ const AdminWebSocket = (function() {
 
         if (reconnectAttempts >= CONFIG.maxReconnectAttempts) {
             console.warn('[WebSocket] 已达到最大重连次数，停止重连');
+            releaseLock();
             return;
         }
 
@@ -261,12 +340,18 @@ const AdminWebSocket = (function() {
             reconnectTimer = null;
         }
 
+        if (lockRefreshTimer) {
+            clearInterval(lockRefreshTimer);
+            lockRefreshTimer = null;
+        }
+
         if (ws) {
             ws.close();
             ws = null;
         }
 
         isConnected = false;
+        releaseLock();
         console.log('[WebSocket] 已断开连接');
     }
 
@@ -293,7 +378,7 @@ const AdminWebSocket = (function() {
         setTimeout(init, 500);
     }
 
-    // 页面卸载时断开连接
+    // 页面卸载时断开连接并释放锁
     window.addEventListener('beforeunload', disconnect);
 
     // 导出API

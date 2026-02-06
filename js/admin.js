@@ -29,16 +29,16 @@ function checkLoginStatus() {
 
 // 初始化地图
 function initMap() {
-    // 创建地图实例
+    // 创建地图实例，使用 config.js 中的配置
     map = new AMap.Map('map-container', {
-        zoom: 15,
-        center: [114.305215, 30.593099], // 默认中心点（武汉）
+        zoom: MapConfig.mapConfig.zoom,
+        center: MapConfig.mapConfig.center,
         mapStyle: 'amap://styles/normal',
-        viewMode: '2D',
+        viewMode: MapConfig.mapConfig.viewMode,
         pitch: 0,
         rotation: 0,
-        showLabel: true,
-        features: ['bg', 'road', 'building', 'point']
+        showLabel: MapConfig.mapConfig.showLabel,
+        features: MapConfig.mapConfig.features
     });
     
     console.log('管理员地图初始化完成');

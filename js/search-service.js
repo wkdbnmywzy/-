@@ -248,7 +248,7 @@ function selectKMLPointFromSearch(kmlPoint) {
 
     // 移动地图中心到选中位置
     map.setCenter(kmlPoint.position);
-    map.setZoom(16);
+    map.setZoom(MapConfig.mapConfig.zoom);
 
     // 隐藏搜索结果
     document.getElementById('search-results').classList.remove('active');
@@ -275,7 +275,7 @@ function selectKMLPoint(kmlPoint) {
 
     // 移动地图中心到选中位置
     map.setCenter(kmlPoint.position);
-    map.setZoom(16);
+    map.setZoom(MapConfig.mapConfig.zoom);
 
     // 隐藏搜索结果
     document.getElementById('search-results').classList.remove('active');
@@ -392,7 +392,7 @@ function selectKMLPoint(kmlPoint) {
 
     // 移动地图中心到选中位置
     map.setCenter(kmlPoint.position);
-    map.setZoom(16);
+    map.setZoom(MapConfig.mapConfig.zoom);
 
     // 隐藏搜索结果
     document.getElementById('search-results').classList.remove('active');

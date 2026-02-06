@@ -69,8 +69,8 @@ const NavRenderer = (function() {
     function initMap(containerId, options = {}) {
         try {
             const defaultOptions = {
-                zoom: 17,
-                center: [116.397428, 39.90923],
+                zoom: (typeof MapConfig !== 'undefined' && MapConfig.mapConfig.zoom) ? MapConfig.mapConfig.zoom : 20,
+                center: (typeof MapConfig !== 'undefined' && MapConfig.mapConfig.center) ? MapConfig.mapConfig.center : [116.397428, 39.90923],
                 mapStyle: 'amap://styles/normal',
                 viewMode: '2D',
                 features: ['bg', 'road', 'building'],
@@ -964,8 +964,8 @@ const NavRenderer = (function() {
                 map.setRotation(mapRotation);
             }
 
-            if (map.getZoom() < 17) {
-                map.setZoom(17, false, 300);
+            if (map.getZoom() < ((typeof MapConfig !== 'undefined' && MapConfig.mapConfig.zoom) ? MapConfig.mapConfig.zoom : 20)) {
+                map.setZoom((typeof MapConfig !== 'undefined' && MapConfig.mapConfig.zoom) ? MapConfig.mapConfig.zoom : 20, false, 300);
             }
         } catch (e) {
             showDebug('旋转失败: ' + e.message);
@@ -996,8 +996,8 @@ const NavRenderer = (function() {
                 map.setCenter(position);
             }
 
-            if (map.getZoom() < 17) {
-                map.setZoom(17, false, 300);
+            if (map.getZoom() < ((typeof MapConfig !== 'undefined' && MapConfig.mapConfig.zoom) ? MapConfig.mapConfig.zoom : 20)) {
+                map.setZoom((typeof MapConfig !== 'undefined' && MapConfig.mapConfig.zoom) ? MapConfig.mapConfig.zoom : 20, false, 300);
             }
         } catch (e) {
             console.error('[NavRenderer] 移动地图中心失败:', e);

@@ -1385,7 +1385,8 @@ const NavCore = (function() {
             // 【新增】移动地图视野到用户当前位置
             const mapInstance = NavRenderer.getMap();
             if (mapInstance) {
-                mapInstance.setZoomAndCenter(17, currentPosition, false, 500);
+                const defaultZoom = (typeof MapConfig !== 'undefined' && MapConfig.mapConfig.zoom) ? MapConfig.mapConfig.zoom : 20;
+                mapInstance.setZoomAndCenter(defaultZoom, currentPosition, false, 500);
                 console.log('[NavCore] 地图已移动到用户位置');
             }
 

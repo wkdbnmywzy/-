@@ -1370,7 +1370,7 @@ function displayKMLRoute(routeResult) {
                 const midLng = (validPath[0][0] + validPath[validPath.length - 1][0]) / 2;
                 const midLat = (validPath[0][1] + validPath[validPath.length - 1][1]) / 2;
                 mapInstance.setCenter([midLng, midLat]);
-                mapInstance.setZoom(17);
+                mapInstance.setZoom(MapConfig.mapConfig.zoom);
                 console.log('[路径显示] ✓ 地图中心已设置（备选方案）');
             } catch (e2) {
                 console.error('[路径显示] 设置地图中心时出错:', e2);
