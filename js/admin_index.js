@@ -998,10 +998,7 @@ async function displayCamerasOnMap(cameras) {
             cameraContent.innerHTML = `
                 <div class="camera-label-wrapper">
                     <div class="camera-label-content">
-                        <svg class="camera-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
-                            <circle cx="12" cy="12" r="10" fill="white"/>
-                            <path d="M7 9 L7 15 L10 15 L10 9 Z M12 7.5 L16.5 12 L12 16.5 Z" fill="#1890ff"/>
-                        </svg>
+                        <img class="camera-icon" src="images/工地数字导航小程序切图/图标/Property 1=摄像头up-1.png" alt="摄像头" width="20" height="20">
                         <span class="camera-name">${cameraName}</span>
                     </div>
                     <div class="camera-label-arrow"></div>
