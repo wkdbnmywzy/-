@@ -1,14 +1,14 @@
 /**
  * 管理端电子围栏管理模块
- * 功能：管理电子围栏，检测车辆进入/离开围栏区域并发出警告
+ * 功能：管理电子围栏，在地图上显示围栏区域
  *
- * 报警规则：
+ * 报警机制：
+ * - 报警由 WebSocket 推送（admin-websocket.js）
+ * - 本地仅做围栏显示和状态追踪，不触发报警
+ *
+ * 报警规则（由后端判断）：
  * - 禁行区(prohibit)：任何车辆进入都报警
  * - 工地范围(fence)：固定车离开时报警
- *
- * 检测机制：
- * - 本地射线法：每2秒实时检测
- * - 后端接口校准：每30秒验证一次
  */
 
 const AdminFenceManager = (function() {
@@ -403,10 +403,10 @@ const AdminFenceManager = (function() {
                     // 刚进入围栏
                     console.log(`[围栏管理器] 车辆 ${vehicleId} 进入 ${fenceName} (类型: ${fenceType})`);
 
-                    // 禁行区：任何车辆进入都报警
-                    if (fenceType === 'prohibit') {
-                        triggerFenceWarning(vehicleId, fenceId, fenceName, fenceType, 'enter', latitude, longitude);
-                    }
+                    // 本地报警已禁用，改为由 WebSocket 推送报警
+                    // if (fenceType === 'prohibit') {
+                    //     triggerFenceWarning(vehicleId, fenceId, fenceName, fenceType, 'enter', latitude, longitude);
+                    // }
 
                     results.push({
                         event: 'enter',
@@ -421,10 +421,10 @@ const AdminFenceManager = (function() {
                     // 刚离开围栏
                     console.log(`[围栏管理器] 车辆 ${vehicleId} 离开 ${fenceName} (类型: ${fenceType})`);
 
-                    // 工地范围：固定车离开报警
-                    if (fenceType === 'fence' && vehicleType === 'fixed') {
-                        triggerFenceWarning(vehicleId, fenceId, fenceName, fenceType, 'leave', latitude, longitude);
-                    }
+                    // 本地报警已禁用，改为由 WebSocket 推送报警
+                    // if (fenceType === 'fence' && vehicleType === 'fixed') {
+                    //     triggerFenceWarning(vehicleId, fenceId, fenceName, fenceType, 'leave', latitude, longitude);
+                    // }
 
                     results.push({
                         event: 'leave',

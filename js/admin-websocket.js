@@ -12,7 +12,7 @@ const AdminWebSocket = (function() {
         wsUrl: 'ws://124.222.203.97:12344/api/ws/notifications',
         reconnectInterval: 5000,  // 重连间隔 5秒
         maxReconnectAttempts: 10,  // 最大重连次数
-        enabled: false,  // 暂时禁用，等后端确认
+        enabled: true,  // 启用 WebSocket 实时报警推送
         lockKey: 'ws_connection_lock',
         lockTimeout: 10000  // 锁超时 10秒
     };
@@ -178,8 +178,10 @@ const AdminWebSocket = (function() {
         isConnected = true;
         reconnectAttempts = 0;
 
-        // 发送订阅
-        subscribe(currentProjectId);
+        // 延迟发送订阅，给服务端一点处理时间
+        setTimeout(function() {
+            subscribe(currentProjectId);
+        }, 500);
     }
 
     /**
