@@ -1,6 +1,95 @@
 // ui-utils.js
 // UI相关的工具函数和事件处理
 
+/**
+ * 检测并适配浏览器底部工具栏高度
+ * 通过比较 window.innerHeight 和 visualViewport.height 来推断底部工具栏高度
+ * 在小程序或没有底部工具栏的环境中，该值为 0
+ */
+function detectBrowserToolbarHeight() {
+    let toolbarHeight = 0;
+
+    // 检测是否在小程序环境中
+    const isWechatMiniProgram = /MicroMessenger/i.test(navigator.userAgent) && /miniProgram/i.test(navigator.userAgent);
+    const isAlipayMiniProgram = /AlipayClient/i.test(navigator.userAgent);
+    const isMiniProgram = isWechatMiniProgram || isAlipayMiniProgram || window.__wxjs_environment === 'miniprogram';
+
+    if (isMiniProgram) {
+        // 小程序环境不需要预留浏览器工具栏空间
+        toolbarHeight = 0;
+        console.log('[UI] 检测到小程序环境，底部工具栏高度: 0');
+    } else if (window.visualViewport) {
+        // 使用 visualViewport API 检测
+        const updateToolbarHeight = () => {
+            const diff = window.innerHeight - window.visualViewport.height;
+            // 只有当差值大于一定阈值才认为有底部工具栏（排除键盘等情况）
+            // 同时差值不应过大（排除键盘弹出的情况）
+            if (diff > 10 && diff < 100) {
+                toolbarHeight = diff;
+            } else if (diff <= 10) {
+                // 没有底部工具栏或很小
+                toolbarHeight = 0;
+            }
+            // diff >= 100 时可能是键盘弹出，保持原来的值
+
+            applyToolbarHeight(toolbarHeight);
+        };
+
+        // 初始检测
+        updateToolbarHeight();
+
+        // 监听 viewport 变化（如横竖屏切换、工具栏显示/隐藏）
+        window.visualViewport.addEventListener('resize', updateToolbarHeight);
+    } else {
+        // 不支持 visualViewport 的浏览器，使用保守值
+        // 检测是否是移动端浏览器
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+        if (isStandalone) {
+            // PWA 或添加到主屏幕的应用，没有浏览器工具栏
+            toolbarHeight = 0;
+        } else if (isMobile) {
+            // 移动端浏览器，使用默认值
+            toolbarHeight = 50;
+        } else {
+            // 桌面浏览器通常没有底部工具栏
+            toolbarHeight = 0;
+        }
+
+        applyToolbarHeight(toolbarHeight);
+    }
+
+    console.log('[UI] 浏览器底部工具栏高度:', toolbarHeight);
+    return toolbarHeight;
+}
+
+/**
+ * 应用底部工具栏高度到 CSS 变量
+ */
+function applyToolbarHeight(height) {
+    document.documentElement.style.setProperty('--browser-toolbar-height', height + 'px');
+
+    // 同时更新需要调整的元素
+    const bottomNav = document.querySelector('.bottom-nav');
+    if (bottomNav) {
+        bottomNav.style.bottom = height + 'px';
+    }
+
+    // 更新底部卡片位置（导航栏bottom + 导航栏高度76px）
+    const bottomCard = document.querySelector('.bottom-card');
+    if (bottomCard) {
+        bottomCard.style.bottom = (height + 76) + 'px';
+    }
+}
+
+// 页面加载完成后自动检测
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', detectBrowserToolbarHeight);
+} else {
+    detectBrowserToolbarHeight();
+}
+
 function showSuccessMessage(message) {
     // 创建临时提示
     const toast = document.createElement('div');
