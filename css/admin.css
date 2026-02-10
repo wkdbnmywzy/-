@@ -62,7 +62,7 @@
 /* 右侧控制按钮 */
 .admin-map-controls {
     position: absolute;
-    bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+    bottom: 170px; /* 50px(浏览器工具栏) + 76px(导航栏) + 44px(间距) */
     right: 16px;
     z-index: 200;
     display: flex;
@@ -72,7 +72,7 @@
 
 /* 工地监控页面的按钮位置（靠近底部导航栏） */
 .admin-map-controls.admin-data-controls {
-    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    bottom: 130px;
 }
 
 /* 切换按钮特殊样式（图标+文字） */
@@ -140,7 +140,7 @@
 /* 车辆图例 */
 .vehicle-legend {
     position: absolute;
-    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    bottom: 130px;
     left: 16px;
     right: auto;
     z-index: 200;
@@ -196,7 +196,7 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     z-index: 300;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: 8px;
 }
 
 .admin-nav .nav-item {
@@ -237,7 +237,7 @@
 /* 管理员底部卡片 */
 .admin-bottom-card {
     position: absolute;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    bottom: 126px; /* 与司机端保持一致 */
     left: 0;
     right: 0;
     background: linear-gradient(to bottom, #FFFFFF 0%, #DBE9FC 100%);
@@ -269,11 +269,11 @@
 
 /* 右侧按钮组在卡片展开时上移 */
 .admin-map-controls.card-expanded {
-    bottom: calc(280px + env(safe-area-inset-bottom, 0px));
+    bottom: 330px;
 }
 
 .vehicle-legend.card-expanded {
-    bottom: calc(280px + env(safe-area-inset-bottom, 0px));
+    bottom: 330px;
 }
 
 /* 响应式调整 */
