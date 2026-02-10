@@ -257,25 +257,20 @@ class TaskManager {
         try {
             const token = sessionStorage.getItem('authToken');
             const headers = {
-                'Content-Type': 'application/json'
+                'accept': 'application/json'
             };
 
-            // 只在token存在且不为空时才添加Authorization header
             if (token && token.trim() !== '') {
                 headers['Authorization'] = `Bearer ${token}`;
-                console.log('[任务页面] 使用token请求（token长度:', token.length, '）');
-            } else {
-                console.log('[任务页面] 无token，使用匿名请求');
+                console.log('[任务页面] 使用token请求');
             }
 
-            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
-            console.log('[任务页面] 请求URL（内网测试）:', url);
-            console.log('[任务页面] 请求headers:', headers);
+            const url = `http://115.159.67.12:8086/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
+            console.log('[任务页面] 请求URL:', url);
 
             const response = await fetch(url, {
                 method: 'GET',
-                headers: headers,
-                credentials: 'omit'  // 不发送cookie
+                headers: headers
             });
 
             if (!response.ok) {

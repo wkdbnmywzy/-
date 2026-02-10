@@ -341,13 +341,13 @@ body {
 /* 底部卡片 */
 .bottom-card {
     position: absolute;
-    bottom: 60px; /* 紧贴导航栏上�?*/
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px)); /* 导航栏高度60px + padding 16px */
     left: 0;
     right: 0;
     z-index: 110;
     background: linear-gradient(to bottom, #FFFFFF 0%, #DBE9FC 100%);
     border-radius: 20px 20px 0 0;
-    padding: 20px 0 0 0; /* 只保留顶部内边距，底部无内边距与导航栏无缝连�?*/
+    padding: 20px 0 0 0; /* 只保留顶部内边距，底部无内边距与导航栏无缝连接 */
     box-shadow: none;
     max-width: 480px;
     margin: 0 auto;
@@ -1581,13 +1581,15 @@ body {
     background: white;
     display: flex;
     justify-content: space-around;
-    padding: 10px 0;
+    padding: 8px 0;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    height: 60px;
+    height: 60px; /* 固定高度，不含safe-area */
+    box-sizing: content-box;
     pointer-events: auto;
     width: 100%;
-    max-width: 480px; /* 限制最大宽�?*/
-    margin: 0 auto; /* 居中 */
+    max-width: 480px;
+    margin: 0 auto;
 }
 
 .nav-item {
@@ -1623,10 +1625,10 @@ body {
     margin-bottom: 4px;
 }
 
-/* 地图控制按钮�?*/
+/* 地图控制按钮组 */
 .map-controls {
     position: absolute;
-    bottom: 240px;
+    bottom: calc(256px + env(safe-area-inset-bottom, 0px)); /* 底部卡片上方 */
     right: 20px;
     z-index: 90;
     display: flex;
@@ -1761,19 +1763,6 @@ body {
 
     .header {
         padding-top: max(12px, env(safe-area-inset-top));
-    }
-
-    .bottom-nav {
-        padding-bottom: max(8px, env(safe-area-inset-bottom));
-        width: 100%;
-    }
-
-    .bottom-card {
-        bottom: calc(60px + env(safe-area-inset-bottom));
-    }
-
-    .map-controls {
-        bottom: max(240px, 240px + env(safe-area-inset-bottom));
     }
 }
 
