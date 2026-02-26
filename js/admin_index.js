@@ -879,7 +879,7 @@ function getCurrentProjectId() {
  */
 async function fetchCameras(projectId) {
     try {
-        const url = `http://115.159.67.12:8085/api/video/cameras?page=1&page_size=1000&project_id=${projectId}`;
+        const url = `https://dmap.cscec3bxjy.cn/api/video/cameras?page=1&page_size=1000&project_id=${projectId}`;
         console.log('[摄像头] 请求URL:', url);
 
         const token = sessionStorage.getItem('authToken') || '';
@@ -1113,7 +1113,7 @@ async function displayCamerasOnMap(cameras) {
  */
 async function getCameraDetails(cameraId) {
     try {
-        const url = `http://115.159.67.12:8085/api/video/cameras/${cameraId}`;
+        const url = `https://dmap.cscec3bxjy.cn/api/video/cameras/${cameraId}`;
         console.log('[摄像头] 获取详情URL:', url);
 
         const token = sessionStorage.getItem('authToken') || '';
@@ -1294,7 +1294,7 @@ async function updateRoadSegmentStatus(startId, endId, cPoint) {
  */
 async function getPointDetails(pointId) {
     try {
-        const url = `http://115.159.67.12:8088/api/map/points/${pointId}`;
+        const url = `https://dmap.cscec3bxjy.cn/api/map/points/${pointId}`;
         console.log('[点详情] 请求URL:', url);
 
         const token = sessionStorage.getItem('authToken') || '';

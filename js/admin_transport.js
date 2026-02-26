@@ -1,7 +1,7 @@
 // 运输管理页面 JavaScript
 
 // API 基础 URL
-const API_BASE_URL = 'http://115.159.67.12:8086/api/transport';
+const API_BASE_URL = 'https://dmap.cscec3bxjy.cn/api/transport';
 
 // 当前查看的任务ID
 let currentViewTaskId = null;
@@ -472,7 +472,7 @@ async function loadVehicleData(dateStr) {
         }
 
         // 4. 使用车辆进出统计API
-        const baseURL = 'http://115.159.67.12:8086/api/transport/statistics';
+        const baseURL = 'https://dmap.cscec3bxjy.cn/api/transport/statistics';
 
         // 获取Dashboard数据（包含车辆列表）
         let dashboardUrl = `${baseURL}/dashboard?projectId=${projectId}`;
@@ -664,7 +664,7 @@ async function loadTaskData() {
         }
 
         // 4. 获取所有任务数据
-        const baseURL = 'http://115.159.67.12:8086/api/transport';
+        const baseURL = 'https://dmap.cscec3bxjy.cn/api/transport';
         const tasksUrl = `${baseURL}/tasks/project/${projectId}?page=1&page_size=1000`;
 
         console.log('[运输管理] 请求任务列表URL:', tasksUrl);

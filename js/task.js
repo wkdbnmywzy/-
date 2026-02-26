@@ -265,7 +265,7 @@ class TaskManager {
                 console.log('[任务页面] 使用token请求');
             }
 
-            const url = `http://115.159.67.12:8086/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
+            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/project/${projectId}?page=1&page_size=1000`;
             console.log('[任务页面] 请求URL:', url);
 
             const response = await fetch(url, {
@@ -306,7 +306,7 @@ class TaskManager {
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
-            const url = `http://115.159.67.12:8086/api/transport/tasks/${taskId}`;
+            const url = `https://dmap.cscec3bxjy.cn/api/transport/tasks/${taskId}`;
             console.log('[任务页面] 请求任务详情（内网测试）:', url);
 
             const response = await fetch(url, {

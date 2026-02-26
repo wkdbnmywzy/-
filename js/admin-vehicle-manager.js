@@ -10,7 +10,7 @@ const AdminVehicleManager = (function() {
 
     // API配置
     const API_CONFIG = {
-        baseURL: 'http://115.159.67.12:8086/api/transport',
+        baseURL: 'https://dmap.cscec3bxjy.cn/api/transport',
         endpoints: {
             tempVehicles: '/temp-vehicle/project-vehicles',    // 临时车辆
             fixedVehicles: '/tracker/project-locations'         // 固定车辆（设备位置）

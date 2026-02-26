@@ -16,7 +16,7 @@ const AdminFenceManager = (function() {
 
     // API配置
     const API_CONFIG = {
-        mapServiceURL: 'http://115.159.67.12:8088/api/map',
+        mapServiceURL: 'https://dmap.cscec3bxjy.cn/api/map',
         endpoints: {
             fencePolygons: '/fence-polygons',
             projectFences: '/fence-polygons/project',
