@@ -975,22 +975,14 @@ body {
 
 /* ==================== 司机登录新增样式 ==================== */
 
-/* 必填标记（红色星号） */
+/* 必填标记（红色星号），始终显示 */
 .required-mark {
     color: #FF4444;
     font-size: 16px;
     margin-left: 4px;
     flex: 0 0 auto;
-    opacity: 1;
-    transition: opacity 0.3s ease;
-    visibility: visible;
 }
 
-.required-mark.hidden {
-    opacity: 0 !important;
-    visibility: hidden !important;
-    pointer-events: none;
-}
 
 /* 提示消息（显示未填写的字段） */
 .hint-message {
@@ -1341,5 +1333,51 @@ body {
 #driver-login-form .account-form-group {
     /* Ensure items center vertically */
     align-items: center;
+}
+
+/* 车牌号输入组合样式 */
+.plate-input-wrapper {
+    display: flex !important;
+    align-items: center;
+    gap: 0;
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.plate-province-select {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    color: rgba(13, 121, 210, 0.7);
+    padding: 10px 4px 10px 12px;
+    cursor: pointer;
+    outline: none;
+    appearance: auto;
+    -webkit-appearance: auto;
+    flex: 0 0 auto;
+    height: 44px;
+}
+
+.plate-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(13, 121, 210, 0.2);
+    flex: 0 0 1px;
+}
+
+.plate-number-input {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    color: #143662;
+    padding: 10px 12px;
+    flex: 1;
+    min-width: 0;
+    outline: none;
+    height: 44px;
+}
+
+.plate-number-input::placeholder {
+    color: rgba(13, 121, 210, 0.3);
 }
 

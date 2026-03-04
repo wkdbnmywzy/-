@@ -1635,6 +1635,12 @@ function initAdminDataMode() {
         hideCameraLayer();
     }
 
+    // 设置按钮文字为"监控"（默认显示车辆模式，点击后切换到监控模式）
+    const modeToggleLabel = document.getElementById('mode-toggle-label');
+    if (modeToggleLabel) {
+        modeToggleLabel.textContent = '监控';
+    }
+
     console.log('[模式切换] 初始化完成，当前模式: 车辆管理');
 }
 
@@ -1644,6 +1650,7 @@ function initAdminDataMode() {
  */
 function toggleAdminDataMode() {
     const vehicleLegend = document.getElementById('vehicle-legend');
+    const modeToggleLabel = document.getElementById('mode-toggle-label');
 
     if (currentAdminDataMode === 'vehicle') {
         // 切换到监控管理模式
@@ -1663,6 +1670,11 @@ function toggleAdminDataMode() {
         // 显示摄像头图层
         showCameraLayer();
 
+        // 更新按钮文字为"车况"
+        if (modeToggleLabel) {
+            modeToggleLabel.textContent = '车况';
+        }
+
     } else {
         // 切换到车辆管理模式
         currentAdminDataMode = 'vehicle';
@@ -1679,6 +1691,11 @@ function toggleAdminDataMode() {
         // 显示车辆标记
         if (typeof AdminVehicleManager !== 'undefined') {
             AdminVehicleManager.showAllVehicles();
+        }
+
+        // 更新按钮文字为"监控"
+        if (modeToggleLabel) {
+            modeToggleLabel.textContent = '监控';
         }
     }
 }

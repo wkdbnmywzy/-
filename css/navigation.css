@@ -382,11 +382,11 @@
     top: 0;
     left: 0;
     right: 0;
-    background: #1565C0; /* 深蓝色背景 */
-    border-radius: 0 0 16px 16px;
+    background: linear-gradient(180deg, #003AA6 0%, #002651 100%);
+    border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    z-index: 150; /* 提高z-index确保置顶 */
-    display: none; /* 默认隐藏，导航开始时显示 */
+    z-index: 150;
+    display: none;
     overflow: hidden;
 }
 

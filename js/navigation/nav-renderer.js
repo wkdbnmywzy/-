@@ -696,8 +696,8 @@ const NavRenderer = (function() {
      * @returns {string} HTML字符串
      */
     function createCompassHTML() {
-        const size = 80; // 整体尺寸
-        const imgSize = 50; // 图片尺寸（缩小一倍）
+        const size = 70; // 整体尺寸
+        const imgSize = 70; // 图片尺寸（与容器一样大）
         const labelOffset = 32; // 文字距离中心的距离
 
         return `

@@ -363,15 +363,15 @@
 
 /* 新增按钮 */
 .add-task-btn {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
+    position: fixed;
+    bottom: 80px;
+    right: calc(50% - 240px + 20px);
     width: 60px;
     height: 60px;
     background: white;
     border-radius: 50%;
     /* 外阴影颜色为#0D79D2 40% */
-    box-shadow: 0px 4px 12px rgba(13, 121, 210, 0.4); 
+    box-shadow: 0px 4px 12px rgba(13, 121, 210, 0.4);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -381,6 +381,13 @@
     padding: 0;
     cursor: pointer;
     transition: transform 0.2s;
+}
+
+/* 小屏幕（宽度<480px）时直接靠右 */
+@media (max-width: 480px) {
+    .add-task-btn {
+        right: 20px;
+    }
 }
 
 .add-task-btn:active {
@@ -702,6 +709,224 @@
 .date-separator {
     color: #666;
     font-size: 13px;
+}
+
+/* 自定义选择器触发器（替代原生 select） */
+.picker-trigger {
+    cursor: pointer;
+    user-select: none;
+    color: #999;
+}
+
+.picker-trigger.has-value {
+    color: #333;
+}
+
+/* ========== 底部弹出时间选择器（登录页卡片风格） ========== */
+.dt-picker-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0);
+    z-index: 10000;
+    transition: background 0.3s;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.dt-picker-overlay.dt-picker-visible {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.dt-picker-container {
+    width: 100%;
+    max-width: 480px;
+    background: #fff;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+    overflow: hidden;
+    padding: 0 5vw env(safe-area-inset-bottom, 0px);
+}
+
+.dt-picker-overlay.dt-picker-visible .dt-picker-container {
+    transform: translateY(0);
+}
+
+/* 标题区：居中文字 + 蓝色下划线 */
+.dt-picker-title-bar {
+    text-align: center;
+    padding: 20px 16px 0;
+    margin-bottom: 16px;
+}
+
+.dt-picker-title-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #143662;
+    display: inline-block;
+    padding-bottom: 5px;
+    position: relative;
+}
+
+.dt-picker-title-text::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: #2E89FF;
+    border-radius: 2px;
+}
+
+/* 滚轮容器 - 照抄登录页 picker-container */
+.dt-picker-body {
+    display: flex;
+    gap: 0;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    width: 100%;
+    height: 200px;
+}
+
+/* 统一遮罩层：上下渐变白色 */
+.dt-picker-body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.95) 0%,
+        rgba(255, 255, 255, 0.6) 20%,
+        rgba(255, 255, 255, 0) 50%,
+        rgba(255, 255, 255, 0.6) 80%,
+        rgba(255, 255, 255, 0.95) 100%
+    );
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* 高亮区域：蓝色渐变横线 */
+.dt-picker-body::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 40px;
+    transform: translateY(-50%);
+    background:
+        linear-gradient(to right, rgba(42, 134, 255, 0) 0%, rgba(42, 134, 255, 0.3) 15%, #2A86FF 50%, rgba(42, 134, 255, 0.3) 85%, rgba(42, 134, 255, 0) 100%) top / 100% 1px no-repeat,
+        linear-gradient(to right, rgba(42, 134, 255, 0) 0%, rgba(42, 134, 255, 0.3) 15%, #2A86FF 50%, rgba(42, 134, 255, 0.3) 85%, rgba(42, 134, 255, 0) 100%) bottom / 100% 1px no-repeat,
+        linear-gradient(to right, rgba(42, 134, 255, 0) 0%, rgba(42, 134, 255, 0.02) 20%, rgba(42, 134, 255, 0.05) 50%, rgba(42, 134, 255, 0.02) 80%, rgba(42, 134, 255, 0) 100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* 滚轮列 */
+.dt-picker-column {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    height: 200px;
+}
+
+.dt-picker-column.dt-col-date {
+    flex: 1.5;
+}
+
+.dt-picker-list {
+    height: 100%;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+}
+
+.dt-picker-list::-webkit-scrollbar {
+    display: none;
+}
+
+.dt-picker-item {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    color: rgba(35, 124, 243, 0.6);
+    scroll-snap-align: start;
+    white-space: nowrap;
+    transition: all 0.3s;
+    text-align: center;
+}
+
+.dt-picker-item.dt-picker-selected {
+    color: #000;
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.dt-picker-spacer {
+    pointer-events: none;
+    color: transparent !important;
+}
+
+/* 时分之间的冒号分隔 */
+.dt-picker-colon {
+    flex: none;
+    width: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: #000;
+}
+
+/* 底部按钮区 - 与滚轮分层 */
+.dt-picker-footer {
+    padding: 16px 20px 20px;
+    display: flex;
+    gap: 12px;
+}
+
+.dt-picker-cancel,
+.dt-picker-confirm {
+    flex: 1;
+    height: 48px;
+    border-radius: 24px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s;
+}
+
+.dt-picker-cancel {
+    background: #F0F5FF;
+    color: #237CF3;
+}
+
+.dt-picker-cancel:active {
+    background: #DCE8FF;
+}
+
+.dt-picker-confirm {
+    background: linear-gradient(135deg, #237CF3, #2A86FF);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(35, 124, 243, 0.3);
+}
+
+.dt-picker-confirm:active {
+    background: linear-gradient(135deg, #1b6ad8, #237CF3);
 }
 
 /* Page Footer */

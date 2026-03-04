@@ -998,16 +998,8 @@ function displayKMLFeatures(features, fileName) {
         fitMapToCoordinates(allCoordinates);
     }
 
-    // 显示导入成功消息（仅在首次导入时显示，从其他界面返回重新加载时不显示）
-    // 地图选点页面不显示此提示
-    const isMapSelectionPage = window.location.pathname.includes('map-point-selection.html');
-    if (window.isFirstKMLImport && !window.pendingSelectedLocation && !isMapSelectionPage) {
-        const pointCount = points.length;
-        const lineCount = lines.length;
-        const polygonCount = polygons.length;
-        const message = `成功导入: ${pointCount}个点, ${lineCount}条线, ${polygonCount}个面`;
-        showSuccessMessage(message);
-        // 重置标记
+    // 重置首次导入标记
+    if (window.isFirstKMLImport) {
         window.isFirstKMLImport = false;
     }
 

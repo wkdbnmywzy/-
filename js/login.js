@@ -62,6 +62,7 @@ const adminLoginForm = document.getElementById('admin-login-form');
 const driverNameInput = document.getElementById('driver-name-input');
 const driverPhoneInput = document.getElementById('driver-phone-input');
 const driverPlateInput = document.getElementById('driver-plate-input');
+const driverPlateProvince = document.getElementById('driver-plate-province');
 const driverHintMessage = document.getElementById('driver-hint-message');
 const driverErrorMessage = document.getElementById('driver-error-message');
 const rememberDriverCheckbox = document.getElementById('remember-driver');
@@ -227,62 +228,32 @@ function switchTab(tab) {
     }
 }
 
-// 更新必填标记的显示状态
+// 必填标记始终显示，无需动态更新
 function updateRequiredMarks() {
-    const name = driverNameInput?.value.trim() || '';
-    const phone = driverPhoneInput?.value.trim() || '';
-    const plate = driverPlateInput?.value.trim() || '';
-
-    console.log('[星号更新] 姓名:', name, '手机号:', phone, '车牌号:', plate);
-    console.log('[星号更新] DOM元素:', {
-        nameRequiredMark: !!nameRequiredMark,
-        phoneRequiredMark: !!phoneRequiredMark,
-        plateRequiredMark: !!plateRequiredMark
-    });
-
-    // 根据输入框是否有值来显示/隐藏红色星号
-    if (nameRequiredMark) {
-        if (name) {
-            nameRequiredMark.classList.add('hidden');
-            console.log('[星号更新] 姓名星号已隐藏');
-        } else {
-            nameRequiredMark.classList.remove('hidden');
-            console.log('[星号更新] 姓名星号已显示');
-        }
-    }
-    if (phoneRequiredMark) {
-        if (phone) {
-            phoneRequiredMark.classList.add('hidden');
-            console.log('[星号更新] 手机号星号已隐藏');
-        } else {
-            phoneRequiredMark.classList.remove('hidden');
-            console.log('[星号更新] 手机号星号已显示');
-        }
-    }
-    if (plateRequiredMark) {
-        if (plate) {
-            plateRequiredMark.classList.add('hidden');
-            console.log('[星号更新] 车牌号星号已隐藏');
-        } else {
-            plateRequiredMark.classList.remove('hidden');
-            console.log('[星号更新] 车牌号星号已显示');
-        }
-    }
+    // 红色星号始终显示，不再根据输入内容隐藏
 }
 
 // 更新司机登录提示信息
 function updateDriverHint() {
     const name = driverNameInput?.value.trim() || '';
     const phone = driverPhoneInput?.value.trim() || '';
-    const plate = driverPlateInput?.value.trim() || '';
+    const plateNumber = driverPlateInput?.value.trim() || '';
 
     const missing = [];
     if (!name) missing.push('姓名');
     if (!phone) missing.push('手机号');
-    if (!plate) missing.push('车牌号');
+    if (!plateNumber) missing.push('车牌号');
 
-    if (missing.length > 0 && driverHintMessage) {
-        driverHintMessage.textContent = `请填入${missing.join('、')}`;
+    const hints = [];
+    if (missing.length > 0) {
+        hints.push(`请填入${missing.join('、')}`);
+    }
+    if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+        hints.push('手机号格式不正确');
+    }
+
+    if (hints.length > 0 && driverHintMessage) {
+        driverHintMessage.textContent = hints.join('，');
         driverHintMessage.classList.remove('hidden');
         driverHintMessage.classList.add('show');
     } else {
@@ -304,7 +275,9 @@ async function handleDriverLogin(e) {
 
     const name = driverNameInput?.value.trim() || '';
     const phone = driverPhoneInput?.value.trim() || '';
-    const plate = driverPlateInput?.value.trim() || '';
+    const plateNumber = driverPlateInput?.value.trim() || '';
+    const plateProvince = driverPlateProvince?.value || '鄂';
+    const plate = plateNumber ? (plateProvince + plateNumber) : '';
 
     // 验证输入
     if (!name) {
@@ -1836,7 +1809,19 @@ function loadRememberedCredentials() {
             if (data.remember && driverNameInput && driverPhoneInput && driverPlateInput) {
                 driverNameInput.value = data.name || '';
                 driverPhoneInput.value = data.phone || '';
-                driverPlateInput.value = data.plate || '';
+                // 加载车牌号：分别填充省份和号码
+                if (data.plateProvince && driverPlateProvince) {
+                    driverPlateProvince.value = data.plateProvince;
+                } else if (data.plate && driverPlateProvince) {
+                    // 兼容旧数据格式
+                    driverPlateProvince.value = data.plate.charAt(0);
+                }
+                if (data.plateNumber) {
+                    driverPlateInput.value = data.plateNumber;
+                } else if (data.plate) {
+                    // 兼容旧数据格式
+                    driverPlateInput.value = data.plate.substring(1);
+                }
                 if (rememberDriverCheckbox) {
                     rememberDriverCheckbox.checked = true;
                 }
@@ -1872,10 +1857,15 @@ function loadRememberedCredentials() {
  * 保存司机登录信息
  */
 function saveDriverCredentials(name, phone, plate) {
+    // 拆分车牌号为省份和号码
+    const province = plate ? plate.charAt(0) : '鄂';
+    const number = plate ? plate.substring(1) : '';
     const data = {
         name: name,
         phone: phone,
         plate: plate,
+        plateProvince: province,
+        plateNumber: number,
         remember: true,
         timestamp: new Date().toISOString()
     };

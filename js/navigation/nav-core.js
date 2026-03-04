@@ -505,17 +505,19 @@ const NavCore = (function() {
                     console.log(`[NavCore] 我的位置距离最近道路: ${distanceToRoad.toFixed(2)}米`);
                     
                     // 如果距离道路超过5米，使用投影点作为实际起点
-                    if (distanceToRoad > 5) {
+                    if (distanceToRoad > 5 && nearestSegment.projectionPoint) {
                         const projPoint = nearestSegment.projectionPoint;
-                        const actualStartPos = [projPoint.lng, projPoint.lat];
-                        
+                        const actualStartPos = Array.isArray(projPoint)
+                            ? projPoint
+                            : [projPoint.lng, projPoint.lat];
+
                         console.log(`[NavCore] 我的位置不在道路上，实际起点调整为最近道路点:`, actualStartPos);
-                        
+
                         // 保存原始位置和实际起点，用于引导
                         routeData.start.originalPosition = startPos;
                         routeData.start.actualStartPosition = actualStartPos;
                         routeData.start.distanceToRoad = distanceToRoad;
-                        
+
                         // 使用实际起点进行路线规划
                         startPos = actualStartPos;
                     } else {
@@ -2852,7 +2854,7 @@ const NavCore = (function() {
     let lastRoadConditionCheckTime = 0;          // 上次路况检查时间
     let lastRoadStatusRefreshTime = 0;           // 上次道路状态刷新时间
     const ROAD_CONDITION_CHECK_INTERVAL = 2000;  // 路况检查间隔（毫秒）
-    const ROAD_STATUS_REFRESH_INTERVAL = 10000;  // 道路状态刷新间隔（毫秒）- 每10秒从后端拉取最新状态
+    const ROAD_STATUS_REFRESH_INTERVAL = 3000;   // 道路状态刷新间隔（毫秒）- 每3秒从后端拉取最新状态
     const ROAD_CONDITION_CHECK_DISTANCE = 100;   // 检查前方多少米的路况（米）
 
     /**
@@ -2884,8 +2886,8 @@ const NavCore = (function() {
 
     /**
      * 检查前方路段是否有不可通行的灰色路段（KML图层中的原始灰色路段）
-     * 注意：这里检测的是 KML 图层中 strokeColor === '#808080' 的路段，
-     * 而不是导航系统绘制的"已走过"灰色路线（passedPolyline）
+     * 逻辑：对前方路径点，找到它所在的那条 KML 线段（距离最近），
+     * 检查该线段本身是否被后端更新为灰色。只有路线经过的路段变灰才触发重规划。
      *
      * @param {number} currentIndex - 当前吸附点索引
      * @returns {Object|null} 如果检测到灰色路段，返回 {found: true, distance: 距离米数}，否则返回 null
@@ -2947,42 +2949,22 @@ const NavCore = (function() {
 
             console.log(`[路况检测] 检查前方路况: 当前索引=${currentIndex}, 检查到索引=${endCheckIndex}, 检查距离=${checkDistance.toFixed(0)}米, 检查点数=${checkPoints.length}`);
 
-            // 统计 KML 图层中的灰色路段数量（调试用）
-            let graySegmentCount = 0;
-            window.kmlLayers.forEach(layer => {
-                if (!layer.visible) return;
-                layer.markers.forEach(marker => {
-                    if (!marker || typeof marker.getExtData !== 'function') return;
-                    const extData = marker.getExtData();
-                    if (!extData || extData.type !== '线') return;
-                    const strokeColor = marker.getOptions ? marker.getOptions().strokeColor : null;
-                    if (strokeColor === '#808080') {
-                        graySegmentCount++;
-                    }
-                });
-            });
-            console.log(`[路况检测] KML图层中灰色路段数量: ${graySegmentCount}`);
-
-            // 【调试】输出检测路径的首尾坐标
-            const firstPoint = checkPoints[0];
-            const lastPoint = checkPoints[checkPoints.length - 1];
-            console.log(`[路况检测] 检测路径: 起点[${Array.isArray(firstPoint) ? firstPoint[0].toFixed(6) : firstPoint.lng.toFixed(6)}, ${Array.isArray(firstPoint) ? firstPoint[1].toFixed(6) : firstPoint.lat.toFixed(6)}] -> 终点[${Array.isArray(lastPoint) ? lastPoint[0].toFixed(6) : lastPoint.lng.toFixed(6)}, ${Array.isArray(lastPoint) ? lastPoint[1].toFixed(6) : lastPoint.lat.toFixed(6)}]`);
-
-            // 遍历路径上的点，检查每个点附近是否有 KML 图层中的灰色路段
+            // 遍历路径上的点，找到每个点所在的 KML 线段，检查该线段是否为灰色
             for (let i = 0; i < checkPoints.length; i++) {
                 const pos = checkPoints[i];
                 const lng = Array.isArray(pos) ? pos[0] : pos.lng;
                 const lat = Array.isArray(pos) ? pos[1] : pos.lat;
 
-                // 检查这个点是否在 KML 图层的灰色路段上
-                const graySegment = findNearestGrayKMLSegment([lng, lat]);
+                // 找到该点最近的 KML 线段（不限颜色）
+                const nearestSegment = findNearestKMLSegment([lng, lat]);
 
-                // 【调试】每隔5个点输出一次与最近灰色路段的距离
-                if (i % 5 === 0 && graySegment) {
-                    console.log(`[路况检测] 点${i} [${lng.toFixed(6)}, ${lat.toFixed(6)}] 距离最近灰色路段: ${graySegment.distance.toFixed(1)}米`);
+                // 【调试】每隔5个点输出一次与最近线段的距离和颜色
+                if (i % 5 === 0 && nearestSegment) {
+                    console.log(`[路况检测] 点${i} [${lng.toFixed(6)}, ${lat.toFixed(6)}] 最近线段: ${nearestSegment.name}, 距离=${nearestSegment.distance.toFixed(1)}米, 颜色=${nearestSegment.strokeColor}`);
                 }
 
-                if (graySegment && graySegment.distance < 5) { // 5米内认为在灰色路段上
+                // 【关键改动】距离<2米说明路径点确实在该线段上，再检查该线段是否灰色
+                if (nearestSegment && nearestSegment.distance < 2 && nearestSegment.strokeColor === '#808080') {
                     // 计算从当前位置到灰色路段的距离
                     let distanceToGray = 0;
                     for (let j = currentIndex; j < currentIndex + i && j < pointSet.length - 1; j++) {
@@ -2996,16 +2978,16 @@ const NavCore = (function() {
                         );
                     }
 
-                    console.log(`[路况检测] ⚠ 检测到前方${distanceToGray.toFixed(0)}米处有KML灰色路段（不可通行）: ${graySegment.name}, 距离路段=${graySegment.distance.toFixed(1)}米`);
+                    console.log(`[路况检测] ⚠ 检测到前方${distanceToGray.toFixed(0)}米处路线经过的路段变灰（不可通行）: ${nearestSegment.name}, 距离路段=${nearestSegment.distance.toFixed(1)}米`);
                     return {
                         found: true,
                         distance: distanceToGray,
-                        segmentName: graySegment.name || '未知路段'
+                        segmentName: nearestSegment.name || '未知路段'
                     };
                 }
             }
 
-            console.log('[路况检测] ✓ 前方路况正常，无灰色路段');
+            console.log('[路况检测] ✓ 前方路况正常，路线经过的路段均可通行');
             return null;
         } catch (e) {
             console.error('[路况检测] 执行失败:', e);
@@ -3014,13 +2996,13 @@ const NavCore = (function() {
     }
 
     /**
-     * 查找距离某点最近的 KML 图层中的灰色（不可通行）路段
-     * 注意：只检查 KML 图层中 strokeColor === '#808080' 的原始路段
+     * 查找距离某点最近的 KML 图层线段（不限颜色）
+     * 返回最近线段的距离、名称、marker 和当前颜色
      *
      * @param {Array} coordinate - [lng, lat]
-     * @returns {Object|null} 最近的灰色线段信息，或 null
+     * @returns {Object|null} 最近的线段信息 { distance, name, marker, strokeColor }，或 null
      */
-    function findNearestGrayKMLSegment(coordinate) {
+    function findNearestKMLSegment(coordinate) {
         try {
             if (typeof window.kmlLayers === 'undefined' || !window.kmlLayers) {
                 return null;
@@ -3030,7 +3012,7 @@ const NavCore = (function() {
             const coordLat = Array.isArray(coordinate) ? coordinate[1] : coordinate.lat;
 
             let minDistance = Infinity;
-            let nearestGray = null;
+            let nearest = null;
 
             // 遍历所有 KML 图层
             window.kmlLayers.forEach(layer => {
@@ -3042,10 +3024,8 @@ const NavCore = (function() {
                     const extData = marker.getExtData();
                     if (!extData || extData.type !== '线') return;
 
-                    // 【关键】只检查 KML 图层中的灰色路段（#808080）
-                    // 这是原始的不可通行路段，不是导航系统绘制的"已走过"路线
+                    // 获取当前颜色（不做颜色过滤）
                     const strokeColor = marker.getOptions ? marker.getOptions().strokeColor : null;
-                    if (strokeColor !== '#808080') return;
 
                     // 获取路径
                     if (typeof marker.getPath !== 'function') return;
@@ -3059,7 +3039,7 @@ const NavCore = (function() {
 
                     if (!path || path.length < 2) return;
 
-                    // 计算点到这条灰色线段的最近距离
+                    // 计算点到这条线段的最近距离
                     for (let i = 0; i < path.length - 1; i++) {
                         const p1 = path[i];
                         const p2 = path[i + 1];
@@ -3078,19 +3058,20 @@ const NavCore = (function() {
 
                         if (dist < minDistance) {
                             minDistance = dist;
-                            nearestGray = {
+                            nearest = {
                                 distance: dist,
-                                name: extData.name || '灰色路段',
-                                marker: marker
+                                name: extData.name || '路段',
+                                marker: marker,
+                                strokeColor: strokeColor
                             };
                         }
                     }
                 });
             });
 
-            return nearestGray;
+            return nearest;
         } catch (e) {
-            console.error('[查找KML灰色路段] 执行失败:', e);
+            console.error('[查找KML路段] 执行失败:', e);
             return null;
         }
     }
@@ -3141,6 +3122,12 @@ const NavCore = (function() {
             if (now - lastReplanTime < 5000) {
                 console.log('[路况变化] 跳过重新规划（距上次<5秒，防抖中）');
                 return false;
+            }
+
+            // 重规划前先停止当前语音并重置抑制状态，确保后续播报能立即发出
+            if (typeof NavTTS !== 'undefined') {
+                NavTTS.stop();
+                if (NavTTS.resetSuppression) NavTTS.resetSuppression();
             }
 
             // 播报提示

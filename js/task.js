@@ -577,7 +577,12 @@ class TaskManager {
                 <div class="timeline-row">
                     <div class="timeline-point start"></div>
                     <div class="timeline-info">
-                        <div class="timeline-location">${task.startPoint.name}</div>
+                        <div class="timeline-location-row">
+                            <div class="timeline-location">${task.startPoint.name}</div>
+                            <button class="task-card-nav task-card-nav-start" data-task-id="${task.id}" aria-label="导航到起点">
+                                <img class="nav-icon" src="images/工地数字导航小程序切图/司机/2X/导航/定位-1.png" alt="" aria-hidden="true" />
+                            </button>
+                        </div>
                         <div class="timeline-date">${task.startPoint.date}</div>
                         <div class="timeline-time">${task.startPoint.time}</div>
                     </div>
@@ -618,12 +623,21 @@ class TaskManager {
             this.toggleTaskDetail(detailHeader);
         });
 
-        // 绑定导航按钮事件
+        // 绑定起点导航按钮事件
+        const navBtnStart = card.querySelector('.task-card-nav-start');
+        if (navBtnStart) {
+            navBtnStart.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.showNavigationDialog(task, 'start');
+            });
+        }
+
+        // 绑定终点导航按钮事件
         const navBtn = card.querySelector('.timeline-info.end-info .task-card-nav');
         if (navBtn) {
             navBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.showNavigationDialog(task);
+                this.showNavigationDialog(task, 'end');
             });
         }
 
@@ -658,7 +672,7 @@ class TaskManager {
     /**
      * 显示导航确认弹窗
      */
-    showNavigationDialog(task) {
+    showNavigationDialog(task, target = 'end') {
         const dialog = document.getElementById('nav-confirm-dialog');
         const projectEl = document.getElementById('nav-dialog-project');
         const locationEl = document.getElementById('nav-dialog-location');
@@ -675,12 +689,16 @@ class TaskManager {
             console.error('[导航弹窗] 获取项目名称失败:', error);
         }
 
-        // 设置目的地信息
-        projectEl.textContent = projectName;  // 项目名称
-        locationEl.textContent = task.endPoint.name;  // 地点名称
+        // 根据 target 决定目的地
+        const destPoint = target === 'start' ? task.startPoint : task.endPoint;
 
-        // 保存完整的任务信息（起点+终点），供确认导航时使用
+        // 设置目的地信息
+        projectEl.textContent = projectName;
+        locationEl.textContent = destPoint.name;
+
+        // 保存任务信息供确认时使用
         dialog.dataset.taskId = task.id;
+        dialog.dataset.navTarget = target;
 
         // 起点信息
         dialog.dataset.startLat = task.startPoint.location[1];
@@ -709,50 +727,47 @@ class TaskManager {
     confirmNavigation() {
         const dialog = document.getElementById('nav-confirm-dialog');
         const taskId = dialog.dataset.taskId;
+        const navTarget = dialog.dataset.navTarget || 'end';
 
-        // 获取起点信息
+        // 获取起点/终点信息
         const startLat = parseFloat(dialog.dataset.startLat);
         const startLng = parseFloat(dialog.dataset.startLng);
         const startName = dialog.dataset.startName;
-
-        // 获取终点信息
         const endLat = parseFloat(dialog.dataset.endLat);
         const endLng = parseFloat(dialog.dataset.endLng);
         const endName = dialog.dataset.endName;
 
+        // 目的地：点击起点按钮则导航到任务起点，点击终点按钮则导航到任务终点
+        const destLat = navTarget === 'start' ? startLat : endLat;
+        const destLng = navTarget === 'start' ? startLng : endLng;
+        const destName = navTarget === 'start' ? startName : endName;
+
         this.closeNavigationDialog();
 
-        console.log('[任务导航] 直接跳转到导航页面，起点:', startName, '终点:', endName);
+        console.log('[任务导航] 跳转到导航页面，出发地: 我的位置，目的地:', destName);
 
-        // 【重构】使用与普通选点导航相同的标准数据格式
-        // 这样可以复用普通导航的完整流程，避免重复代码和兼容性问题
         try {
-            // 标准导航数据格式（与 nav-data-store.js 中的 navigationRoute 格式一致）
             const navigationRoute = {
                 start: {
-                    name: startName,
-                    position: [startLng, startLat],  // [lng, lat] 数组格式
-                    isMyLocation: false
+                    name: '我的位置',
+                    position: null,
+                    isMyLocation: true
                 },
                 end: {
-                    name: endName,
-                    position: [endLng, endLat]
+                    name: destName,
+                    position: [destLng, destLat]
                 },
-                waypoints: []  // 任务导航无途径点
+                waypoints: []
             };
             sessionStorage.setItem('navigationRoute', JSON.stringify(navigationRoute));
             console.log('[任务导航] 导航数据已保存到sessionStorage (标准格式)');
 
-            // 同时保存任务ID供后续使用（可选）
             sessionStorage.setItem('currentTaskId', taskId);
-
-            // 【修复】设置导航结束后的返回页面为司机端首页
             sessionStorage.setItem('navigationReferrer', 'index.html');
         } catch (e) {
             console.warn('[任务导航] 保存导航数据失败:', e);
         }
 
-        // 直接跳转到导航页面
         window.location.href = 'navigation.html';
     }
 

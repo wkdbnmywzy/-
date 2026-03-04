@@ -5,6 +5,7 @@ const API_BASE_URL = 'https://dmap.cscec3bxjy.cn/api/transport';
 
 // 当前查看的任务ID
 let currentViewTaskId = null;
+let currentViewTaskStatus = null;
 
 // 记录当前项目ID，用于检测项目切换
 let lastProjectId = null;
@@ -1091,7 +1092,7 @@ function renderTodayTaskList(tasks) {
         else if (task.status === 4) statusClass = 'cancelled';
 
         const itemHtml = `
-            <div class="list-item" data-task-id="${task.id}">
+            <div class="list-item" data-task-id="${task.id}" data-status="${task.status}">
                 <div class="col-data task-type">${taskType}</div>
                 <div class="col-data task-status ${statusClass}">${taskStatus}</div>
                 <div class="col-data">${vehicle}</div>
@@ -1131,7 +1132,7 @@ function renderHistoryTaskList(tasks) {
         else if (task.status === 4) statusClass = 'cancelled';
 
         const itemHtml = `
-            <div class="list-item" data-task-id="${task.id}">
+            <div class="list-item" data-task-id="${task.id}" data-status="${task.status}">
                 <div class="col-data task-type">${taskType}</div>
                 <div class="col-data task-status ${statusClass}">${taskStatus}</div>
                 <div class="col-data">${vehicle}</div>
@@ -1180,7 +1181,7 @@ function renderTaskList(tasks) {
         }
 
         const itemHtml = `
-            <div class="list-item" data-task-id="${task.id}">
+            <div class="list-item" data-task-id="${task.id}" data-status="${task.status}">
                 <div class="col-data task-type">${taskType}</div>
                 <div class="col-data task-status ${statusClass}">${taskStatus}</div>
                 <div class="col-data">${vehicle}</div>
@@ -1215,6 +1216,7 @@ function initTaskListInteractions() {
     if (listBodies.length === 0 || !popover) return;
 
     let currentTaskId = null;
+    let currentTaskStatus = null;
 
     // 为所有列表添加点击事件委托
     listBodies.forEach(listBody => {
@@ -1225,8 +1227,18 @@ function initTaskListInteractions() {
 
             e.stopPropagation(); // 阻止冒泡
 
-            // 获取任务ID
+            // 获取任务ID和状态
             currentTaskId = item.dataset.taskId;
+            currentTaskStatus = parseInt(item.dataset.status);
+
+            // 进行中(2)或已完成(3)的任务：隐藏删除按钮，文案改为"查看"
+            const isLocked = (currentTaskStatus === 2 || currentTaskStatus === 3);
+            if (deleteBtn) {
+                deleteBtn.style.display = isLocked ? 'none' : '';
+            }
+            if (viewBtn) {
+                viewBtn.textContent = isLocked ? '查看' : '查看/修改';
+            }
 
             // 定位气泡
             const rect = item.getBoundingClientRect();
@@ -1295,6 +1307,13 @@ function initPageInteractions() {
     // 查看任务页面按钮
     document.getElementById('viewCancelBtn')?.addEventListener('click', () => hidePage('viewTaskPage'));
     document.getElementById('viewSaveBtn')?.addEventListener('click', async () => {
+        // 进行中或已完成的任务不允许修改
+        if (currentViewTaskStatus === 2 || currentViewTaskStatus === 3) {
+            const statusText = STATUS_MAP[currentViewTaskStatus] || '当前状态';
+            alert(`任务${statusText}，无法修改`);
+            return;
+        }
+
         // 收集表单数据并保存
         if (!currentViewTaskId) {
             alert('未找到任务ID');
@@ -1355,6 +1374,23 @@ async function loadLocators(projectId) {
 
         console.log('[新增任务] 加载定位器列表:', url);
 
+        // 先绑定点击事件（不依赖 API 是否成功）
+        const addLocatorEl = document.getElementById('addLocator');
+        if (addLocatorEl) {
+            addLocatorEl.onclick = () => {
+                const options = window._locatorOptions || [];
+                if (options.length === 0) {
+                    alert('暂无可用的定位器');
+                    return;
+                }
+                showWheelPicker('选择定位器', options, addLocatorEl.dataset.value || '', (selected) => {
+                    addLocatorEl.dataset.value = selected.value;
+                    addLocatorEl.textContent = selected.label;
+                    addLocatorEl.classList.add('has-value');
+                });
+            };
+        }
+
         const response = await fetch(url, {
             method: 'GET',
             headers: {
@@ -1372,34 +1408,17 @@ async function loadLocators(projectId) {
         console.log('[新增任务] 定位器API响应:', result);
 
         if (result.code === 200 && result.data) {
-            const locatorSelect = document.getElementById('addLocator');
-            if (!locatorSelect) return;
+            // 构建选项列表
+            const locatorOptions = result.data.map(locator => ({
+                value: String(locator.TrackerID),
+                label: `${locator.PlateNumber} (${locator.TrackerID})`,
+                plateNumber: locator.PlateNumber,
+                trackerId: locator.TrackerID
+            }));
 
-            // 清空现有选项（保留第一个默认选项）
-            locatorSelect.innerHTML = '<option value="">选择定位器编号</option>';
-
-            if (result.data.length === 0) {
-                // 如果没有定位器数据，添加提示选项
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = '（该项目暂无定位器数据）';
-                option.disabled = true;
-                locatorSelect.appendChild(option);
-                console.log('[新增任务] 该项目暂无定位器数据');
-            } else {
-                // 添加定位器选项
-                result.data.forEach(locator => {
-                    const option = document.createElement('option');
-                    // 使用TrackerID作为value，PlateNumber作为显示文本
-                    option.value = locator.TrackerID;
-                    option.textContent = `${locator.PlateNumber} (${locator.TrackerID})`;
-                    // 保存额外信息到dataset
-                    option.dataset.plateNumber = locator.PlateNumber;
-                    option.dataset.trackerId = locator.TrackerID;
-                    locatorSelect.appendChild(option);
-                });
-                console.log('[新增任务] 已加载', result.data.length, '个定位器');
-            }
+            // 保存到全局
+            window._locatorOptions = locatorOptions;
+            console.log('[新增任务] 已加载', locatorOptions.length, '个定位器');
         }
     } catch (error) {
         console.error('[新增任务] 加载定位器失败:', error);
@@ -1469,95 +1488,354 @@ async function loadTaskLocations() {
 function initDateTimePickers() {
     // 时间选择器元素
     const entryStartTimeEl = document.getElementById('addEntryStartTime');
-    const entryEndTimeEl = document.getElementById('addEntryEndTime');
     const exitStartTimeEl = document.getElementById('addExitStartTime');
-    const exitEndTimeEl = document.getElementById('addExitEndTime');
 
-    // 保存选择的时间
-    const selectedTimes = {
+    // 每次初始化时重置全局时间对象
+    window.addTaskSelectedTimes = {
         entryStart: null,
         entryEnd: null,
         exitStart: null,
         exitEnd: null
     };
 
-    // 绑定点击事件
+    // 用 onclick 替代 addEventListener，避免重复绑定
     if (entryStartTimeEl) {
-        entryStartTimeEl.addEventListener('click', () => {
-            showDateTimePicker('入场开始时间', (dateTime) => {
-                selectedTimes.entryStart = dateTime;
+        entryStartTimeEl.onclick = () => {
+            showDateTimePicker('入场时间', (dateTime) => {
+                window.addTaskSelectedTimes.entryStart = dateTime;
+                window.addTaskSelectedTimes.entryEnd = dateTime;
                 entryStartTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
             });
-        });
-    }
-
-    if (entryEndTimeEl) {
-        entryEndTimeEl.addEventListener('click', () => {
-            showDateTimePicker('入场结束时间', (dateTime) => {
-                selectedTimes.entryEnd = dateTime;
-                entryEndTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
-            });
-        });
+        };
     }
 
     if (exitStartTimeEl) {
-        exitStartTimeEl.addEventListener('click', () => {
-            showDateTimePicker('离场开始时间', (dateTime) => {
-                selectedTimes.exitStart = dateTime;
+        exitStartTimeEl.onclick = () => {
+            showDateTimePicker('离场时间', (dateTime) => {
+                window.addTaskSelectedTimes.exitStart = dateTime;
+                window.addTaskSelectedTimes.exitEnd = dateTime;
                 exitStartTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
             });
-        });
+        };
     }
-
-    if (exitEndTimeEl) {
-        exitEndTimeEl.addEventListener('click', () => {
-            showDateTimePicker('离场结束时间', (dateTime) => {
-                selectedTimes.exitEnd = dateTime;
-                exitEndTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
-            });
-        });
-    }
-
-    // 保存到全局以便在提交时访问
-    window.addTaskSelectedTimes = selectedTimes;
 }
 
 /**
- * 显示时间选择器（简单实现）
+ * 显示底部弹出单列滚轮选择器（通用，登录页卡片风格）
  * @param {string} title - 选择器标题
- * @param {Function} callback - 选择完成后的回调函数
+ * @param {Array<{value: string, label: string}>} options - 选项列表
+ * @param {string} currentValue - 当前选中值
+ * @param {Function} callback - 选择完成后的回调 callback({ value, label })
  */
-function showDateTimePicker(title, callback) {
-    // 使用HTML5的datetime-local输入框
-    const input = document.createElement('input');
-    input.type = 'datetime-local';
-    input.style.position = 'absolute';
-    input.style.opacity = '0';
-    input.style.pointerEvents = 'none';
+function showWheelPicker(title, options, currentValue, callback) {
+    const existing = document.querySelector('.dt-picker-overlay');
+    if (existing) existing.remove();
 
-    // 设置默认值为当前时间
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    input.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    if (!options || options.length === 0) return;
 
-    document.body.appendChild(input);
+    const ITEM_HEIGHT = 40;
+    let selectedIdx = Math.max(0, options.findIndex(o => o.value === currentValue));
 
-    input.addEventListener('change', function() {
-        if (this.value) {
-            // 转换为ISO格式
-            const dateTime = new Date(this.value).toISOString();
-            callback(dateTime);
-        }
-        document.body.removeChild(input);
+    function updateSelectedStyle(list, idx) {
+        const items = list.querySelectorAll('.dt-picker-item:not(.dt-picker-spacer)');
+        items.forEach((item, i) => {
+            item.classList.toggle('dt-picker-selected', i === idx);
+        });
+    }
+
+    // 遮罩
+    const overlay = document.createElement('div');
+    overlay.className = 'dt-picker-overlay';
+
+    // 容器
+    const container = document.createElement('div');
+    container.className = 'dt-picker-container';
+
+    // 标题
+    const titleBar = document.createElement('div');
+    titleBar.className = 'dt-picker-title-bar';
+    titleBar.innerHTML = `<span class="dt-picker-title-text">${title}</span>`;
+
+    // 滚轮区域
+    const body = document.createElement('div');
+    body.className = 'dt-picker-body';
+
+    // 单列
+    const col = document.createElement('div');
+    col.className = 'dt-picker-column';
+    col.style.flex = '1';
+
+    const list = document.createElement('div');
+    list.className = 'dt-picker-list';
+
+    for (let i = 0; i < 2; i++) {
+        const spacer = document.createElement('div');
+        spacer.className = 'dt-picker-item dt-picker-spacer';
+        list.appendChild(spacer);
+    }
+
+    options.forEach((opt, idx) => {
+        const el = document.createElement('div');
+        el.className = 'dt-picker-item';
+        if (idx === selectedIdx) el.classList.add('dt-picker-selected');
+        el.textContent = opt.label;
+        el.dataset.index = idx;
+        list.appendChild(el);
     });
 
-    // 触发点击打开选择器
-    input.click();
-    input.showPicker();
+    for (let i = 0; i < 2; i++) {
+        const spacer = document.createElement('div');
+        spacer.className = 'dt-picker-item dt-picker-spacer';
+        list.appendChild(spacer);
+    }
+
+    col.appendChild(list);
+    body.appendChild(col);
+
+    // 底部按钮
+    const footer = document.createElement('div');
+    footer.className = 'dt-picker-footer';
+    footer.innerHTML = `
+        <button class="dt-picker-cancel">取消</button>
+        <button class="dt-picker-confirm">确定</button>
+    `;
+
+    container.appendChild(titleBar);
+    container.appendChild(body);
+    container.appendChild(footer);
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+
+    // 滚动吸附
+    let scrollTimer = null;
+    list.addEventListener('scroll', () => {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+            const idx = Math.round(list.scrollTop / ITEM_HEIGHT);
+            const clampedIdx = Math.max(0, Math.min(idx, options.length - 1));
+            list.scrollTop = clampedIdx * ITEM_HEIGHT;
+            selectedIdx = clampedIdx;
+            updateSelectedStyle(list, clampedIdx);
+        }, 80);
+    });
+
+    // 弹出动画 + 初始定位
+    requestAnimationFrame(() => {
+        overlay.classList.add('dt-picker-visible');
+        requestAnimationFrame(() => {
+            list.scrollTop = selectedIdx * ITEM_HEIGHT;
+            updateSelectedStyle(list, selectedIdx);
+        });
+    });
+
+    function closePicker() {
+        overlay.classList.remove('dt-picker-visible');
+        setTimeout(() => overlay.remove(), 300);
+    }
+
+    footer.querySelector('.dt-picker-cancel').addEventListener('click', closePicker);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closePicker();
+    });
+
+    footer.querySelector('.dt-picker-confirm').addEventListener('click', () => {
+        const selected = options[selectedIdx];
+        if (selected) callback(selected);
+        closePicker();
+    });
+}
+
+/**
+ * 显示底部弹出时间选择器（登录页卡片风格滚轮）
+ * @param {string} title - 选择器标题
+ * @param {Function} callback - 选择完成后的回调函数，参数为 ISO 格式时间字符串
+ */
+function showDateTimePicker(title, callback) {
+    // 如果已有picker则先移除
+    const existing = document.querySelector('.dt-picker-overlay');
+    if (existing) existing.remove();
+
+    const now = new Date();
+
+    // 生成日期列表（前7天 ~ 后30天）
+    const dates = [];
+    for (let d = -7; d <= 30; d++) {
+        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
+        dates.push(date);
+    }
+
+    let selectedDateIdx = 7;
+    let selectedHour = now.getHours();
+    let selectedMinute = now.getMinutes();
+
+    const ITEM_HEIGHT = 40;
+
+    function formatDate(date) {
+        const m = date.getMonth() + 1;
+        const d = date.getDate();
+        const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+        const w = weekDays[date.getDay()];
+        return `${m}月${d}日 周${w}`;
+    }
+
+    function updateSelectedStyle(list, selectedIdx) {
+        const items = list.querySelectorAll('.dt-picker-item:not(.dt-picker-spacer)');
+        items.forEach((item, idx) => {
+            item.classList.toggle('dt-picker-selected', idx === selectedIdx);
+        });
+    }
+
+    // 遮罩
+    const overlay = document.createElement('div');
+    overlay.className = 'dt-picker-overlay';
+
+    // 容器
+    const container = document.createElement('div');
+    container.className = 'dt-picker-container';
+
+    // 标题
+    const titleBar = document.createElement('div');
+    titleBar.className = 'dt-picker-title-bar';
+    titleBar.innerHTML = `<span class="dt-picker-title-text">选择时间</span>`;
+
+    // 滚轮区域
+    const body = document.createElement('div');
+    body.className = 'dt-picker-body';
+
+    // 创建滚轮列
+    function createColumn(items, selectedIdx, onSelect, extraClass) {
+        const col = document.createElement('div');
+        col.className = 'dt-picker-column' + (extraClass ? ' ' + extraClass : '');
+
+        const list = document.createElement('div');
+        list.className = 'dt-picker-list';
+
+        // 上下各加2个空项用于居中对齐
+        for (let i = 0; i < 2; i++) {
+            const spacer = document.createElement('div');
+            spacer.className = 'dt-picker-item dt-picker-spacer';
+            list.appendChild(spacer);
+        }
+
+        items.forEach((item, idx) => {
+            const el = document.createElement('div');
+            el.className = 'dt-picker-item';
+            if (idx === selectedIdx) el.classList.add('dt-picker-selected');
+            el.textContent = item;
+            el.dataset.index = idx;
+            list.appendChild(el);
+        });
+
+        for (let i = 0; i < 2; i++) {
+            const spacer = document.createElement('div');
+            spacer.className = 'dt-picker-item dt-picker-spacer';
+            list.appendChild(spacer);
+        }
+
+        col.appendChild(list);
+
+        // 初始位置
+        list.scrollTop = selectedIdx * ITEM_HEIGHT;
+
+        // 滚动吸附 + 更新选中
+        let scrollTimer = null;
+        list.addEventListener('scroll', () => {
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(() => {
+                const idx = Math.round(list.scrollTop / ITEM_HEIGHT);
+                const clampedIdx = Math.max(0, Math.min(idx, items.length - 1));
+                list.scrollTop = clampedIdx * ITEM_HEIGHT;
+                onSelect(clampedIdx);
+                updateSelectedStyle(list, clampedIdx);
+            }, 80);
+        });
+
+        return col;
+    }
+
+    // 日期列
+    const dateCol = createColumn(dates.map(d => formatDate(d)), selectedDateIdx, (idx) => {
+        selectedDateIdx = idx;
+    }, 'dt-col-date');
+
+    // 小时列
+    const hourItems = [];
+    for (let h = 0; h < 24; h++) hourItems.push(String(h).padStart(2, '0'));
+    const hourCol = createColumn(hourItems, selectedHour, (idx) => {
+        selectedHour = idx;
+    });
+
+    // 分钟列
+    const minuteItems = [];
+    for (let m = 0; m < 60; m++) minuteItems.push(String(m).padStart(2, '0'));
+    const minuteCol = createColumn(minuteItems, selectedMinute, (idx) => {
+        selectedMinute = idx;
+    });
+
+    body.appendChild(dateCol);
+    body.appendChild(hourCol);
+
+    // 时分之间的冒号分隔
+    const colonSep = document.createElement('div');
+    colonSep.className = 'dt-picker-colon';
+    colonSep.textContent = ':';
+    body.appendChild(colonSep);
+
+    body.appendChild(minuteCol);
+
+    // 底部按钮区
+    const footer = document.createElement('div');
+    footer.className = 'dt-picker-footer';
+    footer.innerHTML = `
+        <button class="dt-picker-cancel">取消</button>
+        <button class="dt-picker-confirm">确定</button>
+    `;
+
+    container.appendChild(titleBar);
+    container.appendChild(body);
+    container.appendChild(footer);
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+
+    // DOM 挂载后，重新设置 scrollTop 并强制更新选中样式
+    // 需要在下一帧执行，确保布局已计算完毕
+    requestAnimationFrame(() => {
+        overlay.classList.add('dt-picker-visible');
+
+        // 再延迟一帧确保容器已经展开，scrollTop 能正确生效
+        requestAnimationFrame(() => {
+            body.querySelectorAll('.dt-picker-list').forEach((list, colIdx) => {
+                const targetIdx = [selectedDateIdx, selectedHour, selectedMinute][colIdx];
+                list.scrollTop = targetIdx * ITEM_HEIGHT;
+                updateSelectedStyle(list, targetIdx);
+            });
+        });
+    });
+
+    function closePicker() {
+        overlay.classList.remove('dt-picker-visible');
+        setTimeout(() => overlay.remove(), 300);
+    }
+
+    // 取消
+    footer.querySelector('.dt-picker-cancel').addEventListener('click', closePicker);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closePicker();
+    });
+
+    // 确定
+    footer.querySelector('.dt-picker-confirm').addEventListener('click', () => {
+        const selectedDate = dates[selectedDateIdx];
+        const result = new Date(
+            selectedDate.getFullYear(),
+            selectedDate.getMonth(),
+            selectedDate.getDate(),
+            selectedHour,
+            selectedMinute
+        );
+        callback(result.toISOString());
+        closePicker();
+    });
 }
 
 /**
@@ -1850,7 +2128,7 @@ function collectViewTaskFormData() {
     const publisherId = String(currentUser.userId || currentUser.id || '');
 
     // 获取表单输入值 (根据查看任务页面的表单结构调整选择器)
-    const locatorSelect = document.getElementById('viewLocator');
+    const locatorEl = document.getElementById('viewLocator');
     const plateNumber = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(2) input')?.value.trim();
     const driverName = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(3) input')?.value.trim();
     const phone = viewTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(4) input')?.value.trim();
@@ -1881,7 +2159,7 @@ function collectViewTaskFormData() {
     const exitEndTime = selectedTimes.exitEnd || '';
 
     // 验证时间数据
-    if (!entryStartTime || !entryEndTime || !exitStartTime || !exitEndTime) {
+    if (!entryStartTime || !exitStartTime) {
         alert('时间数据不完整，请重新打开任务详情');
         return null;
     }
@@ -1896,7 +2174,7 @@ function collectViewTaskFormData() {
         phone: phone,
         plate_number: plateNumber,
         vehicle_type: 0,
-        vehicle_id: parseInt(locatorSelect?.value) || 1, // 使用定位器ID，默认为1
+        vehicle_id: parseInt(locatorEl?.dataset.value) || 1, // 使用定位器ID，默认为1
         task_type: taskTypeSelect ? parseInt(taskTypeSelect.value) || 0 : 0,
         task_name: taskTypeSelect ? taskTypeSelect.options[taskTypeSelect.selectedIndex]?.text || '' : '',
         task_detail: taskDetail || '',
@@ -1928,7 +2206,7 @@ function collectTaskFormData() {
     }
 
     // 获取表单输入值
-    const locatorSelect = document.getElementById('addLocator');
+    const locatorEl = document.getElementById('addLocator');
     const plateNumber = addTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(2) input')?.value.trim();
     const driverName = addTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(3) input')?.value.trim();
     const phone = addTaskPage.querySelector('.form-section:nth-child(2) .form-item:nth-child(4) input')?.value.trim();
@@ -1965,8 +2243,8 @@ function collectTaskFormData() {
 
     // 获取时间数据
     const selectedTimes = window.addTaskSelectedTimes || {};
-    if (!selectedTimes.entryStart || !selectedTimes.entryEnd || !selectedTimes.exitStart || !selectedTimes.exitEnd) {
-        alert('请选择完整的入场和离场时间');
+    if (!selectedTimes.entryStart || !selectedTimes.exitStart) {
+        alert('请选择入场时间和离场时间');
         return null;
     }
 
@@ -1975,7 +2253,7 @@ function collectTaskFormData() {
     const taskName = taskTypeSelect.options[taskTypeSelect.selectedIndex]?.text || '';
 
     // 获取定位器ID
-    const locatorId = locatorSelect?.value || '';
+    const locatorId = locatorEl?.dataset.value || '';
 
     // 获取起点和终点
     const startPointValue = startPointSelect.value;
@@ -2026,12 +2304,18 @@ function clearTaskForm() {
         select.selectedIndex = 0;
     });
 
+    // 重置定位器选择器
+    const addLocatorEl = document.getElementById('addLocator');
+    if (addLocatorEl) {
+        addLocatorEl.dataset.value = '';
+        addLocatorEl.textContent = '选择定位器编号';
+        addLocatorEl.classList.remove('has-value');
+    }
+
     // 重置时间选择器显示
     const timeElements = [
         'addEntryStartTime',
-        'addEntryEndTime',
-        'addExitStartTime',
-        'addExitEndTime'
+        'addExitStartTime'
     ];
 
     timeElements.forEach(id => {
@@ -2070,6 +2354,7 @@ async function openViewTaskPage(taskId) {
     // 从API获取任务详情并填充表单
     const taskData = await fetchTaskDetail(taskId);
     if (taskData) {
+        currentViewTaskStatus = taskData.status;
         fillViewTaskForm(taskData);
     }
 }
@@ -2222,9 +2507,23 @@ function fillViewTaskForm(taskData) {
     console.log('[填充表单] 保存时间数据:', window.viewTaskSelectedTimes);
 
     // 填充定位器选择框
-    const locatorSelect = document.getElementById('viewLocator');
-    if (locatorSelect && taskData.vehicle_id) {
-        locatorSelect.value = taskData.vehicle_id;
+    const locatorEl = document.getElementById('viewLocator');
+    if (locatorEl && taskData.vehicle_id) {
+        locatorEl.dataset.value = String(taskData.vehicle_id);
+        // 尝试从全局选项中找到对应的显示文本
+        const locatorOptions = window._locatorOptions || [];
+        const match = locatorOptions.find(o => o.value === String(taskData.vehicle_id));
+        locatorEl.textContent = match ? match.label : String(taskData.vehicle_id);
+        locatorEl.classList.add('has-value');
+
+        // 绑定点击事件
+        locatorEl.onclick = () => {
+            showWheelPicker('选择定位器', locatorOptions, locatorEl.dataset.value || '', (selected) => {
+                locatorEl.dataset.value = selected.value;
+                locatorEl.textContent = selected.label;
+                locatorEl.classList.add('has-value');
+            });
+        };
     }
 
     // 填充车牌号
@@ -2245,11 +2544,26 @@ function fillViewTaskForm(taskData) {
         phoneInput.value = taskData.phone;
     }
 
-    // 填充任务类型
+    // 填充任务类型 - 优先用 task_name 匹配下拉框文本
     const taskTypeSelect = document.getElementById('viewTaskType');
-    if (taskTypeSelect && taskData.task_type !== undefined) {
-        taskTypeSelect.value = String(taskData.task_type);
-        console.log('[填充表单] 任务类型:', taskData.task_type, '-> 设置value:', String(taskData.task_type));
+    if (taskTypeSelect) {
+        let matched = false;
+        if (taskData.task_name) {
+            // 用 task_name（中文名称）匹配下拉框选项文本
+            for (let i = 0; i < taskTypeSelect.options.length; i++) {
+                if (taskTypeSelect.options[i].text === taskData.task_name) {
+                    taskTypeSelect.selectedIndex = i;
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        if (!matched && taskData.task_type !== undefined && taskData.task_type !== 0) {
+            // 回退：用 task_type 数字匹配 value
+            taskTypeSelect.value = String(taskData.task_type);
+            matched = taskTypeSelect.value === String(taskData.task_type);
+        }
+        console.log('[填充表单] 任务类型: task_name=', taskData.task_name, ', task_type=', taskData.task_type, '-> 匹配结果:', matched);
     }
 
     // 填充任务详情
@@ -2281,7 +2595,7 @@ function fillViewTaskForm(taskData) {
         console.log('[填充表单] 设置后的选中值:', endPointSelect.value);
     }
 
-    // 填充时间显示并绑定点击事件
+    // 填充时间显示并绑定点击事件（时间点模式，非时间段）
     const entryStartTimeDiv = document.getElementById('viewEntryStartTime');
     if (entryStartTimeDiv) {
         if (taskData.entry_start_time) {
@@ -2289,23 +2603,10 @@ function fillViewTaskForm(taskData) {
         }
         // 绑定点击事件，允许修改时间
         entryStartTimeDiv.onclick = function() {
-            showDateTimePicker('入场开始时间', (dateTime) => {
+            showDateTimePicker('入场时间', (dateTime) => {
                 window.viewTaskSelectedTimes.entryStart = dateTime;
-                entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
-            });
-        };
-    }
-
-    const entryEndTimeDiv = document.getElementById('viewEntryEndTime');
-    if (entryEndTimeDiv) {
-        if (taskData.entry_end_time) {
-            entryEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_end_time)}`;
-        }
-        // 绑定点击事件，允许修改时间
-        entryEndTimeDiv.onclick = function() {
-            showDateTimePicker('入场结束时间', (dateTime) => {
                 window.viewTaskSelectedTimes.entryEnd = dateTime;
-                entryEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+                entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
             });
         };
     }
@@ -2317,23 +2618,10 @@ function fillViewTaskForm(taskData) {
         }
         // 绑定点击事件，允许修改时间
         exitStartTimeDiv.onclick = function() {
-            showDateTimePicker('离场开始时间', (dateTime) => {
+            showDateTimePicker('离场时间', (dateTime) => {
                 window.viewTaskSelectedTimes.exitStart = dateTime;
-                exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
-            });
-        };
-    }
-
-    const exitEndTimeDiv = document.getElementById('viewExitEndTime');
-    if (exitEndTimeDiv) {
-        if (taskData.exit_end_time) {
-            exitEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_end_time)}`;
-        }
-        // 绑定点击事件，允许修改时间
-        exitEndTimeDiv.onclick = function() {
-            showDateTimePicker('离场结束时间', (dateTime) => {
                 window.viewTaskSelectedTimes.exitEnd = dateTime;
-                exitEndTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+                exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
             });
         };
     }
