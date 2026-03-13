@@ -523,17 +523,6 @@ function initEventListeners() {
         });
     });
     
-    // 搜索框点击 - 跳转到搜索页面（与普通用户首页一致）
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        searchInput.addEventListener('click', function() {
-            console.log('跳转到搜索页面');
-            // 保存来源页面
-            sessionStorage.setItem('searchReferrer', 'admin_index.html');
-            window.location.href = 'search.html';
-        });
-    }
-    
     // 筛选项点击
     const filterItems = document.querySelectorAll('.filter-item');
     filterItems.forEach(item => {

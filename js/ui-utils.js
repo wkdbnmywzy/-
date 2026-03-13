@@ -39,8 +39,22 @@ function setupEventListeners() {
         // 点击搜索框时跳转到搜索界面
         searchInput.addEventListener('click', function() {
             console.log('搜索框被点击，跳转到搜索界面');
-            // 保存来源页面
-            sessionStorage.setItem('searchReferrer', 'index.html');
+            // 智能识别当前页面，设置正确的来源页面
+            let referrerPage = 'index.html'; // 默认司机端首页
+            
+            // 检查当前页面路径
+            const currentPath = window.location.pathname;
+            if (currentPath.includes('admin_index.html')) {
+                referrerPage = 'admin_index.html';
+            } else if (currentPath.includes('admin_data.html')) {
+                referrerPage = 'admin_data.html';
+            } else if (currentPath.includes('admin')) {
+                // 其他管理员页面，默认返回管理员导航页
+                referrerPage = 'admin_index.html';
+            }
+            
+            console.log('设置搜索来源页面:', referrerPage);
+            sessionStorage.setItem('searchReferrer', referrerPage);
             window.location.href = 'search.html';
         });
 
