@@ -1162,38 +1162,30 @@ async function showCameraInfo(cameraId, cameraName, cameraData) {
         // 获取视频流URL
         const videoUrl = cameraData.video_stream_url || cameraData.url || '暂无视频流';
 
-        // 构建信息内容
-        let infoContent = `
-            <div style="padding: 10px; min-width: 200px;">
-                <h3 style="margin: 0 0 10px 0; color: #333;">${cameraName}</h3>
-                <p style="margin: 5px 0;"><strong>摄像头ID:</strong> ${cameraId}</p>
-                <p style="margin: 5px 0;"><strong>类型:</strong> ${cameraData.camera_type === 1 ? 'AI识别' : '普通'}</p>
-        `;
-
         if (videoUrl !== '暂无视频流') {
-            infoContent += `
-                <p style="margin: 5px 0;"><strong>视频流URL:</strong></p>
-                <p style="margin: 5px 0; word-break: break-all; font-size: 12px;">${videoUrl}</p>
-                <button onclick="window.open('${videoUrl}', '_blank')" style="margin-top: 10px; padding: 5px 15px; background: #4A90E2; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    打开视频流
-                </button>
-            `;
+            // 显示内嵌视频播放器弹窗
+            showVideoPlayer(cameraName, videoUrl, cameraId, cameraData);
         } else {
-            infoContent += `<p style="margin: 5px 0; color: #999;">暂无视频流</p>`;
-        }
+            // 无视频流时显示信息窗口
+            const infoContent = `
+                <div style="padding: 10px; min-width: 200px;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">${cameraName}</h3>
+                    <p style="margin: 5px 0;"><strong>摄像头ID:</strong> ${cameraId}</p>
+                    <p style="margin: 5px 0;"><strong>类型:</strong> ${cameraData.camera_type === 1 ? 'AI识别' : '普通'}</p>
+                    <p style="margin: 5px 0; color: #999;">暂无视频流</p>
+                </div>
+            `;
 
-        infoContent += `</div>`;
+            // 创建信息窗口
+            const infoWindow = new AMap.InfoWindow({
+                content: infoContent,
+                offset: new AMap.Pixel(0, -30)
+            });
 
-        // 创建信息窗口
-        const infoWindow = new AMap.InfoWindow({
-            content: infoContent,
-            offset: new AMap.Pixel(0, -30)
-        });
-
-        // 找到对应的标记
-        const marker = cameraMarkers.find(m => m.getExtData().cameraId === cameraId);
-        if (marker) {
-            infoWindow.open(map, marker.getPosition());
+            const marker = cameraMarkers.find(m => m.getExtData().cameraId === cameraId);
+            if (marker) {
+                infoWindow.open(map, marker.getPosition());
+            }
         }
 
         console.log('[摄像头] 视频流URL:', videoUrl);
@@ -1201,6 +1193,232 @@ async function showCameraInfo(cameraId, cameraName, cameraData) {
     } catch (error) {
         console.error('[摄像头] 显示摄像头信息失败:', error);
         alert('显示摄像头信息失败');
+    }
+}
+
+/**
+ * 获取最佳播放URL
+ * 该ZLMediaKit服务器的.live.mp4可被Chrome/Edge原生播放，优先使用
+ * @param {string} url - 原始视频流URL
+ * @returns {string} 用于播放的URL
+ */
+function convertToHlsUrl(url) {
+    // .live.flv → .live.mp4（Chrome可原生播放）
+    if (url.includes('.live.flv')) {
+        return url.replace('.live.flv', '.live.mp4');
+    }
+    // .live.m3u8 → .live.mp4
+    if (url.includes('.live.m3u8')) {
+        return url.replace('.live.m3u8', '.live.mp4');
+    }
+    // .flv → .mp4
+    if (url.includes('.flv')) {
+        return url.replace('.flv', '.mp4');
+    }
+    // .m3u8 → .mp4
+    if (url.includes('.m3u8')) {
+        return url.replace('.m3u8', '.mp4');
+    }
+    // 已经是.mp4或其他，直接返回
+    return url;
+}
+
+/**
+ * 显示内嵌视频播放器弹窗（使用flv.js播放ZLMediaKit流）
+ * @param {string} cameraName - 摄像头名称
+ * @param {string} videoUrl - 视频流URL
+ * @param {string} cameraId - 摄像头ID
+ * @param {Object} cameraData - 摄像头数据
+ */
+function showVideoPlayer(cameraName, videoUrl, cameraId, cameraData) {
+    // 移除已有的播放器弹窗
+    const existing = document.getElementById('video-player-overlay');
+    if (existing) {
+        destroyVideoPlayer();
+        existing.remove();
+    }
+
+    const hlsUrl = convertToHlsUrl(videoUrl);
+    const safeUrl = hlsUrl.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'video-player-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+    overlay.innerHTML = `
+        <div style="background:#fff;border-radius:12px;width:90%;max-width:800px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:linear-gradient(135deg,#1890ff,#096dd9);color:#fff;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:18px;">📹</span>
+                    <span style="font-size:16px;font-weight:600;">${cameraName}</span>
+                    <span style="font-size:12px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:10px;">${cameraData.camera_type === 1 ? 'AI识别' : '普通'}</span>
+                </div>
+                <button id="video-player-close-btn" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;">&times;</button>
+            </div>
+            <div style="background:#000;position:relative;">
+                <video id="camera-video-player" autoplay controls playsinline muted
+                    style="width:100%;max-height:450px;display:block;">
+                </video>
+                <div id="video-loading-msg" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;text-align:center;">
+                    <div style="width:30px;height:30px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px;"></div>
+                    <p style="margin:0;font-size:14px;">正在连接视频流...</p>
+                </div>
+                <div id="video-error-msg" style="display:none;color:#fff;padding:60px 20px;text-align:center;flex-direction:column;align-items:center;gap:10px;">
+                    <span style="font-size:40px;">⚠</span>
+                    <p style="margin:0;font-size:16px;">视频流加载失败</p>
+                    <p style="margin:0;font-size:12px;color:#aaa;">请检查摄像头是否在线</p>
+                </div>
+            </div>
+            <div style="padding:10px 20px;background:#f5f5f5;font-size:12px;color:#666;word-break:break-all;">
+                ${safeUrl}
+            </div>
+        </div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // 初始化HLS播放器
+    initHlsPlayer(hlsUrl);
+
+    // 关闭按钮
+    document.getElementById('video-player-close-btn').addEventListener('click', function() {
+        destroyVideoPlayer();
+        overlay.remove();
+    });
+
+    // 点击遮罩关闭
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            destroyVideoPlayer();
+            overlay.remove();
+        }
+    });
+}
+
+// 全局播放器实例引用
+let hlsPlayerInstance = null;  // flv.js 实例复用此变量
+
+/**
+ * 初始化视频播放器
+ * 策略：优先原生<video>播放.mp4 → 失败时尝试flv.js播放.flv备用
+ */
+function initHlsPlayer(url) {
+    const videoElement = document.getElementById('camera-video-player');
+    const loadingMsg = document.getElementById('video-loading-msg');
+    const errorMsg = document.getElementById('video-error-msg');
+
+    if (!videoElement) return;
+
+    console.log('[视频播放] 播放地址:', url);
+
+    function showError(msg) {
+        console.error('[视频播放] 错误:', msg);
+        if (loadingMsg) loadingMsg.style.display = 'none';
+        if (errorMsg) errorMsg.style.display = 'flex';
+    }
+
+    // ===== 优先：原生 <video> 播放 .mp4（Chrome/Edge 可直接播放 ZLMediaKit MP4流）=====
+    if (url.includes('.mp4')) {
+        console.log('[视频播放] 使用原生video播放MP4直播流');
+        videoElement.src = url;
+        videoElement.onloadedmetadata = function() {
+            console.log('[视频播放] MP4流元数据加载成功');
+            if (loadingMsg) loadingMsg.style.display = 'none';
+        };
+        videoElement.onerror = function() {
+            // MP4失败时回退到flv.js播放.flv
+            console.warn('[视频播放] MP4原生播放失败，尝试flv.js回退');
+            videoElement.onerror = null; // 先移除，避免 src='' 再次触发
+            const flvUrl = url.replace('.live.mp4', '.live.flv').replace('.mp4', '.flv');
+            if (typeof flvjs !== 'undefined' && flvjs.isSupported()) {
+                videoElement.src = '';
+                const flvPlayer = flvjs.createPlayer({
+                    type: 'flv', url: flvUrl, isLive: true, hasAudio: true, hasVideo: true
+                }, { enableWorker: false, stashInitialSize: 128 });
+                hlsPlayerInstance = flvPlayer;
+                flvPlayer.attachMediaElement(videoElement);
+                flvPlayer.load();
+                flvPlayer.play();
+                flvPlayer.on(flvjs.Events.ERROR, function(errType) { showError('视频加载失败: ' + errType); });
+                flvPlayer.on(flvjs.Events.MEDIA_INFO, function() { if (loadingMsg) loadingMsg.style.display = 'none'; });
+            } else {
+                showError('视频无法播放，请检查网络或复制地址到浏览器打开');
+            }
+        };
+        videoElement.play().catch(function(e) { console.warn('[视频播放] 自动播放受限:', e); });
+        return;
+    }
+
+    // ===== 备用：flv.js 播放 .flv =====
+    if (url.includes('.flv') && typeof flvjs !== 'undefined' && flvjs.isSupported()) {
+        console.log('[视频播放] 使用 flv.js 播放 HTTP-FLV');
+        const flvPlayer = flvjs.createPlayer({
+            type: 'flv', url: url, isLive: true, hasAudio: true, hasVideo: true
+        }, { enableWorker: false, stashInitialSize: 128 });
+        hlsPlayerInstance = flvPlayer;
+        flvPlayer.attachMediaElement(videoElement);
+        flvPlayer.load();
+        flvPlayer.play();
+        flvPlayer.on(flvjs.Events.ERROR, function(errType) { showError('FLV加载失败: ' + errType); });
+        flvPlayer.on(flvjs.Events.MEDIA_INFO, function() { if (loadingMsg) loadingMsg.style.display = 'none'; });
+        return;
+    }
+
+    // ===== 最终回退：hls.js 播放 m3u8 =====
+    if (url.includes('.m3u8')) {
+        if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+            videoElement.src = url;
+            videoElement.onloadedmetadata = function() { if (loadingMsg) loadingMsg.style.display = 'none'; };
+            videoElement.onerror = function() { showError('HLS流加载失败'); };
+            videoElement.play().catch(function(e) { console.warn('[视频播放] 自动播放受限:', e); });
+        } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+            const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+            hlsPlayerInstance = hls;
+            hls.loadSource(url);
+            hls.attachMedia(videoElement);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                if (loadingMsg) loadingMsg.style.display = 'none';
+                videoElement.play().catch(function(e) { console.warn('[视频播放] 自动播放受限:', e); });
+            });
+            hls.on(Hls.Events.ERROR, function(event, data) { if (data.fatal) showError('HLS错误'); });
+        } else {
+            showError('浏览器不支持该视频格式');
+        }
+        return;
+    }
+
+    showError('不支持的视频格式: ' + url);
+}
+
+/**
+ * 尝试HLS播放（兼容旧调用）
+ */
+function tryHlsPlayback(url, videoElement, loadingMsg, errorMsg) {
+    initHlsPlayer(url);
+}
+
+/**
+ * 销毁HLS播放器实例
+ */
+function destroyVideoPlayer() {
+    if (hlsPlayerInstance) {
+        try {
+            hlsPlayerInstance.destroy();
+        } catch (e) {
+            console.warn('[视频播放] 销毁播放器时出错:', e);
+        }
+        hlsPlayerInstance = null;
+    }
+    
+    // 清理video元素
+    const videoElement = document.getElementById('camera-video-player');
+    if (videoElement) {
+        videoElement.onerror = null;          // 防止 src='' 触发回退逻辑
+        videoElement.onloadedmetadata = null;
+        videoElement.pause();
+        videoElement.src = '';
+        videoElement.load();
     }
 }
 
