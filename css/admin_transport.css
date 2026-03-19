@@ -529,6 +529,7 @@
     padding-bottom: 80px; /* Space for footer */
     width: 100%;
     box-sizing: border-box;
+    background: #F9FBFF;
 }
 
 /* Form Sections */
@@ -539,6 +540,7 @@
     margin-bottom: 16px;
     width: 100%;
     box-sizing: border-box;
+    box-shadow: 0 0 0 1px #E8F0FF, 0 2px 8px rgba(232, 240, 255, 0.8);
 }
 
 .section-title {
@@ -704,6 +706,13 @@
 
 .date-input:active {
     background-color: rgba(42, 134, 255, 0.1);
+}
+
+.date-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    flex-shrink: 0;
 }
 
 .date-separator {

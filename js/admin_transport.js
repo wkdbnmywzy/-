@@ -1504,7 +1504,7 @@ function initDateTimePickers() {
             showDateTimePicker('入场时间', (dateTime) => {
                 window.addTaskSelectedTimes.entryStart = dateTime;
                 window.addTaskSelectedTimes.entryEnd = dateTime;
-                entryStartTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+                entryStartTimeEl.innerHTML = `<img src="images/工地数字导航小程序切图/管理/2X/任务管理/日期选择.png" class="date-icon"> ${formatDateTimeDisplay(dateTime)}`;
             });
         };
     }
@@ -1514,7 +1514,7 @@ function initDateTimePickers() {
             showDateTimePicker('离场时间', (dateTime) => {
                 window.addTaskSelectedTimes.exitStart = dateTime;
                 window.addTaskSelectedTimes.exitEnd = dateTime;
-                exitStartTimeEl.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+                exitStartTimeEl.innerHTML = `<img src="images/工地数字导航小程序切图/管理/2X/任务管理/日期选择.png" class="date-icon"> ${formatDateTimeDisplay(dateTime)}`;
             });
         };
     }
@@ -2321,7 +2321,7 @@ function clearTaskForm() {
     timeElements.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            el.innerHTML = '<i class="far fa-calendar-alt"></i> 选择时间';
+            el.innerHTML = '<img src="images/工地数字导航小程序切图/管理/2X/任务管理/日期选择.png" class="date-icon"> 选择时间';
         }
     });
 
@@ -2599,14 +2599,14 @@ function fillViewTaskForm(taskData) {
     const entryStartTimeDiv = document.getElementById('viewEntryStartTime');
     if (entryStartTimeDiv) {
         if (taskData.entry_start_time) {
-            entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.entry_start_time)}`;
+            entryStartTimeDiv.innerHTML = `<img src="images/工地数字导航小程序切图/管理/2X/任务管理/日期选择.png" class="date-icon"> ${formatTimeForDisplay(taskData.entry_start_time)}`;
         }
         // 绑定点击事件，允许修改时间
         entryStartTimeDiv.onclick = function() {
             showDateTimePicker('入场时间', (dateTime) => {
                 window.viewTaskSelectedTimes.entryStart = dateTime;
                 window.viewTaskSelectedTimes.entryEnd = dateTime;
-                entryStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+                entryStartTimeDiv.innerHTML = `<img src="images/工地数字导航小程序切图/管理/2X/任务管理/日期选择.png" class="date-icon"> ${formatDateTimeDisplay(dateTime)}`;
             });
         };
     }
@@ -2614,14 +2614,14 @@ function fillViewTaskForm(taskData) {
     const exitStartTimeDiv = document.getElementById('viewExitStartTime');
     if (exitStartTimeDiv) {
         if (taskData.exit_start_time) {
-            exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatTimeForDisplay(taskData.exit_start_time)}`;
+            exitStartTimeDiv.innerHTML = `<img src="images/工地数字导航小程序切图/管理/2X/任务管理/日期选择.png" class="date-icon"> ${formatTimeForDisplay(taskData.exit_start_time)}`;
         }
         // 绑定点击事件，允许修改时间
         exitStartTimeDiv.onclick = function() {
             showDateTimePicker('离场时间', (dateTime) => {
                 window.viewTaskSelectedTimes.exitStart = dateTime;
                 window.viewTaskSelectedTimes.exitEnd = dateTime;
-                exitStartTimeDiv.innerHTML = `<i class="far fa-calendar-alt"></i> ${formatDateTimeDisplay(dateTime)}`;
+                exitStartTimeDiv.innerHTML = `<img src="images/工地数字导航小程序切图/管理/2X/任务管理/日期选择.png" class="date-icon"> ${formatDateTimeDisplay(dateTime)}`;
             });
         };
     }
