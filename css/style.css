@@ -514,11 +514,13 @@ body {
 }
 
 .route-selector {
-    display: block;
-    position: static;
-    padding-left: 4%; /* 改用padding，让背景色延伸到边缘 */
-    padding-right: 15%; /* 右侧给途径点按钮区�?*/
-    padding-bottom: 20px; /* 底部内边距，与导航栏保持间距 */
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    padding-left: 4%;
+    padding-right: 4%;
+    padding-bottom: 20px;
 }
 
 .location-inputs-wrapper {
@@ -528,7 +530,7 @@ body {
     background: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     position: relative;
-    padding-right: 50px; /* 预留切换按钮空间 */
+    /* padding-right 移除：add-waypoint 已改为绝对定位，不再需要预留空间 */
 }
 
 .location-inputs {
@@ -663,17 +665,13 @@ body {
 }
 
 .add-waypoint {
-    position: absolute;
-    right: 0; /* 贴着右边�?*/
-    width: 12%; /* 途径点按钮区域占 12% */
-    top: 20px;
-    bottom: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    z-index: 1;
+    flex-shrink: 0;
+    width: 12%;
 }
 
 .add-btn {
@@ -1624,12 +1622,12 @@ body {
     margin-bottom: 4px;
 }
 
-/* 地图控制按钮组 */
+/* 地图控制按钮组（相对 bottom-card 定位，永远在卡片顶部上方） */
 .map-controls {
     position: absolute;
-    bottom: 306px; /* 底部卡片上方 */
+    top: -68px; /* 按钮高度48px + 间距20px，贴在卡片顶部上方 */
     right: 20px;
-    z-index: 90;
+    z-index: 120;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -1666,9 +1664,7 @@ body {
 /* 响应式调�?- 保持一致的视觉效果 */
 /* 针对小高度设备（如横屏手机、小屏手机） */
 @media (max-height: 700px) {
-    .map-controls {
-        bottom: 180px;
-    }
+    /* map-controls 相对 bottom-card 定位，无需调整 bottom */
 }
 
 /* 针对超小高度设备（如横屏模式�?*/
@@ -1680,7 +1676,6 @@ body {
     }
 
     .map-controls {
-        bottom: 150px;
         right: 15px;
     }
 
@@ -1726,7 +1721,6 @@ body {
     }
 
     .map-controls {
-        bottom: 20px;
         right: 15px;
         flex-direction: row;
         gap: 8px;
@@ -1768,17 +1762,7 @@ body {
 /* 大屏设备导航栏优�?- 已移除，保持 480px 手机样式 */
 
 /* 适配超长屏设备（如全面屏手机�?*/
-@media (aspect-ratio: 2/3) {
-    .map-controls {
-        bottom: 220px;
-    }
-}
-
-@media (aspect-ratio: 9/19.5) or (aspect-ratio: 9/20) {
-    .map-controls {
-        bottom: 250px;
-    }
-}
+/* aspect-ratio 媒体查询中 map-controls 相对 bottom-card 定位，无需调整 bottom */
 
 /* KML文件导入样式 */
 .kml-layer-list {

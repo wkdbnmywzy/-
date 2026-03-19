@@ -41,6 +41,7 @@
     align-items: center;
     gap: 12px;
     position: relative;
+    padding-right: 0; /* 途径点按钮右侧无需额外留白，由按钮自身宽度对称 */
 }
 
 .location-inputs-wrapper {
@@ -50,6 +51,7 @@
     background: #fff;
     position: relative; /* 作为绝对定位参照 */
     overflow: hidden; /* 隐藏溢出内容 */
+    padding-right: 0; /* add-waypoint 在 wrapper 外部绝对定位，不需要内部预留 */
 }
 
 .location-inputs {
@@ -149,13 +151,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    margin-left: 40px;
-    margin-top: 60px;
     flex-shrink: 0;
-    position: relative;
-    top: auto;
-    right: auto;
-    transform: none;
 }
 
 .add-waypoint .add-btn {
@@ -509,7 +505,7 @@
 .navigation-card.navigating .destination-info {
     display: flex;
     align-items: center;
-    gap: 16px;
+    position: relative;
 }
 
 .destination-close-btn {
@@ -523,6 +519,11 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
 }
 
 .destination-close-btn img {
@@ -541,6 +542,9 @@
     flex-direction: column;
     align-items: center;
     gap: 4px;
+    width: 100%;
+    padding: 0 40px; /* 两侧各留 40px，与叉叉按钮(32px)+间距对称 */
+    box-sizing: border-box;
 }
 
 .destination-org {
@@ -637,7 +641,7 @@
 @media (max-width: 375px) {
     /* 减少底部卡片padding */
     .navigation-card {
-        padding: 15px 60px 15px 15px;
+        padding: 15px 15px 15px 15px;
     }
 
     /* 减少路线选择器margin */
@@ -707,7 +711,7 @@
 /* 中等小屏幕适配 */
 @media (max-width: 414px) and (min-width: 376px) {
     .navigation-card {
-        padding: 18px 65px 18px 18px;
+        padding: 18px 18px 18px 18px;
     }
 
     .route-selector {
@@ -739,7 +743,7 @@
 /* 超小屏幕(iPhone SE等) */
 @media (max-width: 320px) {
     .navigation-card {
-        padding: 12px 55px 12px 12px;
+        padding: 12px 12px 12px 12px;
     }
 
     .route-selector {
