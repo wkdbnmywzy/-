@@ -42,6 +42,18 @@ function initMap() {
     });
     
     console.log('管理员地图初始化完成');
+
+    // 根据缩放层级控制点位文字显隐
+    map.on('zoomchange', function() {
+        try {
+            const LABEL_SHOW_ZOOM = 20;
+            const currentZoom = map.getZoom();
+            const labels = document.querySelectorAll('.kml-label');
+            labels.forEach(function(el) {
+                el.style.display = currentZoom >= LABEL_SHOW_ZOOM ? '' : 'none';
+            });
+        } catch (e) {}
+    });
 }
 
 // 初始化事件监听

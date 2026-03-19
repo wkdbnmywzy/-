@@ -167,80 +167,9 @@ const AdminFenceManager = (function() {
      * 在地图上显示电子围栏（区分类型颜色）
      */
     function displayFencesOnMap() {
-        if (!map) {
-            console.warn('[围栏管理器] 地图实例不存在');
-            return;
-        }
-
-        // 清除旧的围栏
-        clearFencePolygons();
-
-        fenceData.forEach(fence => {
-            try {
-                const path = parseFenceCoordinates(fence);
-                if (!path || path.length < 3) {
-                    console.warn('[围栏管理器] 围栏坐标无效:', fence);
-                    return;
-                }
-
-                // 使用统一的字段解析
-                const { id: fenceId, name: fenceName, type: fenceType } = parseFenceFields(fence);
-
-                // 根据围栏类型设置不同颜色
-                const colors = getFenceColors(fenceType);
-
-                // 创建多边形覆盖物
-                const polygon = new AMap.Polygon({
-                    path: path,
-                    strokeColor: colors.stroke,
-                    strokeWeight: 2,
-                    strokeOpacity: 0.9,
-                    fillColor: colors.fill,
-                    fillOpacity: 0.1,
-                    zIndex: 5,
-                    bubble: true
-                });
-
-                // 设置扩展数据
-                polygon.setExtData({
-                    fenceId: fenceId,
-                    fenceName: fenceName,
-                    fenceType: fenceType
-                });
-
-                // 添加到地图
-                polygon.setMap(map);
-
-                // 添加点击事件
-                polygon.on('click', function() {
-                    const extData = polygon.getExtData();
-                    const typeLabel = extData.fenceType === 'prohibit' ? '禁行区' : '工地范围';
-                    const infoContent = `
-                        <div style="padding:10px;">
-                            <strong>${extData.fenceName}</strong><br/>
-                            <span style="color:#999;">ID: ${extData.fenceId}</span><br/>
-                            <span style="color:${colors.stroke};">类型: ${typeLabel}</span>
-                        </div>
-                    `;
-
-                    const infoWindow = new AMap.InfoWindow({
-                        content: infoContent,
-                        offset: new AMap.Pixel(0, -10)
-                    });
-
-                    const bounds = polygon.getBounds();
-                    const center = bounds.getCenter();
-                    infoWindow.open(map, center);
-                });
-
-                fencePolygons.push(polygon);
-
-            } catch (error) {
-                console.error('[围栏管理器] 创建围栏失败:', error, fence);
-            }
-        });
-
-        console.log('[围栏管理器] 地图上已显示围栏:', fencePolygons.length);
+        // 视觉渲染已屏蔽：围栏多边形不再叠加到地图上，避免与KML层重叠产生双重颜色
+        // 围栏数据(fenceData)仍正常加载，checkVehicleInFence / 车辆闪烁功能不受影响
+        console.log('[围栏管理器] 围栏视觉渲染已禁用，围栏数据已加载，数量:', fenceData.length);
     }
 
     /**

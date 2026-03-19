@@ -5,6 +5,50 @@
 // 使用 window 前缀确保全局可访问
 window.activeMarkerName = null;
 
+// 禁行区名称集合（从围栏API加载，用于KML面渲染时判断透明度）
+let prohibitFenceNames = new Set();
+
+/**
+ * 从围栏API获取禁行区名称集合（area_type=1）
+ * 优先使用 AdminFenceManager 已缓存的数据，避免重复请求
+ */
+async function loadProhibitFenceNames() {
+    try {
+        const projectSelection = sessionStorage.getItem('projectSelection');
+        if (!projectSelection) return;
+        const { projectId } = JSON.parse(projectSelection);
+        if (!projectId) return;
+
+        // 优先复用围栏缓存
+        const cacheKey = `fenceData_${projectId}`;
+        const cached = sessionStorage.getItem(cacheKey);
+        let fences = [];
+        if (cached) {
+            fences = JSON.parse(cached);
+        } else {
+            const token = sessionStorage.getItem('authToken') || '';
+            const url = `https://dmap.cscec3bxjy.cn/api/map/fence-polygons/project/${projectId}`;
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch(url, { method: 'GET', headers });
+            if (!res.ok) return;
+            const result = await res.json();
+            if (result.code === 200 && result.data) fences = result.data;
+        }
+
+        prohibitFenceNames.clear();
+        fences.forEach(fence => {
+            if (fence.area_type === 1) {
+                const name = fence.polygon_name || fence.name || fence.fenceName;
+                if (name) prohibitFenceNames.add(name);
+            }
+        });
+        console.log('[KML] 禁行区名称集合:', [...prohibitFenceNames]);
+    } catch (e) {
+        console.warn('[KML] 获取禁行区名称失败，降级使用关键字匹配:', e);
+    }
+}
+
 function initKMLImport() {
     const importBtn = document.getElementById('import-btn');
     const fileInput = document.getElementById('file-input');
@@ -101,8 +145,11 @@ function handleKMLFile(file) {
     reader.readAsText(file);
 }
 
-function parseKML(kmlContent, fileName) {
+async function parseKML(kmlContent, fileName) {
     try {
+        // 先获取禁行区名称集合，用于面渲染透明度判断
+        await loadProhibitFenceNames();
+
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(kmlContent, 'text/xml');
 
@@ -300,14 +347,14 @@ function parseStyle(placemark, xmlDoc) {
         const colorText = polyStyleNode.getElementsByTagName('color')[0]?.textContent || '880000ff'; // 默认半透明红
         const colorResult = kmlColorToRgba(colorText);
         polyStyle.fillColor = colorResult.color;
-        polyStyle.fillOpacity = Math.max(colorResult.opacity, 0.7);
+        polyStyle.fillOpacity = 1;
         polyStyle.strokeColor = lineStyle.color;
         polyStyle.strokeOpacity = lineStyle.opacity;
         polyStyle.strokeWidth = Math.max(lineStyle.width, 2);
     } else {
         // 默认面样式（使用系统配置）
         polyStyle.fillColor = MapConfig.routeStyles.polygon.fillColor;
-        polyStyle.fillOpacity = 0.7;
+        polyStyle.fillOpacity = 1;
         polyStyle.strokeColor = MapConfig.routeStyles.polygon.strokeColor;
         polyStyle.strokeOpacity = 1;
         polyStyle.strokeWidth = MapConfig.routeStyles.polygon.strokeWeight;
@@ -730,13 +777,22 @@ function displayKMLFeatures(features, fileName) {
             ? feature.properties.zIndex 
             : (10 + index);
 
+        // 判断是否为禁行区：通过fillColor是否为红色系判断（禁行区统一使用红色）
+        const fillColorStr = (polyStyle.fillColor || '').toLowerCase();
+        const isProhibitZone = /^#[ef][0-9a-f]{5}$/.test(fillColorStr) ||
+            fillColorStr === '#ff0000' || fillColorStr === '#ffa8a8' ||
+            fillColorStr === '#ff6d6d' || fillColorStr === '#ff4444' ||
+            (polyStyle.strokeColor || '').toLowerCase().startsWith('#ff');
+        const finalFillOpacity = isProhibitZone ? 0.2 : 1;
+
         // 调试：打印面的样式
         console.log(`[渲染面] ${feature.name}:`, {
             fillColor: polyStyle.fillColor,
-            fillOpacity: polyStyle.fillOpacity,
+            fillOpacity: finalFillOpacity,
             strokeColor: polyStyle.strokeColor,
             strokeWeight: polyStyle.strokeWeight,
-            zIndex: featureZIndex
+            zIndex: featureZIndex,
+            isProhibitZone: isProhibitZone
         });
 
         const marker = new AMap.Polygon({
@@ -745,7 +801,7 @@ function displayKMLFeatures(features, fileName) {
             strokeWeight: polyStyle.strokeWeight || 0,
             strokeOpacity: (polyStyle.strokeColor && polyStyle.strokeColor !== 'transparent') ? 1 : 0,
             fillColor: polyStyle.fillColor,
-            fillOpacity: polyStyle.fillOpacity || 0.7,
+            fillOpacity: finalFillOpacity,
             zIndex: featureZIndex,
             map: map
         });
@@ -1444,11 +1500,11 @@ function createNamedPointMarkerContent(name, style, properties) {
 
     return `
         <div style="
-            display: flex;
+            position: relative;
+            display: inline-flex;
             flex-direction: column;
             align-items: center;
             gap: 0;
-            position: relative;
         ">
             <div class="kml-icon-marker"
                  data-icon-type="${iconType}"
@@ -1461,20 +1517,13 @@ function createNamedPointMarkerContent(name, style, properties) {
                     height: 18px;
                     cursor: ${selectable ? 'pointer' : 'default'};
                     transition: all 0.2s ease;
-                    margin-bottom: -4px;
+                    flex-shrink: 0;
                  "
                  title="${name}">
                 <img src="${iconPath}"
                      style="width: 100%; height: 100%; object-fit: contain;"
                      alt="${name}">
             </div>
-            <div style="
-                width: 6px;
-                height: 6px;
-                background-color: transparent;
-                border-radius: 50%;
-                position: relative;
-            "></div>
             <div class="kml-label" style="
                 color: ${labelStyle.fillColor};
                 font-size: ${labelStyle.fontSize}px;
@@ -1482,7 +1531,12 @@ function createNamedPointMarkerContent(name, style, properties) {
                 white-space: nowrap;
                 text-align: center;
                 user-select: none;
-                margin-top: 0px;
+                margin-top: 2px;
+                display: none;
+                position: absolute;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
                 text-shadow:
                     -${labelStyle.strokeWidth}px -${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor},
                     ${labelStyle.strokeWidth}px -${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor},
