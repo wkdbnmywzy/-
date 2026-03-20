@@ -57,18 +57,6 @@ function initMap() {
 
     console.log('管理员地图初始化完成，中心点:', projectCenter || '默认');
 
-    // 根据缩放层级控制点位文字显隐
-    map.on('zoomchange', function() {
-        try {
-            const LABEL_SHOW_ZOOM = 20;
-            const currentZoom = map.getZoom();
-            const labels = document.querySelectorAll('.kml-label');
-            labels.forEach(function(el) {
-                el.style.display = currentZoom >= LABEL_SHOW_ZOOM ? '' : 'none';
-            });
-        } catch (e) {}
-    });
-
     // 监听地图加载完成事件
     map.on('complete', function() {
         console.log('[管理员首页] 地图加载完成');

@@ -19,15 +19,6 @@ function initMap() {
                 const r = (typeof map.getRotation === 'function') ? (map.getRotation() || 0) : 0;
                 if (r !== 0 && typeof map.setRotation === 'function') map.setRotation(0);
             } catch (e) {}
-            // 根据缩放层级控制点位文字显隐（>= 20级时显示）
-            try {
-                const LABEL_SHOW_ZOOM = 20;
-                const currentZoom = map.getZoom();
-                const labels = document.querySelectorAll('.kml-label');
-                labels.forEach(function(el) {
-                    el.style.display = currentZoom >= LABEL_SHOW_ZOOM ? '' : 'none';
-                });
-            } catch (e) {}
         });
     } catch (e) {}
     

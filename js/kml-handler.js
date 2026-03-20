@@ -1532,7 +1532,7 @@ function createNamedPointMarkerContent(name, style, properties) {
                 text-align: center;
                 user-select: none;
                 margin-top: 2px;
-                display: none;
+                display: block;
                 position: absolute;
                 top: 20px;
                 left: 50%;
@@ -1542,7 +1542,7 @@ function createNamedPointMarkerContent(name, style, properties) {
                     ${labelStyle.strokeWidth}px -${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor},
                     -${labelStyle.strokeWidth}px ${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor},
                     ${labelStyle.strokeWidth}px ${labelStyle.strokeWidth}px 0 ${labelStyle.strokeColor};
-            ">${name}</div>
+            ">${name.includes('-') ? name.split('-').slice(1).join('-') : name}</div>
         </div>
     `;
 }
