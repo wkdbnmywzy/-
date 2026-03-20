@@ -1272,7 +1272,8 @@ async function loadMapDataFromAPIForSelection() {
                 id: p.id,
                 name: p.name || p.point_name || '未命名点',
                 longitude: p.longitude,
-                latitude: p.latitude
+                latitude: p.latitude,
+                icon_id: p.icon_id
             }));
         sessionStorage.setItem('mapPointsList', JSON.stringify(pointsList));
         console.log('[选点页-API加载] 已保存', pointsList.length, '个可选点位到sessionStorage（point_type=2）');

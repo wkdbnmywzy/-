@@ -144,6 +144,18 @@
                 <button class="complete-finish-btn" id="complete-finish-btn">导航结束</button>
             </div>
         </div>
+
+        <!-- 远距离提示弹窗：跳转高德地图 -->
+        <div class="amap-redirect-modal" id="amap-redirect-modal">
+            <div class="amap-redirect-content">
+                <div class="amap-redirect-title">您距离工地较远</div>
+                <div class="amap-redirect-desc" id="amap-redirect-desc">距离最近的出入口约 <strong id="amap-gate-distance">--</strong>，建议先导航到 <strong id="amap-gate-name">--</strong></div>
+                <div class="amap-redirect-buttons">
+                    <button class="amap-btn-secondary" id="amap-continue-btn">继续工地内导航</button>
+                    <button class="amap-btn-primary" id="amap-open-btn">打开高德地图</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>

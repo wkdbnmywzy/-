@@ -1352,6 +1352,130 @@ const NavCore = (function() {
         }
     }
 
+    // ==================== 远距离检测 & 高德地图跳转 ====================
+
+    /**
+     * 从 processedKMLData 中查找最近的出入口（iconId === 2）
+     * @param {Array} currentPos - [lng, lat]
+     * @returns {{ name: string, position: Array, distance: number } | null}
+     */
+    function findNearestGate(currentPos) {
+        try {
+            const kmlData = NavDataStore.getProcessedKMLData();
+            if (!kmlData || !kmlData.features) {
+                console.log('[NavCore] 无 processedKMLData，跳过出入口查找');
+                return null;
+            }
+
+            let nearest = null;
+            let minDist = Infinity;
+
+            for (const feature of kmlData.features) {
+                // 只匹配点类型且 iconId === 2（出入口）
+                if (!feature.geometry || feature.geometry.type !== 'point') continue;
+                const iconId = feature.properties && feature.properties.iconId;
+                if (iconId !== 2 && iconId !== '2') continue;
+
+                const coords = feature.geometry.coordinates;
+                if (!coords || coords.length < 2) continue;
+
+                const dist = calculateDistanceBetween(currentPos, coords);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearest = {
+                        name: feature.name || '出入口',
+                        position: coords,
+                        distance: dist
+                    };
+                }
+            }
+
+            if (nearest) {
+                console.log(`[NavCore] 最近出入口: ${nearest.name}, 距离: ${nearest.distance.toFixed(0)}米`);
+            } else {
+                console.log('[NavCore] 未找到出入口点位(iconId=2)');
+            }
+            return nearest;
+        } catch (e) {
+            console.error('[NavCore] 查找最近出入口失败:', e);
+            return null;
+        }
+    }
+
+    /**
+     * 检测是否需要外部导航（距离出入口 > 阈值）
+     * 超过阈值时弹窗让用户选择"打开高德地图"或"继续工地内导航"
+     * @param {Array} currentPos - [lng, lat]
+     * @returns {Promise<boolean>} true = 继续工地内导航, false = 已跳转高德 / 用户取消
+     */
+    function checkExternalNavigationNeeded(currentPos) {
+        const threshold = (typeof MapConfig !== 'undefined' &&
+            MapConfig.navigationConfig &&
+            MapConfig.navigationConfig.externalNavigationThresholdMeters) || 500;
+
+        const gate = findNearestGate(currentPos);
+        if (!gate) {
+            // 没有出入口数据，跳过检查
+            return Promise.resolve(true);
+        }
+
+        if (gate.distance <= threshold) {
+            console.log(`[NavCore] 距离出入口 ${gate.distance.toFixed(0)}m ≤ ${threshold}m，无需外部导航`);
+            return Promise.resolve(true);
+        }
+
+        console.log(`[NavCore] 距离出入口 ${gate.distance.toFixed(0)}m > ${threshold}m，显示高德导航弹窗`);
+
+        return new Promise((resolve) => {
+            // 填充弹窗信息
+            const distText = gate.distance >= 1000
+                ? (gate.distance / 1000).toFixed(1) + ' km'
+                : Math.round(gate.distance) + ' 米';
+            const distEl = document.getElementById('amap-gate-distance');
+            const nameEl = document.getElementById('amap-gate-name');
+            if (distEl) distEl.textContent = distText;
+            if (nameEl) nameEl.textContent = gate.name;
+
+            // 显示弹窗
+            const modal = document.getElementById('amap-redirect-modal');
+            if (modal) modal.classList.add('active');
+
+            // "打开高德地图"按钮
+            const openBtn = document.getElementById('amap-open-btn');
+            // "继续工地内导航"按钮
+            const continueBtn = document.getElementById('amap-continue-btn');
+
+            function cleanup() {
+                if (modal) modal.classList.remove('active');
+                if (openBtn) openBtn.removeEventListener('click', onOpen);
+                if (continueBtn) continueBtn.removeEventListener('click', onContinue);
+            }
+
+            function onOpen() {
+                cleanup();
+                // 构造高德地图 URL Scheme
+                const lng = gate.position[0];
+                const lat = gate.position[1];
+                const name = encodeURIComponent(gate.name);
+                const fromLng = currentPos[0];
+                const fromLat = currentPos[1];
+                const url = `https://uri.amap.com/navigation?from=${fromLng},${fromLat},我的位置&to=${lng},${lat},${name}&mode=car&coordinate=gaode`;
+                console.log('[NavCore] 跳转高德地图:', url);
+                window.location.href = url;
+                resolve(false);
+            }
+
+            function onContinue() {
+                cleanup();
+                console.log('[NavCore] 用户选择继续工地内导航');
+                resolve(true);
+            }
+
+            if (openBtn) openBtn.addEventListener('click', onOpen);
+            if (continueBtn) continueBtn.addEventListener('click', onContinue);
+        });
+    }
+
     /**
      * 开始导航
      */
@@ -1383,6 +1507,14 @@ const NavCore = (function() {
             }
 
             console.log('[NavCore] 当前位置已获取:', currentPosition);
+
+            // 【远距离检测】检查是否距工地太远，需要先跳转高德地图导航到出入口
+            const shouldContinue = await checkExternalNavigationNeeded(currentPosition);
+            if (!shouldContinue) {
+                isStartingNavigation = false;
+                stopHeartbeatChecker();
+                return false;
+            }
 
             // 【新增】移动地图视野到用户当前位置
             const mapInstance = NavRenderer.getMap();

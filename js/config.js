@@ -150,7 +150,9 @@ const MapConfig = {
         // 建议值：30-100米，根据实际场景调整
         gpsMaxJumpDistanceMeters: 50,
         // GPS历史记录大小：保留最近N个有效GPS位置用于异常检测
-        gpsMaxHistorySize: 5
+        gpsMaxHistorySize: 5,
+        // 外部导航距离阈值（米）：用户距最近出入口超过此距离时，提示跳转高德地图
+        externalNavigationThresholdMeters: 500
     }
 };
 
