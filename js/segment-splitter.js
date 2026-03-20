@@ -130,21 +130,21 @@ function segmentIntersection(A, B, C, D) {
  */
 function detectAllIntersections(segments) {
     const intersections = [];
-    
+
     for (let i = 0; i < segments.length; i++) {
         for (let j = i + 1; j < segments.length; j++) {
             const seg1 = segments[i];
             const seg2 = segments[j];
-            
+
             const intersection = segmentIntersection(
                 seg1.start, seg1.end,
                 seg2.start, seg2.end
             );
-            
+
             if (intersection) {
                 // 如果两端点完全重合，跳过（这是连接点，不需要分割）
                 const bothEndpoints = intersection.onAB.isEndpoint && intersection.onCD.isEndpoint;
-                
+
                 if (!bothEndpoints) {
                     intersections.push({
                         point: intersection.point,
@@ -154,11 +154,61 @@ function detectAllIntersections(segments) {
                     });
                 }
             }
+
+            // 近似交点检测：端点靠近另一条线段但不精确相交（T字路口偏移情况）
+            const SNAP_THRESHOLD = 5; // 米
+            detectEndpointNearSegment(seg1.start, seg2, seg1.id, seg2.id, intersections, SNAP_THRESHOLD);
+            detectEndpointNearSegment(seg1.end, seg2, seg1.id, seg2.id, intersections, SNAP_THRESHOLD);
+            detectEndpointNearSegment(seg2.start, seg1, seg2.id, seg1.id, intersections, SNAP_THRESHOLD);
+            detectEndpointNearSegment(seg2.end, seg1, seg2.id, seg1.id, intersections, SNAP_THRESHOLD);
         }
     }
-    
+
     console.log(`检测到 ${intersections.length} 个交点`);
     return intersections;
+}
+
+/**
+ * 检测某端点是否靠近另一条线段（近似T字路口）
+ * 如果端点到线段的投影距离 < threshold 且投影点在线段内部(不在端点)，视为交点
+ */
+function detectEndpointNearSegment(point, seg, pointSegId, lineSegId, intersections, threshold) {
+    const dx = seg.end.lng - seg.start.lng;
+    const dy = seg.end.lat - seg.start.lat;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return;
+
+    const t = ((point.lng - seg.start.lng) * dx + (point.lat - seg.start.lat) * dy) / lenSq;
+
+    // 投影点必须在线段内部（不在端点附近），否则跳过
+    if (t <= 0.02 || t >= 0.98) return;
+
+    const projLng = seg.start.lng + t * dx;
+    const projLat = seg.start.lat + t * dy;
+
+    // 计算距离（简易球面近似）
+    const dLng = (point.lng - projLng) * Math.cos(point.lat * Math.PI / 180) * 111320;
+    const dLat = (point.lat - projLat) * 111320;
+    const dist = Math.sqrt(dLng * dLng + dLat * dLat);
+
+    if (dist >= threshold || dist < 0.01) return; // 太远或精确重合（已被几何检测处理）
+
+    // 检查是否已存在相同交点（避免重复）
+    const projPoint = { lng: projLng, lat: projLat };
+    const isDuplicate = intersections.some(inter => {
+        const dLng2 = (inter.point.lng - projPoint.lng) * Math.cos(projPoint.lat * Math.PI / 180) * 111320;
+        const dLat2 = (inter.point.lat - projPoint.lat) * 111320;
+        return Math.sqrt(dLng2 * dLng2 + dLat2 * dLat2) < 3;
+    });
+    if (isDuplicate) return;
+
+    console.log(`[近似交点] 端点距线段${lineSegId}仅${dist.toFixed(2)}米，视为T字路口交点`);
+    intersections.push({
+        point: projPoint,
+        seg1: pointSegId,
+        seg2: lineSegId,
+        type: 'ENDPOINT_ON_LINE'
+    });
 }
 
 /**
