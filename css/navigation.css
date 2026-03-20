@@ -107,6 +107,7 @@
     flex: 1;
     height: 1px;
     background: #e6e9ef;
+    margin-right: 30px;
 }
 
 
@@ -548,14 +549,19 @@
 }
 
 .destination-org {
-    font-size: 14px;
-    color: #999;
+    font-size: 10px;
+    font-weight: 400;
+    color: rgba(35, 124, 243, 0.6);
+    text-align: center;
+    letter-spacing: 0.05em;
 }
 
 .destination-name {
-    font-size: 28px;
-    font-weight: 700;
-    color: #333;
+    font-size: 20px;
+    font-weight: 600;
+    color: #143662;
+    text-align: center;
+    letter-spacing: 0.05em;
     line-height: 1.2;
 }
 
@@ -564,11 +570,10 @@
     align-items: center;
     gap: 12px;
     font-size: 18px;
-    color: #666;
-}
-
-.destination-stats .distance {
-    font-weight: 600;
+    font-weight: 400;
+    color: #143662;
+    text-align: center;
+    letter-spacing: 0.05em;
 }
 
 .destination-stats .separator {
@@ -576,7 +581,7 @@
 }
 
 .destination-stats .time {
-    font-weight: 600;
+    color: #143662;
 }
 
 /* 指北针样式 */

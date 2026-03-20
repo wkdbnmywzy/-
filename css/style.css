@@ -592,6 +592,7 @@ body {
     flex: 1;
     height: 1px;
     background: #e6e9ef;
+    margin-right: 30px;
 }
 
 /* 让途径点的下划线与“我的位置”分隔线等长�?
@@ -701,8 +702,8 @@ body {
 }
 
 .add-btn img {
-    width: 80%; /* 相对于按钮大�?*/
-    height: 80%;
+    width: 22px;
+    height: 22px;
     object-fit: contain;
 }
 

@@ -252,7 +252,6 @@ function setupEventListeners() {
                             try {
                                 map.setZoom(MapConfig.mapConfig.zoom);
                                 map.setCenter([lng, lat]);
-                                showSuccessMessage('已定位到当前位置');
                             } catch (e) {
                                 console.error('定位失败:', e);
                             }

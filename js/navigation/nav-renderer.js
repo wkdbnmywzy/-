@@ -1064,12 +1064,20 @@ const NavRenderer = (function() {
                     return;
                 }
                 const style = feature.geometry.style || {};
+                // 判断是否为禁行区：通过fillColor是否为红色系判断（与kml-handler保持一致）
+                const fillColorStr = (style.fillColor || '').toLowerCase();
+                const isProhibitZone = /^#[ef][0-9a-f]{5}$/.test(fillColorStr) ||
+                    fillColorStr === '#ff0000' || fillColorStr === '#ffa8a8' ||
+                    fillColorStr === '#ff6d6d' || fillColorStr === '#ff4444' ||
+                    (style.strokeColor || '').toLowerCase().startsWith('#ff');
+                const finalFillOpacity = isProhibitZone ? 0.2 : 1;
                 const polygon = new AMap.Polygon({
                     path: validPath,
-                    strokeColor: 'transparent',
-                    strokeWeight: 0,
+                    strokeColor: style.strokeColor || 'transparent',
+                    strokeWeight: style.strokeWeight || 0,
+                    strokeOpacity: (style.strokeColor && style.strokeColor !== 'transparent') ? 1 : 0,
                     fillColor: style.fillColor || '#CCCCCC',
-                    fillOpacity: style.fillOpacity || 0.3,
+                    fillOpacity: finalFillOpacity,
                     zIndex: 10 + index,
                     map: map
                 });

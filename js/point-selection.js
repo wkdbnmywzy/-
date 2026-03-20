@@ -832,10 +832,6 @@ function selectTagLocation(tagName) {
     // 恢复默认显示
     restoreDefaultDisplay();
 
-    // 提示用户
-    if (typeof showSuccessMessage === 'function') {
-        showSuccessMessage(`已选择: ${tagName}`);
-    }
 }
 
 // 从面板选择地点
@@ -935,10 +931,6 @@ function selectLocationFromPicker(locationText, locationItem) {
     // 恢复默认显示
     restoreDefaultDisplay();
 
-    // 提示用户
-    if (typeof showSuccessMessage === 'function') {
-        showSuccessMessage(`已选择: ${locationText}`);
-    }
 }
 
 // 添加地点到当前输入框
@@ -1282,11 +1274,6 @@ function autoSelectLocation(keyword, inputType) {
                 type: 'kml-point'
             });
 
-            // 显示成功消息
-            if (typeof showSuccessMessage === 'function') {
-                showSuccessMessage(`已选择: ${exactMatch.name}`);
-            }
-
             // 恢复默认显示
             restoreDefaultDisplay();
             return;
@@ -1313,11 +1300,6 @@ function autoSelectLocation(keyword, inputType) {
 
             // 重新添加到历史（更新时间戳）
             addToSearchHistory(historyMatch);
-
-            // 显示成功消息
-            if (typeof showSuccessMessage === 'function') {
-                showSuccessMessage(`已选择: ${historyMatch.name}`);
-            }
 
             // 恢复默认显示
             restoreDefaultDisplay();

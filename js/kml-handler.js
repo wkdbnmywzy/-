@@ -1735,10 +1735,6 @@ function handlePendingSelectedLocation() {
             });
         }
 
-        // 显示位置名称
-        if (typeof showSuccessMessage === 'function') {
-            showSuccessMessage(`已定位到: ${selectedLocation.name}`);
-        }
     }
 }
 

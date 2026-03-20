@@ -256,8 +256,6 @@ function selectKMLPointFromSearch(kmlPoint) {
     // 清空搜索框
     document.getElementById('search-input').value = '';
 
-    // 显示选择成功的提示
-    showSuccessMessage(`已选择: ${kmlPoint.name}`);
 }
 
 // 搜索KML点信息（保持原有函数用于兼容）
