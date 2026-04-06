@@ -1,6 +1,9 @@
 // main.js
 // 应用程序主入口
 
+let prohibitFencePolygons = [];
+let currentProhibitFenceId = null;
+
 // 检查登录状态
 function checkLoginStatus() {
     const isLoggedIn = sessionStorage.getItem('isLoggedIn');
@@ -16,6 +19,7 @@ function checkLoginStatus() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    bindHomeFenceAlertListener();
     // 检查登录状态
     if (!checkLoginStatus()) {
         return;
@@ -253,6 +257,120 @@ function navigateToPage(page) {
         default:
             console.warn('未知页面:', page);
     }
+}
+
+function bindHomeFenceAlertListener() {
+    window.addEventListener('fenceAlert', function(e) {
+        const data = e.detail || {};
+        if (data.fenceType !== 'prohibit') return;
+
+        const alertLayer = document.getElementById('prohibit-alert-layer');
+        if (!alertLayer) return;
+
+        if (data.eventType === 'enter') {
+            alertLayer.style.display = 'block';
+        } else if (data.eventType === 'leave') {
+            alertLayer.style.display = 'none';
+        }
+    });
+}
+
+function updateHomeProhibitAlertByPosition(position) {
+    if (!position || !Array.isArray(position) || position.length < 2) return;
+
+    const hitFence = findCurrentProhibitFence(position);
+    const nextFenceId = hitFence ? hitFence.id : null;
+
+    if (nextFenceId === currentProhibitFenceId) return;
+
+    if (currentProhibitFenceId && !nextFenceId) {
+        window.dispatchEvent(new CustomEvent('fenceAlert', {
+            detail: {
+                fenceType: 'prohibit',
+                eventType: 'leave',
+                fenceId: currentProhibitFenceId
+            }
+        }));
+    }
+
+    if (nextFenceId && currentProhibitFenceId !== nextFenceId) {
+        window.dispatchEvent(new CustomEvent('fenceAlert', {
+            detail: {
+                fenceType: 'prohibit',
+                eventType: 'enter',
+                fenceId: nextFenceId,
+                fenceName: hitFence.name
+            }
+        }));
+    }
+
+    currentProhibitFenceId = nextFenceId;
+}
+
+function refreshHomeProhibitFenceCache() {
+    prohibitFencePolygons = [];
+
+    if (!window.kmlData || !Array.isArray(window.kmlData.features)) return;
+
+    prohibitFencePolygons = window.kmlData.features
+        .filter(feature => isProhibitFenceFeature(feature))
+        .map((feature, index) => ({
+            id: (feature.properties && feature.properties.id) || feature.name || `prohibit-${index}`,
+            name: feature.name || '禁行区',
+            path: feature.geometry.coordinates
+        }));
+
+    if (currentPosition) {
+        updateHomeProhibitAlertByPosition(currentPosition);
+    }
+}
+
+function isProhibitFenceFeature(feature) {
+    if (!feature || !feature.geometry || feature.geometry.type !== 'polygon') return false;
+
+    const name = (feature.name || '').toLowerCase();
+    const props = feature.properties || {};
+    const areaType = props.area_type ?? props.areaType ?? props.type;
+
+    if (areaType === 1 || areaType === '1' || areaType === 'prohibit') return true;
+    if (name.includes('禁行')) return true;
+
+    const style = feature.geometry.style || {};
+    const fillColor = (style.fillColor || '').toLowerCase();
+    const strokeColor = (style.strokeColor || '').toLowerCase();
+
+    return fillColor === '#ff0000' || fillColor === '#ffa8a8' || fillColor === '#ff6d6d' || fillColor === '#ff4444' || strokeColor.startsWith('#ff');
+}
+
+function findCurrentProhibitFence(position) {
+    for (const fence of prohibitFencePolygons) {
+        if (isPointInPolygonSimple(position, fence.path)) {
+            return fence;
+        }
+    }
+    return null;
+}
+
+function isPointInPolygonSimple(point, polygon) {
+    if (!Array.isArray(point) || !Array.isArray(polygon) || polygon.length < 3) return false;
+
+    const x = point[0];
+    const y = point[1];
+    let inside = false;
+
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i][0];
+        const yi = polygon[i][1];
+        const xj = polygon[j][0];
+        const yj = polygon[j][1];
+
+        const intersect = ((yi > y) !== (yj > y)) &&
+            (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+
+        if (intersect) inside = !inside;
+    }
+
+    return inside;
 }
 
 /**
@@ -540,6 +658,7 @@ async function loadMapDataFromAPI() {
             // 调用 kml-handler.js 中的显示函数
             console.log('[API加载] 调用displayKMLFeatures显示地图数据');
             displayKMLFeatures(processedFeatures, kmlData.fileName);
+            refreshHomeProhibitFenceCache();
 
             console.log('[API加载] 地图数据已显示');
             

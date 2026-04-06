@@ -1411,7 +1411,7 @@ const NavCore = (function() {
     function checkExternalNavigationNeeded(currentPos) {
         const threshold = (typeof MapConfig !== 'undefined' &&
             MapConfig.navigationConfig &&
-            MapConfig.navigationConfig.externalNavigationThresholdMeters) || 500;
+            MapConfig.navigationConfig.externalNavigationThresholdMeters) || 100;
 
         const gate = findNearestGate(currentPos);
         if (!gate) {
@@ -3417,6 +3417,94 @@ const NavCore = (function() {
      * @param {number} gpsHeading - GPS方向（度）
      */
     function onGPSUpdate(position, accuracy, gpsHeading = 0) {
+
+        // ================== 【全图通杀】真实后端数据多围栏检测 ==================
+    try {
+        let currentLng, currentLat;
+        if (arguments[0] && Array.isArray(arguments[0])) {
+            currentLng = arguments[0][0]; currentLat = arguments[0][1];
+        } else if (arguments[0] && arguments[0].lng) {
+            currentLng = arguments[0].lng; currentLat = arguments[0].lat;
+        }
+
+        if (currentLng && currentLat) {
+            const currentPoint =[currentLng, currentLat];
+
+            if (!window.realBackendFences && !window.isFetchingFences) {
+                window.isFetchingFences = true; 
+                const urlParams = new URLSearchParams(window.location.search);
+                const projectId = urlParams.get('project_id') || urlParams.get('projectId') || 'P000000025'; 
+                const token = sessionStorage.getItem('authToken') || '';
+
+                fetch(`https://dmap.cscec3bxjy.cn/api/map/fence-polygons/project/${projectId}`, {
+                    headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+                }).then(res => res.json()).then(result => {
+                    if (result.code === 200 && result.data) {
+                        window.realBackendFences = result.data; 
+                        console.log(`✅[全图通杀] 成功从后端获取真实围栏数据，共计 ${result.data.length} 个！`);
+                    }
+                }).catch(e => console.error("拉取围栏失败:", e)).finally(() => {
+                    window.isFetchingFences = false;
+                });
+            }
+
+            if (window.realBackendFences && window.realBackendFences.length > 0) {
+                function isPointInPolygon(point, polygon) {
+                    let x = point[0], y = point[1], inside = false;
+                    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                        let xi = polygon[i][0], yi = polygon[i][1], xj = polygon[j][0], yj = polygon[j][1];
+                        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+                    }
+                    return inside;
+                }
+
+                function extractCoords(fence) {
+                    let coords = fence.coordinates || fence.polygon || fence.path;
+                    if (!coords && fence.pg_position) {
+                        try { coords = typeof fence.pg_position === 'string' ? JSON.parse(fence.pg_position) : fence.pg_position; } catch(e){}
+                    }
+                    if (!coords || coords.length < 3) return null;
+                    return coords.map(c => {
+                        if (Array.isArray(c)) return [c[0], c[1]];
+                        if (c.lng && c.lat) return[c.lng, c.lat];
+                        return null;
+                    }).filter(p => p !== null);
+                }
+
+                let currentInsideFenceId = null;
+                
+                for (let i = 0; i < window.realBackendFences.length; i++) {
+                    const fence = window.realBackendFences[i];
+                    const isProhibit = fence.area_type === 1 || fence.type === 'prohibit' || fence.fenceType === 'prohibit';
+                    
+                    if (isProhibit) {
+                        const path = extractCoords(fence);
+                        if (path && isPointInPolygon(currentPoint, path)) {
+                            currentInsideFenceId = fence.id || fence.fenceId || '未知禁行区';
+                            break; 
+                        }
+                    }
+                }
+
+                if (currentInsideFenceId) {
+                    if (window.activeFenceId !== currentInsideFenceId) {
+                        window.activeFenceId = currentInsideFenceId;
+                        console.log(`💥 预警！车辆驶入禁行区 [${currentInsideFenceId}]，拉响警报！`);
+                        window.dispatchEvent(new CustomEvent('fenceAlert', { detail: { fenceType: 'prohibit', eventType: 'enter' } }));
+                    }
+                } else {
+                    if (window.activeFenceId) {
+                        console.log(`🟢 车辆已离开所有禁行区，解除警报！`);
+                        window.activeFenceId = null;
+                        window.dispatchEvent(new CustomEvent('fenceAlert', { detail: { fenceType: 'prohibit', eventType: 'leave' } }));
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("全图围栏检测逻辑报错:", e);
+    }
+    // ========================================================================
         try {
             if (!isNavigating) return;
 

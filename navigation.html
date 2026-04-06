@@ -8,6 +8,62 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/navigation.css">
     <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=0497193edd69fcf7a6938b2591348409"></script>
+    <style>
+    /* 禁行区红光警报样式 */
+    #prohibit-alert-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* 穿透点击，不影响地图操作 */
+        z-index: 9999; /* 确保在地图最上层 */
+        display: none; /* 默认隐藏 */
+    }
+
+    .alert-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        /* 四周往内泛红光的效果 */
+        box-shadow: inset 0 0 80px rgba(255, 0, 0, 0.6); 
+        background-color: rgba(255, 0, 0, 0.15); 
+        animation: pulseAlert 1.5s infinite; /* 呼吸灯闪烁动画 */
+    }
+
+    .alert-banner {
+            position: absolute;
+            top: 110px; /* 默认首页位置 */
+            left: 50%;
+            transform: translateX(-50%);
+            color: red;
+            font-size: 16px;
+            font-weight: bold;
+                /* background: rgba(255, 255, 255, 0.9); */
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: row;      /* 强制子元素横向排列 */
+            align-items: center;
+            justify-content: center;  /* 水平居中对齐 */
+            /* 核心：防止文字换行 */
+            white-space: nowrap;      /* 强制文字在一行内显示，不自动折行 */
+    }
+
+    .icon-wrapper {
+                width: 22px; height: 22px; background: #ff4d4f; border-radius: 50%;
+                color: white; font-weight: bold; display: flex; 
+                align-items: center; justify-content: center; margin-right: 10px;
+            }
+
+    @keyframes pulseAlert {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+    }
+</style>
 </head>
 <body>
     <div class="container">
@@ -41,6 +97,15 @@
                 </div>
             </div>
         </div>
+        <!-- 禁行区警报 UI 层 (默认隐藏) -->
+            <div id="prohibit-alert-layer" style="display: none;">
+                <!-- 红色边缘发光遮罩 -->
+                <div class="alert-overlay"></div>
+                <!-- 顶部提示文字 -->
+                <div class="alert-banner">
+                <div class="icon-wrapper">!</div> 注意！已进入禁行区域！
+                </div>
+            </div>
 
         <!-- 底部信息卡片 -->
         <div class="navigation-card" id="navigation-card">
@@ -177,6 +242,8 @@
     <script src="js/navigation/nav-ui.js"></script>
     <script src="js/virtual-gps-simulator.js"></script>
 
+    <script src="nav-core.js"></script>
+
     <!-- 初始化脚本 -->
     <script>
         // 注意：window.kmlLayers 已在 config.js 中声明，这里直接使用
@@ -192,6 +259,28 @@
                     initNavigation();
                 });
             });
+            // ===== 下面是新增的：禁行区警报监听 =====
+            const alertLayer = document.getElementById('prohibit-alert-layer');
+
+            
+
+            if (alertLayer) {
+                window.addEventListener('fenceAlert', function(e) {
+                    const data = e.detail;
+                    if (data.fenceType === 'prohibit') {
+                        if (data.eventType === 'enter') {
+                            // 进入禁行区，显示红光
+                            alertLayer.style.display = 'block';
+                            // 可选：调用你 nav-tts.js 里的语音播报
+                            // window.playTTS && window.playTTS("注意，已进入禁行区域");
+                        } else if (data.eventType === 'leave') {
+                            // 离开禁行区，隐藏红光
+                            alertLayer.style.display = 'none';
+                        }
+                    }
+                });
+            }
+            // =====================================
         });
 
         function initNavigation() {
@@ -229,4 +318,4 @@
     </script>
 </body>
 </html>
-  
+

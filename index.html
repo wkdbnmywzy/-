@@ -7,11 +7,77 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
     <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=0497193edd69fcf7a6938b2591348409"></script>
+    <style>
+    #prohibit-alert-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 9999;
+        display: none;
+    }
+
+    .alert-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        box-shadow: inset 0 0 80px rgba(255, 0, 0, 0.6);
+        background-color: rgba(255, 0, 0, 0.15);
+        animation: pulseAlert 1.5s infinite;
+    }
+
+    .alert-banner {
+        position: absolute;
+        top: 110px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: red;
+        font-size: 16px;
+        font-weight: bold;
+        padding: 10px 20px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+    }
+
+    .icon-wrapper {
+        width: 22px;
+        height: 22px;
+        background: #ff4d4f;
+        border-radius: 50%;
+        color: white;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 10px;
+    }
+
+    @keyframes pulseAlert {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+    }
+    </style>
 </head>
 <!-- 隐藏的文件输入 -->
 <input type="file" id="file-input" accept=".kml" style="display: none;">
 <body>
     <div class="container">
+        <div id="prohibit-alert-layer" style="display: none;">
+            <div class="alert-overlay"></div>
+            <div class="alert-banner">
+                <div class="icon-wrapper">!</div> 注意！已进入禁行区域！
+            </div>
+        </div>
+
         <!-- 地图容器 -->
         <div id="map-container"></div>
         

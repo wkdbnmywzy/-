@@ -287,9 +287,14 @@ const AdminWebSocket = (function() {
             console.log('[WebSocket] 报警消息已添加到消息中心');
         }
 
-        // 触发自定义事件
-        window.dispatchEvent(new CustomEvent('fenceAlert', {
-            detail: message
+        // 【优化点】：把解析后的标准状态传递给前端UI监听器
+    window.dispatchEvent(new CustomEvent('fenceAlert', {
+        detail: {
+            vehicleId: vehicleId,
+            fenceType: normalizedFenceType, // prohibit 或 fence
+            eventType: normalizedEventType, // enter 或 leave
+            raw: message
+        }
         }));
     }
 

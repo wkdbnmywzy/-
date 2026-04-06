@@ -180,6 +180,9 @@ function getCurrentLocation() {
             console.log('转换后坐标(GCJ02):', lng, lat);
 
             currentPosition = [lng, lat];
+            if (typeof updateHomeProhibitAlertByPosition === 'function') {
+                updateHomeProhibitAlertByPosition(currentPosition);
+            }
 
             // 保存当前位置到sessionStorage供导航页面使用
             try {
@@ -328,6 +331,9 @@ function startRealtimeLocationTracking() {
 
             const curr = [lng, lat];
             currentPosition = curr;
+            if (typeof updateHomeProhibitAlertByPosition === 'function') {
+                updateHomeProhibitAlertByPosition(curr);
+            }
 
             // 保存当前位置到sessionStorage供导航页面使用
             try {

@@ -334,114 +334,140 @@ const AdminVehicleManager = (function() {
         }
     }
 
-    /**
+/**
      * 开始车辆标记闪烁（红色波纹扩散效果）
      * @param {AMap.Marker} marker - 车辆标记
      */
     function startVehicleBlink(marker) {
-        if (!marker) return;
+    if (!marker) return;
 
-        const extData = marker.getExtData();
-        if (!extData) return;
+    const extData = marker.getExtData();
+    if (!extData || extData.isViolating) return;
 
-        // 如果已经在闪烁，不重复启动
-        if (extData.isViolating) {
-            return;
-        }
+    console.log('[车辆管理器] 车辆违规，展示波纹与信息框:', extData.vehicleId);
 
-        console.log('[车辆管理器] 车辆违规，开始闪烁:', extData.vehicleId);
+    extData.isViolating = true;
+    const position = marker.getPosition();
 
-        extData.isViolating = true;
-        marker.setExtData(extData);
-
-        // 创建红色波纹扩散效果
-        const position = marker.getPosition();
-
-        // 创建波纹圆圈（3层波纹）
-        const ripples = [];
-        for (let i = 0; i < 3; i++) {
-            const ripple = new AMap.CircleMarker({
-                center: position,
-                radius: 10 + i * 15, // 初始半径
-                strokeColor: '#FF0000',
-                strokeWeight: 2,
-                strokeOpacity: 0.8 - i * 0.2,
-                fillColor: '#FF0000',
-                fillOpacity: 0.3 - i * 0.1,
-                zIndex: 90,
-                map: map
-            });
-            ripples.push(ripple);
-        }
-
-        // 保存波纹引用
-        extData.ripples = ripples;
-
-        // 动画：波纹扩散
-        let frame = 0;
-        extData.blinkTimer = setInterval(() => {
-            try {
-                frame++;
-                ripples.forEach((ripple, index) => {
-                    // 计算当前半径（循环扩散）
-                    const baseRadius = 15 + index * 20;
-                    const maxExpand = 30;
-                    const phase = (frame + index * 10) % 30;
-                    const currentRadius = baseRadius + (phase / 30) * maxExpand;
-
-                    // 透明度随扩散降低
-                    const opacity = 0.6 - (phase / 30) * 0.5;
-
-                    ripple.setRadius(currentRadius);
-                    ripple.setOptions({
-                        strokeOpacity: opacity,
-                        fillOpacity: opacity * 0.3
-                    });
-                });
-            } catch (e) {
-                console.warn('[车辆管理器] 波纹效果异常:', e.message);
-            }
-        }, 100);
-
-        marker.setExtData(extData);
+    // 1. 创建原有的 3 层红色波纹
+    const ripples = [];
+    for (let i = 0; i < 3; i++) {
+        const ripple = new AMap.CircleMarker({
+            center: position,
+            radius: 10 + i * 15,
+            strokeColor: '#FF0000',
+            strokeWeight: 2,
+            strokeOpacity: 0.8 - i * 0.2,
+            fillColor: '#FF0000',
+            fillOpacity: 0.3 - i * 0.1,
+            zIndex: 90,
+            map: map
+        });
+        ripples.push(ripple);
     }
+    extData.ripples = ripples;
+
+    // 2. 新增：创建 HTML 文字信息框（分隔线加长版）
+    const infoContent = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 0; height: 0; position: relative;">
+        <div style="background: #616e86; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 50px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.3); position: relative; text-align: center; min-width: 120px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+            
+            <div style="padding-bottom: 4px;">砂石运输</div>
+            
+            <div style="width: 98%; height: 1px; background: rgba(255,255,255,0.3); margin: 0 auto 5px auto;"></div>
+            
+            <div style="padding-top: 1px; opacity: 0.9;">
+                <span>${extData.vehicleId || '鄂A88888'}</span>&nbsp;&nbsp;
+                <span>GPS1234</span>
+            </div>
+            
+            <div style="position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border-width: 6px 6px 0 6px; border-style: solid; border-color: #616e86 transparent transparent transparent;"></div>
+        </div>
+
+        <div style="background: white; color: #ff4d4f; border: 1.5px solid #ff4d4f; padding: 3px 10px; border-radius: 4px; font-weight: bold; font-size: 13px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; margin-top: 20px;">
+            <span style="background:#ff4d4f; color:white; border-radius:50%; width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; margin-right:6px;">!</span>
+            驶入禁行区域
+        </div>
+    </div>`;
+
+    // 创建 Marker 时，将 offset 设为 (0, 0)，配合父容器的 align-items: center 即可实现水平完美居中
+    const infoMarker = new AMap.Marker({
+    position: position,
+    content: infoContent,
+    offset: new AMap.Pixel(0, 0), // 容器中心点对齐车辆坐标
+    zIndex: 200,
+    map: map
+   });
+   extData.infoMarker = infoMarker;
+
+    // 3. 动画：波纹扩散 + 位置同步
+    let frame = 0;
+    extData.blinkTimer = setInterval(() => {
+        try {
+            frame++;
+            const currentPos = marker.getPosition(); // 获取车辆实时位置
+
+            // 同步波纹和信息框的位置（防止车辆跑出特效范围）
+            ripples.forEach((ripple, index) => {
+                const phase = (frame + index * 10) % 30;
+                const currentRadius = (15 + index * 20) + (phase / 30) * 30;
+                const opacity = 0.6 - (phase / 30) * 0.5;
+
+                ripple.setCenter(currentPos); // 关键：更新圆心
+                ripple.setRadius(currentRadius);
+                ripple.setOptions({
+                    strokeOpacity: opacity,
+                    fillOpacity: opacity * 0.3
+                });
+            });
+
+            if (infoMarker) {
+                infoMarker.setPosition(currentPos); // 关键：更新信息框位置
+            }
+        } catch (e) {
+            console.warn('[车辆管理器] 特效刷新异常:', e.message);
+        }
+    }, 100);
+
+    marker.setExtData(extData);
+}
 
     /**
      * 停止车辆标记闪烁
      * @param {AMap.Marker} marker - 车辆标记
      */
     function stopVehicleBlink(marker) {
-        if (!marker) return;
+    if (!marker) return;
 
-        const extData = marker.getExtData();
-        if (!extData || !extData.isViolating) {
-            return;
-        }
+    const extData = marker.getExtData();
+    if (!extData || !extData.isViolating) return;
 
-        console.log('[车辆管理器] 车辆离开围栏，停止闪烁:', extData.vehicleId);
+    console.log('[车辆管理器] 停止闪烁与移除信息框:', extData.vehicleId);
 
-        // 清除定时器
-        if (extData.blinkTimer) {
-            clearInterval(extData.blinkTimer);
-            extData.blinkTimer = null;
-        }
-
-        // 移除波纹
-        if (extData.ripples) {
-            extData.ripples.forEach(ripple => {
-                if (ripple && map) {
-                    map.remove(ripple);
-                }
-            });
-            extData.ripples = null;
-        }
-
-        extData.isViolating = false;
-        marker.setzIndex(100);
-
-        marker.setExtData(extData);
+    // 1. 清除定时器
+    if (extData.blinkTimer) {
+        clearInterval(extData.blinkTimer);
+        extData.blinkTimer = null;
     }
 
+    // 2. 移除波纹
+    if (extData.ripples) {
+        extData.ripples.forEach(ripple => {
+            if (ripple && map) map.remove(ripple);
+        });
+        extData.ripples = null;
+    }
+
+    // 3. 新增：移除文字信息框
+    if (extData.infoMarker) {
+        map.remove(extData.infoMarker);
+        extData.infoMarker = null;
+    }
+
+    extData.isViolating = false;
+    marker.setzIndex(100);
+    marker.setExtData(extData);
+}
     /**
      * 获取临时车辆数据
      * @param {string} projectId - 项目ID
